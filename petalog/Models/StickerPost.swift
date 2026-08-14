@@ -57,7 +57,7 @@ struct StickerPost: Identifiable, Hashable {
         self.dateKey = data["dateKey"] as? String ?? Date().petalogDateKey
         self.authorId = data["authorId"] as? String ?? ""
         self.authorName = data["authorName"] as? String ?? "friend"
-        self.authorAvatar = data["authorAvatar"] as? String ?? "🙂"
+        self.authorAvatar = data["authorAvatar"] as? String ?? ""
         self.comment = data["comment"] as? String ?? ""
         self.shape = StickerShapeOption(rawValue: data["shape"] as? String ?? "") ?? .circle
         self.decoration = StickerDecoration(rawValue: data["decoration"] as? String ?? "") ?? .none

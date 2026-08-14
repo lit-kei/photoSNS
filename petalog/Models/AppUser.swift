@@ -14,7 +14,7 @@ struct AppUser: Identifiable, Hashable {
         id: String,
         email: String = "",
         displayName: String,
-        avatar: String = "🙂",
+        avatar: String = "",
         avatarURL: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -32,7 +32,7 @@ struct AppUser: Identifiable, Hashable {
         self.id = id
         self.email = data["email"] as? String ?? ""
         self.displayName = data["displayName"] as? String ?? "petalog user"
-        self.avatar = data["avatar"] as? String ?? "🙂"
+        self.avatar = data["avatar"] as? String ?? ""
         self.avatarURL = data["avatarURL"] as? String
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
         self.updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()

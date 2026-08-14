@@ -3,6 +3,7 @@
 //  petalog
 //
 
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -20,7 +21,7 @@ struct HomeScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.screenTop)
-                .padding(.bottom, 28)
+                .padding(.bottom, AppSpacing.floatingTabClearance)
             }
             .background {
                 PetalogMetalBackground()
@@ -58,7 +59,7 @@ struct HomeScreen: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let user = appState.currentUser {
-                    Text("\(user.avatar) \(user.displayName)")
+                    Text(user.displayName)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(AppColors.secondaryText)
                 }
@@ -228,7 +229,7 @@ struct MemoriesScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.screenTop + 18)
-                .padding(.bottom, 28)
+                .padding(.bottom, AppSpacing.floatingTabClearance)
             }
             .background {
                 PetalogMetalBackground()
@@ -268,7 +269,9 @@ private struct MemoryListCard: View {
 struct ProfileScreen: View {
     @EnvironmentObject private var appState: AppState
     @State private var displayName = ""
-    @State private var avatar = "🙂"
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedPhotoData: Data?
+    @State private var isSavingProfile = false
 
     var body: some View {
         NavigationStack {
@@ -280,37 +283,64 @@ struct ProfileScreen: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     VStack(spacing: 18) {
-                        MetallicAvatar(symbol: avatar)
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                            ProfilePhotoPickerLabel(
+                                imageData: selectedPhotoData,
+                                imageURLString: appState.currentUser?.avatarURL
+                            )
+                        }
+                        .buttonStyle(.plain)
 
-                        TextField("ユーザー名", text: $displayName)
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(AppColors.mainText)
-                            .multilineTextAlignment(.center)
-                            .textFieldStyle(.plain)
-                            .padding(.vertical, 10)
-                            .overlay(alignment: .bottom) {
-                                Rectangle()
-                                    .fill(AppColors.border)
-                                    .frame(height: 1)
-                            }
+                        Text("写真を変更")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(AppColors.secondaryText)
 
-                        HStack(spacing: 10) {
-                            ForEach(["🙂", "😆", "😎", "😊", "🤩", "🌟"], id: \.self) { candidate in
-                                EmojiChip(symbol: candidate, isSelected: candidate == avatar) {
-                                    withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
-                                        avatar = candidate
+                        MetalCard(padding: 16) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("ユーザー名を編集", systemImage: "pencil")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(AppColors.secondaryText)
+
+                                TextField("ユーザー名", text: $displayName)
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(AppColors.mainText)
+                                    .textFieldStyle(.plain)
+                                    .padding(.vertical, 13)
+                                    .padding(.horizontal, 14)
+                                    .background(AppColors.chromeHighlight.opacity(0.72))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .stroke(AppColors.border, lineWidth: 0.8)
                                     }
-                                }
                             }
+                        }
+                    }
+                    .onChange(of: selectedPhotoItem) { _, item in
+                        Task {
+                            guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
+                            selectedPhotoData = data
                         }
                     }
 
                     Button {
-                        Task { await appState.updateProfile(displayName: displayName, avatar: avatar) }
+                        Task {
+                            isSavingProfile = true
+                            await appState.updateProfile(displayName: displayName, avatarImageData: selectedPhotoData)
+                            selectedPhotoData = nil
+                            selectedPhotoItem = nil
+                            isSavingProfile = false
+                        }
                     } label: {
-                        Label("プロフィールを保存", systemImage: "checkmark.circle")
+                        if isSavingProfile {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Label("プロフィールを保存", systemImage: "checkmark.circle")
+                        }
                     }
                     .buttonStyle(PrimaryActionButtonStyle())
+                    .disabled(isSavingProfile)
 
                     StatsStrip(
                         groups: appState.groups.count,
@@ -350,7 +380,7 @@ struct ProfileScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.screenTop + 18)
-                .padding(.bottom, 34)
+                .padding(.bottom, AppSpacing.floatingTabClearance)
             }
             .background {
                 PetalogMetalBackground()
@@ -358,7 +388,6 @@ struct ProfileScreen: View {
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
                 displayName = appState.currentUser?.displayName ?? ""
-                avatar = appState.currentUser?.avatar ?? "🙂"
             }
         }
     }
@@ -370,8 +399,16 @@ private struct AvatarToken: View {
     let fontSize: CGFloat
 
     var body: some View {
-        Text(symbol)
-            .font(.system(size: fontSize))
+        Group {
+            if symbol.isEmpty {
+                Image(systemName: "person.fill")
+                    .font(.system(size: fontSize * 0.74, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText.opacity(0.72))
+            } else {
+                Text(symbol)
+                    .font(.system(size: fontSize))
+            }
+        }
             .frame(width: size, height: size)
             .background {
                 Circle()
@@ -387,57 +424,77 @@ private struct AvatarToken: View {
     }
 }
 
-private struct MetallicAvatar: View {
-    let symbol: String
+private struct ProfilePhotoPickerLabel: View {
+    let imageData: Data?
+    let imageURLString: String?
 
     var body: some View {
-        Text(symbol)
-            .font(.system(size: 70))
-            .frame(width: 132, height: 132)
-            .background {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                AppColors.chromeHighlight,
-                                AppColors.silver.opacity(0.54),
-                                AppColors.elevatedSurface,
-                                AppColors.darkSilver.opacity(0.18)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            .overlay {
-                Circle().stroke(AppColors.border, lineWidth: 0.8)
-            }
-            .shadow(color: AppColors.silver.opacity(0.22), radius: 18, y: 8)
-    }
-}
-
-private struct EmojiChip: View {
-    let symbol: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(symbol)
-                .font(.system(size: 20))
-                .frame(width: 42, height: 42)
+        ZStack(alignment: .bottomTrailing) {
+            avatarContent
+                .frame(width: 132, height: 132)
                 .background {
                     Circle()
-                        .fill(AppColors.surface.opacity(0.95))
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    AppColors.chromeHighlight,
+                                    AppColors.silver.opacity(0.54),
+                                    AppColors.elevatedSurface,
+                                    AppColors.darkSilver.opacity(0.18)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                 }
+                .clipShape(Circle())
                 .overlay {
-                    Circle()
-                        .stroke(isSelected ? AppColors.mainText.opacity(0.72) : AppColors.border, lineWidth: isSelected ? 1.2 : 0.8)
+                    Circle().stroke(AppColors.border, lineWidth: 0.8)
                 }
-                .shadow(color: isSelected ? AppColors.silver.opacity(0.34) : .clear, radius: 10, y: 4)
-                .scaleEffect(isSelected ? 1.08 : 1)
+                .shadow(color: AppColors.silver.opacity(0.22), radius: 18, y: 8)
+
+            Image(systemName: "camera.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppColors.mainText)
+                .frame(width: 38, height: 38)
+                .background(AppColors.chromeHighlight.opacity(0.95))
+                .clipShape(Circle())
+                .overlay {
+                    Circle().stroke(AppColors.border, lineWidth: 0.8)
+                }
         }
-        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var avatarContent: some View {
+        if let imageData, let uiImage = UIImage(data: imageData) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+        } else if let imageURLString, let url = URL(string: imageURLString), !imageURLString.isEmpty {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    placeholder
+                case .empty:
+                    ProgressView()
+                @unknown default:
+                    placeholder
+                }
+            }
+        } else {
+            placeholder
+        }
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "person.crop.circle.fill")
+            .font(.system(size: 72, weight: .regular))
+            .foregroundStyle(AppColors.mainText.opacity(0.72))
     }
 }
 

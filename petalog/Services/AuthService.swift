@@ -1,12 +1,16 @@
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseStorage
 import Foundation
+import UIKit
 
 final class AuthService {
     private let db: Firestore
+    private let storage: Storage
 
-    init(db: Firestore) {
+    init(db: Firestore, storage: Storage) {
         self.db = db
+        self.storage = storage
     }
 
     func currentAccount() -> AuthenticatedAccount? {
@@ -51,6 +55,33 @@ final class AuthService {
 
     func updateProfile(user: AppUser) async throws {
         try await db.collection("users").document(user.id).setData(user.dictionary, merge: true)
+    }
+
+    func uploadProfileImage(userId: String, imageData: Data) async throws -> URL {
+        let uploadData: Data
+        if let image = UIImage(data: imageData), let jpegData = image.jpegData(compressionQuality: 0.82) {
+            uploadData = jpegData
+        } else {
+            uploadData = imageData
+        }
+
+        let ref = storage.reference(withPath: "profilePhotos/\(userId)/avatar.jpg")
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+
+        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<StorageMetadata, Error>) in
+            ref.putData(uploadData, metadata: metadata) { metadata, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let metadata {
+                    continuation.resume(returning: metadata)
+                } else {
+                    continuation.resume(throwing: PetalogError.message("プロフィール写真の保存に失敗しました。"))
+                }
+            }
+        }
+
+        return try await ref.downloadURL()
     }
 
     func signOut() throws {

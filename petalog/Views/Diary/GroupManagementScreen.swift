@@ -94,7 +94,9 @@ struct GroupManagementScreen: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, AppSpacing.floatingTabClearance)
         }
         .background {
             PetalogMetalBackground()

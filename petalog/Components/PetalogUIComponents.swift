@@ -394,8 +394,16 @@ struct MemberAvatarStack: View {
     var body: some View {
         HStack(spacing: -8) {
             ForEach(Array(avatars.prefix(4).enumerated()), id: \.offset) { _, avatar in
-                Text(avatar)
-                    .font(.title3)
+                Group {
+                    if avatar.isEmpty {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppColors.mainText.opacity(0.72))
+                    } else {
+                        Text(avatar)
+                            .font(.title3)
+                    }
+                }
                     .frame(width: 34, height: 34)
                     .background(AppColors.surface.opacity(0.94))
                     .clipShape(Circle())

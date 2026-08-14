@@ -22,6 +22,7 @@ enum AppSpacing {
     static let section: CGFloat = 28
     static let card: CGFloat = 18
     static let control: CGFloat = 14
+    static let floatingTabClearance: CGFloat = 126
 }
 
 enum AppRadius {

@@ -8,7 +8,7 @@ final class AppServices {
     let db = Firestore.firestore()
     let storage = Storage.storage()
 
-    lazy var auth = AuthService(db: db)
+    lazy var auth = AuthService(db: db, storage: storage)
     lazy var groups = GroupService(db: db)
     lazy var diaries = DiaryService(db: db)
     lazy var stickers = StickerService(db: db, storage: storage)

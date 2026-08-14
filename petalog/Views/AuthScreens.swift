@@ -125,7 +125,6 @@ struct UsernameSetupScreen: View {
     @EnvironmentObject private var appState: AppState
     let email: String
     @State private var displayName = ""
-    @State private var avatar = "🙂"
 
     var body: some View {
         NavigationStack {
@@ -145,8 +144,9 @@ struct UsernameSetupScreen: View {
                         }
                         .padding(.top, 62)
 
-                        Text(avatar)
-                            .font(.system(size: 68))
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 70, weight: .regular))
+                            .foregroundStyle(AppColors.mainText.opacity(0.72))
                             .frame(width: 118, height: 118)
                             .background {
                                 Circle()
@@ -160,38 +160,28 @@ struct UsernameSetupScreen: View {
                             }
                             .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
 
-                        TextField("ユーザー名", text: $displayName)
-                            .font(.system(size: 20, weight: .semibold))
-                            .multilineTextAlignment(.center)
-                            .textFieldStyle(.plain)
-                            .metalTextField()
+                        MetalCard(padding: 16) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("ユーザー名を入力", systemImage: "pencil")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(AppColors.secondaryText)
 
-                        HStack(spacing: 10) {
-                            ForEach(["🙂", "😆", "😎", "😊", "🤩", "🌟"], id: \.self) { candidate in
-                                Button {
-                                    withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
-                                        avatar = candidate
+                                TextField("ユーザー名", text: $displayName)
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .textFieldStyle(.plain)
+                                    .padding(.vertical, 12)
+                                    .padding(.horizontal, 14)
+                                    .background(AppColors.chromeHighlight.opacity(0.72))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .stroke(AppColors.border, lineWidth: 0.8)
                                     }
-                                } label: {
-                                    Text(candidate)
-                                        .font(.system(size: 21))
-                                        .frame(width: 44, height: 44)
-                                        .background {
-                                            Circle()
-                                                .fill(AppColors.surface.opacity(0.94))
-                                        }
-                                        .overlay {
-                                            Circle()
-                                                .stroke(candidate == avatar ? AppColors.mainText.opacity(0.7) : AppColors.border, lineWidth: candidate == avatar ? 1.2 : 0.8)
-                                        }
-                                        .scaleEffect(candidate == avatar ? 1.07 : 1)
-                                }
-                                .buttonStyle(.plain)
                             }
                         }
 
                         Button {
-                            Task { await appState.completeProfile(displayName: displayName, avatar: avatar) }
+                            Task { await appState.completeProfile(displayName: displayName, avatar: "") }
                         } label: {
                             if appState.isAuthenticating {
                                 ProgressView()

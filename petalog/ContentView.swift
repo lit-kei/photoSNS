@@ -41,26 +41,20 @@ struct ContentView: View {
     }
 
     private var signedInTabs: some View {
-        TabView(selection: $appState.selectedTab) {
-            HomeScreen()
-                .tabItem { Label(AppTab.home.title, systemImage: AppTab.home.systemImage) }
-                .tag(AppTab.home)
-
-            CameraScreen {
-                appState.selectedTab = .home
+        ZStack {
+            switch appState.selectedTab {
+            case .home:
+                HomeScreen()
+            case .camera:
+                CameraScreen {
+                    appState.selectedTab = .home
+                }
+            case .memories:
+                MemoriesScreen()
+            case .profile:
+                ProfileScreen()
             }
-            .tabItem { Label(AppTab.camera.title, systemImage: AppTab.camera.systemImage) }
-            .tag(AppTab.camera)
-
-            MemoriesScreen()
-                .tabItem { Label(AppTab.memories.title, systemImage: AppTab.memories.systemImage) }
-                .tag(AppTab.memories)
-
-            ProfileScreen()
-                .tabItem { Label(AppTab.profile.title, systemImage: AppTab.profile.systemImage) }
-                .tag(AppTab.profile)
         }
-        .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom) {
             if appState.selectedTab != .camera {
                 FloatingTabBar(selection: $appState.selectedTab)

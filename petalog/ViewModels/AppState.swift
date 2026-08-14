@@ -101,11 +101,14 @@ final class AppState: ObservableObject {
         }
     }
 
-    func updateProfile(displayName: String, avatar: String) async {
+    func updateProfile(displayName: String, avatarImageData: Data? = nil) async {
         guard var user = currentUser else { return }
         user.displayName = displayName.trimmedForPetalog
-        user.avatar = avatar
         do {
+            if let avatarImageData {
+                let imageURL = try await services.auth.uploadProfileImage(userId: user.id, imageData: avatarImageData)
+                user.avatarURL = imageURL.absoluteString
+            }
             try await services.auth.updateProfile(user: user)
             currentUser = user
         } catch {
@@ -157,7 +160,7 @@ final class AppState: ObservableObject {
                 id: account.uid,
                 email: account.email,
                 displayName: account.email.petalogFallbackDisplayName,
-                avatar: "🙂"
+                avatar: ""
             )
             pendingAccount = nil
             currentUser = fallbackUser
