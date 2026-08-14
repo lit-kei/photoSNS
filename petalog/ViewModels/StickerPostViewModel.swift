@@ -17,15 +17,34 @@ final class StickerPostViewModel: ObservableObject {
         self.services = services
     }
 
-    func upload(originalImage: UIImage, stickerPNG: Data, draft: StickerDraft, group: PetalogGroup, user: AppUser) async -> StickerPost? {
+    func upload(originalImage: UIImage, stickerPNG: Data, draft: StickerDraft, groups: [PetalogGroup], user: AppUser) async -> [StickerPost] {
+        guard !groups.isEmpty else { return [] }
         isUploading = true
         defer { isUploading = false }
+        errorMessage = nil
 
-        do {
-            return try await services.stickers.uploadSticker(originalImage: originalImage, stickerPNG: stickerPNG, draft: draft, group: group, user: user)
-        } catch {
-            errorMessage = error.localizedDescription
-            return nil
+        var posts: [StickerPost] = []
+        var failedGroupNames: [String] = []
+
+        for group in groups {
+            do {
+                let post = try await services.stickers.uploadSticker(
+                    originalImage: originalImage,
+                    stickerPNG: stickerPNG,
+                    draft: draft,
+                    group: group,
+                    user: user
+                )
+                posts.append(post)
+            } catch {
+                failedGroupNames.append(group.name)
+            }
         }
+
+        if !failedGroupNames.isEmpty {
+            errorMessage = "投稿できなかったグループ: \(failedGroupNames.joined(separator: "、"))"
+        }
+
+        return posts
     }
 }

@@ -19,6 +19,7 @@ final class CameraService: NSObject, ObservableObject {
     @Published var capturedImage: UIImage?
     @Published var errorMessage: String?
     @Published var isCapturing = false
+    @Published private(set) var cameraPosition: AVCaptureDevice.Position = .back
 
     let session = AVCaptureSession()
     private let output = AVCapturePhotoOutput()
@@ -66,6 +67,20 @@ final class CameraService: NSObject, ObservableObject {
         configureAndStart()
     }
 
+    func switchCamera() {
+        guard capturedImage == nil, permissionState == .authorized, hasFrontCamera else { return }
+        cameraPosition = cameraPosition == .back ? .front : .back
+        configureAndStart()
+    }
+
+    var canSwitchCamera: Bool {
+        hasFrontCamera && AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) != nil
+    }
+
+    var isUsingFrontCamera: Bool {
+        cameraPosition == .front
+    }
+
     func stop() {
         sessionQueue.async { [weak self] in
             guard let self, self.session.isRunning else { return }
@@ -85,18 +100,25 @@ final class CameraService: NSObject, ObservableObject {
     }
 
     private func configureAndStart() {
+        let position = cameraPosition
         sessionQueue.async { [weak self] in
             guard let self else { return }
             self.session.beginConfiguration()
             self.session.sessionPreset = .photo
             self.session.inputs.forEach { self.session.removeInput($0) }
 
-            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
                   let input = try? AVCaptureDeviceInput(device: device),
                   self.session.canAddInput(input) else {
                 Task { @MainActor in self.errorMessage = "カメラを準備できませんでした。" }
                 self.session.commitConfiguration()
                 return
+            }
+
+            if device.minAvailableVideoZoomFactor <= 1, device.maxAvailableVideoZoomFactor >= 1,
+               (try? device.lockForConfiguration()) != nil {
+                device.videoZoomFactor = 1
+                device.unlockForConfiguration()
             }
 
             self.session.addInput(input)
@@ -112,6 +134,10 @@ final class CameraService: NSObject, ObservableObject {
                 self.session.startRunning()
             }
         }
+    }
+
+    private var hasFrontCamera: Bool {
+        AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) != nil
     }
 }
 

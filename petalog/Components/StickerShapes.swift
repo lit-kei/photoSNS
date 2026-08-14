@@ -54,32 +54,32 @@ private struct HeartShape: Shape {
             y: rect.midY - side / 2,
             width: side,
             height: side
-        ).insetBy(dx: side * 0.04, dy: side * 0.06)
+        ).insetBy(dx: side * 0.05, dy: side * 0.04)
         var path = Path()
         let width = rect.width
         let height = rect.height
-        let bottom = CGPoint(x: rect.midX, y: rect.minY + height * 0.9)
+        let bottom = CGPoint(x: rect.midX, y: rect.minY + height * 0.96)
 
         path.move(to: bottom)
         path.addCurve(
-            to: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.38),
-            control1: CGPoint(x: rect.midX - width * 0.36, y: rect.minY + height * 0.74),
-            control2: CGPoint(x: rect.minX, y: rect.minY + height * 0.58)
+            to: CGPoint(x: rect.minX + width * 0.05, y: rect.minY + height * 0.35),
+            control1: CGPoint(x: rect.minX + width * 0.23, y: rect.minY + height * 0.78),
+            control2: CGPoint(x: rect.minX + width * 0.05, y: rect.minY + height * 0.62)
         )
         path.addCurve(
             to: CGPoint(x: rect.midX, y: rect.minY + height * 0.27),
-            control1: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.14),
-            control2: CGPoint(x: rect.midX - width * 0.24, y: rect.minY + height * 0.08)
+            control1: CGPoint(x: rect.minX + width * 0.05, y: rect.minY + height * 0.09),
+            control2: CGPoint(x: rect.minX + width * 0.34, y: rect.minY + height * 0.02)
         )
         path.addCurve(
-            to: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.38),
-            control1: CGPoint(x: rect.midX + width * 0.24, y: rect.minY + height * 0.08),
-            control2: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.14)
+            to: CGPoint(x: rect.maxX - width * 0.05, y: rect.minY + height * 0.35),
+            control1: CGPoint(x: rect.maxX - width * 0.34, y: rect.minY + height * 0.02),
+            control2: CGPoint(x: rect.maxX - width * 0.05, y: rect.minY + height * 0.09)
         )
         path.addCurve(
             to: bottom,
-            control1: CGPoint(x: rect.maxX, y: rect.minY + height * 0.58),
-            control2: CGPoint(x: rect.midX + width * 0.36, y: rect.minY + height * 0.74)
+            control1: CGPoint(x: rect.maxX - width * 0.05, y: rect.minY + height * 0.62),
+            control2: CGPoint(x: rect.maxX - width * 0.23, y: rect.minY + height * 0.78)
         )
         path.closeSubpath()
         return path
@@ -108,29 +108,45 @@ private struct StarShape: Shape {
 private struct CloudShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.42, width: rect.width * 0.42, height: rect.height * 0.34))
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.24, width: rect.width * 0.42, height: rect.height * 0.48))
-        path.addEllipse(in: CGRect(x: rect.minX + rect.width * 0.54, y: rect.minY + rect.height * 0.36, width: rect.width * 0.38, height: rect.height * 0.36))
-        path.addRoundedRect(in: CGRect(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.5, width: rect.width * 0.66, height: rect.height * 0.24), cornerSize: CGSize(width: rect.width * 0.12, height: rect.height * 0.12))
+        let point: (CGFloat, CGFloat) -> CGPoint = { x, y in
+            CGPoint(x: rect.minX + rect.width * x, y: rect.minY + rect.height * y)
+        }
+
+        path.move(to: point(0.18, 0.76))
+        path.addCurve(to: point(0.08, 0.58), control1: point(0.10, 0.74), control2: point(0.06, 0.67))
+        path.addCurve(to: point(0.24, 0.40), control1: point(0.08, 0.48), control2: point(0.14, 0.41))
+        path.addCurve(to: point(0.43, 0.27), control1: point(0.28, 0.28), control2: point(0.35, 0.24))
+        path.addCurve(to: point(0.68, 0.39), control1: point(0.55, 0.18), control2: point(0.66, 0.26))
+        path.addCurve(to: point(0.91, 0.57), control1: point(0.82, 0.36), control2: point(0.91, 0.45))
+        path.addCurve(to: point(0.80, 0.76), control1: point(0.93, 0.68), control2: point(0.88, 0.74))
+        path.addLine(to: point(0.18, 0.76))
+        path.closeSubpath()
         return path
     }
 }
 
 private struct FlowerShape: Shape {
     func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let petalWidth = rect.width * 0.42
-        let petalHeight = rect.height * 0.42
         let center = CGPoint(x: rect.midX, y: rect.midY)
-
-        for index in 0..<6 {
-            let angle = Double(index) * Double.pi / 3
-            let x = center.x + CGFloat(cos(angle)) * rect.width * 0.2 - petalWidth / 2
-            let y = center.y + CGFloat(sin(angle)) * rect.height * 0.2 - petalHeight / 2
-            path.addEllipse(in: CGRect(x: x, y: y, width: petalWidth, height: petalHeight))
+        let points = (0..<12).map { index -> CGPoint in
+            let angle = CGFloat(index) * .pi / 6 - .pi / 2
+            let radius = (index.isMultiple(of: 2) ? 0.48 : 0.30) * min(rect.width, rect.height)
+            return CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
         }
 
-        path.addEllipse(in: CGRect(x: rect.midX - rect.width * 0.22, y: rect.midY - rect.height * 0.22, width: rect.width * 0.44, height: rect.height * 0.44))
+        var path = Path()
+        path.move(to: midpoint(points.last!, points[0]))
+        for index in points.indices {
+            path.addQuadCurve(
+                to: midpoint(points[index], points[(index + 1) % points.count]),
+                control: points[index]
+            )
+        }
+        path.closeSubpath()
         return path
+    }
+
+    private func midpoint(_ first: CGPoint, _ second: CGPoint) -> CGPoint {
+        CGPoint(x: (first.x + second.x) / 2, y: (first.y + second.y) / 2)
     }
 }

@@ -7,20 +7,25 @@ struct StickerCreationScreen: View {
     @State private var generatedPNG: Data?
     @State private var isShowingPostScreen = false
     @State private var renderError: String?
+    @State private var isInteractingWithCrop = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                StickerComposerPreview(image: originalImage, draft: $draft)
+                StickerComposerPreview(image: originalImage, draft: $draft, isInteracting: $isInteractingWithCrop)
                     .frame(maxWidth: .infinity)
                     .aspectRatio(1, contentMode: .fit)
 
                 ControlSection(title: "トリミング") {
                     VStack(spacing: 12) {
+                        Text("写真は固定したまま、フレームをドラッグ・ピンチ・回転できます。")
+                            .font(.footnote)
+                            .foregroundStyle(AppColors.secondaryText)
+
                         HStack(spacing: 12) {
-                            Image(systemName: "plus.magnifyingglass")
+                            Image(systemName: "crop")
                                 .foregroundStyle(AppColors.secondaryText)
-                            Slider(value: $draft.cropScale, in: 1...3.2)
+                            Slider(value: $draft.cropScale, in: 1...2.8)
                         }
 
                         HStack(spacing: 12) {
@@ -65,6 +70,7 @@ struct StickerCreationScreen: View {
             }
             .padding(20)
         }
+        .scrollDisabled(isInteractingWithCrop)
         .background {
             PetalogMetalBackground()
         }
@@ -79,15 +85,21 @@ struct StickerCreationScreen: View {
 private struct StickerComposerPreview: View {
     let image: UIImage
     @Binding var draft: StickerDraft
+    @Binding var isInteracting: Bool
     @State private var cropDragStart: CGSize?
     @State private var cropScaleStart: Double?
     @State private var cropRotationStart: Double?
+    @State private var isDragging = false
+    @State private var isMagnifying = false
+    @State private var isRotating = false
 
     var body: some View {
         GeometryReader { proxy in
             let previewSide = min(proxy.size.width, proxy.size.height)
             let maskSide = previewSide * 0.72
             let cropScale = CGFloat(max(1, draft.cropScale))
+            let frameSide = maskSide / cropScale
+            let frameOffset = displayedFrameOffset(maskSide: maskSide, cropScale: cropScale)
 
             ZStack {
                 TransparentStickerPreviewBackground()
@@ -96,23 +108,42 @@ private struct StickerComposerPreview: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: maskSide * cropScale, height: maskSide * cropScale)
-                        .rotationEffect(.degrees(draft.cropRotation))
-                        .offset(
-                            x: maskSide * draft.cropOffset.width,
-                            y: maskSide * draft.cropOffset.height
-                        )
-                }
-                .frame(width: maskSide, height: maskSide)
-                .clipShape(StickerMaskShape(shape: draft.shape))
-                .overlay { StickerOutline(shape: draft.shape, decoration: draft.decoration) }
-                .overlay {
+                        .frame(width: maskSide, height: maskSide)
+                        .clipped()
+
+                    ZStack {
+                        Color.black.opacity(0.38)
+                        StickerMaskShape(shape: draft.shape)
+                            .fill(.black)
+                            .frame(width: frameSide, height: frameSide)
+                            .rotationEffect(.degrees(-draft.cropRotation))
+                            .offset(frameOffset)
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+
+                    StickerMaskShape(shape: draft.shape)
+                        .stroke(.white, style: StrokeStyle(lineWidth: 3, dash: [9, 6]))
+                        .frame(width: frameSide, height: frameSide)
+                        .rotationEffect(.degrees(-draft.cropRotation))
+                        .offset(frameOffset)
+
+                    StickerOutline(shape: draft.shape, decoration: draft.decoration)
+                        .frame(width: frameSide, height: frameSide)
+                        .rotationEffect(.degrees(-draft.cropRotation))
+                        .offset(frameOffset)
+
                     if draft.decoration == .sparkle {
                         SparkleOverlay()
+                            .frame(width: frameSide, height: frameSide)
+                            .rotationEffect(.degrees(-draft.cropRotation))
+                            .offset(frameOffset)
                     }
                 }
-                .contentShape(StickerMaskShape(shape: draft.shape))
-                .gesture(cropDragGesture(maskSide: maskSide))
+                .frame(width: maskSide, height: maskSide)
+                .clipped()
+                .contentShape(Rectangle())
+                .highPriorityGesture(cropDragGesture(maskSide: maskSide))
                 .simultaneousGesture(cropScaleGesture())
                 .simultaneousGesture(cropRotationGesture())
                 .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
@@ -139,45 +170,92 @@ private struct StickerComposerPreview: View {
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
         }
+        .onChange(of: draft.cropScale) { _, _ in
+            clampCropOffset()
+        }
+        .onChange(of: draft.cropRotation) { _, _ in
+            clampCropOffset()
+        }
     }
 
     private func cropDragGesture(maskSide: CGFloat) -> some Gesture {
         DragGesture()
             .onChanged { value in
+                isDragging = true
+                updateInteractionState()
                 let start = cropDragStart ?? draft.cropOffset
                 cropDragStart = start
+                let scale = CGFloat(max(1, draft.cropScale))
+                let limit = cropOffsetLimit(scale: scale)
                 draft.cropOffset = CGSize(
-                    width: (start.width + value.translation.width / maskSide).clamped(to: -1.15...1.15),
-                    height: (start.height + value.translation.height / maskSide).clamped(to: -1.15...1.15)
+                    width: (start.width - value.translation.width * scale / maskSide).clamped(to: -limit...limit),
+                    height: (start.height - value.translation.height * scale / maskSide).clamped(to: -limit...limit)
                 )
             }
             .onEnded { _ in
                 cropDragStart = nil
+                isDragging = false
+                updateInteractionState()
             }
     }
 
     private func cropScaleGesture() -> some Gesture {
         MagnificationGesture()
             .onChanged { value in
+                isMagnifying = true
+                updateInteractionState()
                 let start = cropScaleStart ?? draft.cropScale
                 cropScaleStart = start
-                draft.cropScale = (start * Double(value)).clamped(to: 1...3.2)
+                draft.cropScale = (start / Double(value)).clamped(to: 1...2.8)
+                clampCropOffset()
             }
             .onEnded { _ in
                 cropScaleStart = nil
+                isMagnifying = false
+                updateInteractionState()
             }
     }
 
     private func cropRotationGesture() -> some Gesture {
         RotationGesture()
             .onChanged { value in
+                isRotating = true
+                updateInteractionState()
                 let start = cropRotationStart ?? draft.cropRotation
                 cropRotationStart = start
-                draft.cropRotation = (start + value.degrees).clamped(to: -180...180)
+                draft.cropRotation = (start - value.degrees).clamped(to: -180...180)
             }
             .onEnded { _ in
                 cropRotationStart = nil
+                isRotating = false
+                updateInteractionState()
             }
+    }
+
+    private func displayedFrameOffset(maskSide: CGFloat, cropScale: CGFloat) -> CGSize {
+        CGSize(
+            width: -maskSide * draft.cropOffset.width / cropScale,
+            height: -maskSide * draft.cropOffset.height / cropScale
+        )
+    }
+
+    private func clampCropOffset() {
+        let scale = CGFloat(max(1, draft.cropScale))
+        let limit = cropOffsetLimit(scale: scale)
+        draft.cropOffset = CGSize(
+            width: draft.cropOffset.width.clamped(to: -limit...limit),
+            height: draft.cropOffset.height.clamped(to: -limit...limit)
+        )
+    }
+
+    private func cropOffsetLimit(scale: CGFloat) -> CGFloat {
+        let radians = CGFloat(draft.cropRotation) * .pi / 180
+        let rotatedExtent = abs(cos(radians)) + abs(sin(radians))
+        return max(0, (scale - rotatedExtent) / 2)
+    }
+
+    private func updateInteractionState() {
+        isInteracting = isDragging || isMagnifying || isRotating
     }
 }
 

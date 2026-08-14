@@ -9,9 +9,8 @@ struct StickerPostScreen: View {
     let originalImage: UIImage
     let stickerPNG: Data
     let draft: StickerDraft
-    @State private var selectedGroup: PetalogGroup?
-    @State private var postedGroup: PetalogGroup?
-    @State private var didPost = false
+    @State private var selectedGroupIDs: Set<String> = []
+    @State private var postedGroups: [PetalogGroup] = []
 
     var body: some View {
         ScrollView {
@@ -37,17 +36,32 @@ struct StickerPostScreen: View {
                         EmptyStateView(systemImage: "person.3.fill", title: "投稿先がありません", message: "先にグループを作るか参加してください。")
                     } else {
                         VStack(spacing: 10) {
+                            Button {
+                                toggleAllGroups()
+                            } label: {
+                                HStack {
+                                    Text(areAllGroupsSelected ? "すべて解除" : "すべて選択")
+                                        .font(.subheadline.weight(.semibold))
+                                    Spacer()
+                                    Image(systemName: areAllGroupsSelected ? "checkmark.circle.fill" : "circle")
+                                }
+                            }
+                            .buttonStyle(ListRowButtonStyle())
+
                             ForEach(appState.groups) { group in
                                 Button {
-                                    selectedGroup = group
+                                    toggleSelection(for: group)
                                 } label: {
                                     HStack {
                                         Text(group.icon).font(.title2)
                                         Text(group.name).font(.headline)
                                         Spacer()
-                                        if selectedGroup?.id == group.id {
-                                            Image(systemName: "checkmark.circle")
+                                        if selectedGroupIDs.contains(group.id) {
+                                            Image(systemName: "checkmark.circle.fill")
                                                 .foregroundStyle(AppColors.mainText)
+                                        } else {
+                                            Image(systemName: "circle")
+                                                .foregroundStyle(AppColors.secondaryText)
                                         }
                                     }
                                 }
@@ -63,11 +77,11 @@ struct StickerPostScreen: View {
                     if viewModel.isUploading {
                         ProgressView("Firebase Storageに保存中")
                     } else {
-                        Label("絵日記に追加する", systemImage: "plus.circle.fill")
+                        Label(uploadButtonTitle, systemImage: "plus.circle.fill")
                     }
                 }
                 .buttonStyle(PrimaryActionButtonStyle())
-                .disabled(selectedGroup == nil || viewModel.isUploading || stickerPNG.isEmpty)
+                .disabled(selectedGroupIDs.isEmpty || viewModel.isUploading || stickerPNG.isEmpty)
 
                 if let error = viewModel.errorMessage {
                     Text(error)
@@ -75,9 +89,9 @@ struct StickerPostScreen: View {
                         .foregroundStyle(.red)
                 }
 
-                if let postedGroup, didPost {
-                    NavigationLink("今日の絵日記を見る") {
-                        DiaryScreen(group: postedGroup)
+                ForEach(postedGroups) { group in
+                    NavigationLink("\(group.name)の絵日記を見る") {
+                        DiaryScreen(group: group)
                     }
                     .buttonStyle(SecondaryActionButtonStyle())
                 }
@@ -90,16 +104,49 @@ struct StickerPostScreen: View {
         .navigationTitle("投稿")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            selectedGroup = selectedGroup ?? appState.groups.first
+            if selectedGroupIDs.isEmpty, let firstGroup = appState.groups.first {
+                selectedGroupIDs.insert(firstGroup.id)
+            }
         }
     }
 
     private func upload() async {
-        guard let user = appState.currentUser, let group = selectedGroup else { return }
-        let post = await viewModel.upload(originalImage: originalImage, stickerPNG: stickerPNG, draft: draft, group: group, user: user)
-        if post != nil {
-            postedGroup = group
-            didPost = true
+        guard let user = appState.currentUser else { return }
+        let selectedGroups = appState.groups.filter { selectedGroupIDs.contains($0.id) }
+        let posts = await viewModel.upload(
+            originalImage: originalImage,
+            stickerPNG: stickerPNG,
+            draft: draft,
+            groups: selectedGroups,
+            user: user
+        )
+        let postedGroupIDs = Set(posts.map(\.groupId))
+        postedGroups = selectedGroups.filter { postedGroupIDs.contains($0.id) }
+    }
+
+    private var uploadButtonTitle: String {
+        selectedGroupIDs.count <= 1
+            ? "絵日記に追加する"
+            : "\(selectedGroupIDs.count)個のグループに追加する"
+    }
+
+    private var areAllGroupsSelected: Bool {
+        !appState.groups.isEmpty && selectedGroupIDs.count == appState.groups.count
+    }
+
+    private func toggleSelection(for group: PetalogGroup) {
+        if selectedGroupIDs.contains(group.id) {
+            selectedGroupIDs.remove(group.id)
+        } else {
+            selectedGroupIDs.insert(group.id)
+        }
+    }
+
+    private func toggleAllGroups() {
+        if areAllGroupsSelected {
+            selectedGroupIDs.removeAll()
+        } else {
+            selectedGroupIDs = Set(appState.groups.map(\.id))
         }
     }
 }

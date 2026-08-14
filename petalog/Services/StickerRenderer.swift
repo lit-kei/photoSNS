@@ -3,17 +3,15 @@
 //  petalog
 //
 
-import CoreImage
 import SwiftUI
 import UIKit
-import Vision
 
 enum StickerRenderer {
     static func renderPNG(originalImage: UIImage, draft: StickerDraft, canvasSize: CGSize = CGSize(width: 720, height: 720)) throws -> Data {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 2
         format.opaque = false
-        let stickerSource = originalImage.petalogForegroundCutout() ?? originalImage
+        let stickerSource = originalImage
 
         let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
         let image = renderer.image { context in
@@ -136,31 +134,31 @@ enum StickerShapePath {
             y: rect.midY - side / 2,
             width: side,
             height: side
-        ).insetBy(dx: side * 0.04, dy: side * 0.06)
+        ).insetBy(dx: side * 0.05, dy: side * 0.04)
         let width = rect.width
         let height = rect.height
-        let bottom = CGPoint(x: rect.midX, y: rect.minY + height * 0.9)
+        let bottom = CGPoint(x: rect.midX, y: rect.minY + height * 0.96)
         let path = UIBezierPath()
         path.move(to: bottom)
         path.addCurve(
-            to: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.38),
-            controlPoint1: CGPoint(x: rect.midX - width * 0.36, y: rect.minY + height * 0.74),
-            controlPoint2: CGPoint(x: rect.minX, y: rect.minY + height * 0.58)
+            to: CGPoint(x: rect.minX + width * 0.05, y: rect.minY + height * 0.35),
+            controlPoint1: CGPoint(x: rect.minX + width * 0.23, y: rect.minY + height * 0.78),
+            controlPoint2: CGPoint(x: rect.minX + width * 0.05, y: rect.minY + height * 0.62)
         )
         path.addCurve(
             to: CGPoint(x: rect.midX, y: rect.minY + height * 0.27),
-            controlPoint1: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.14),
-            controlPoint2: CGPoint(x: rect.midX - width * 0.24, y: rect.minY + height * 0.08)
+            controlPoint1: CGPoint(x: rect.minX + width * 0.05, y: rect.minY + height * 0.09),
+            controlPoint2: CGPoint(x: rect.minX + width * 0.34, y: rect.minY + height * 0.02)
         )
         path.addCurve(
-            to: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.38),
-            controlPoint1: CGPoint(x: rect.midX + width * 0.24, y: rect.minY + height * 0.08),
-            controlPoint2: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.14)
+            to: CGPoint(x: rect.maxX - width * 0.05, y: rect.minY + height * 0.35),
+            controlPoint1: CGPoint(x: rect.maxX - width * 0.34, y: rect.minY + height * 0.02),
+            controlPoint2: CGPoint(x: rect.maxX - width * 0.05, y: rect.minY + height * 0.09)
         )
         path.addCurve(
             to: bottom,
-            controlPoint1: CGPoint(x: rect.maxX, y: rect.minY + height * 0.58),
-            controlPoint2: CGPoint(x: rect.midX + width * 0.36, y: rect.minY + height * 0.74)
+            controlPoint1: CGPoint(x: rect.maxX - width * 0.05, y: rect.minY + height * 0.62),
+            controlPoint2: CGPoint(x: rect.maxX - width * 0.23, y: rect.minY + height * 0.78)
         )
         path.close()
         return path
@@ -183,26 +181,44 @@ enum StickerShapePath {
 
     private static func cloud(in rect: CGRect) -> UIBezierPath {
         let path = UIBezierPath()
-        path.append(UIBezierPath(ovalIn: CGRect(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.42, width: rect.width * 0.42, height: rect.height * 0.34)))
-        path.append(UIBezierPath(ovalIn: CGRect(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.24, width: rect.width * 0.42, height: rect.height * 0.48)))
-        path.append(UIBezierPath(ovalIn: CGRect(x: rect.minX + rect.width * 0.54, y: rect.minY + rect.height * 0.36, width: rect.width * 0.38, height: rect.height * 0.36)))
-        path.append(UIBezierPath(roundedRect: CGRect(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.5, width: rect.width * 0.66, height: rect.height * 0.24), cornerRadius: rect.width * 0.12))
+        let point: (CGFloat, CGFloat) -> CGPoint = { x, y in
+            CGPoint(x: rect.minX + rect.width * x, y: rect.minY + rect.height * y)
+        }
+
+        path.move(to: point(0.18, 0.76))
+        path.addCurve(to: point(0.08, 0.58), controlPoint1: point(0.10, 0.74), controlPoint2: point(0.06, 0.67))
+        path.addCurve(to: point(0.24, 0.40), controlPoint1: point(0.08, 0.48), controlPoint2: point(0.14, 0.41))
+        path.addCurve(to: point(0.43, 0.27), controlPoint1: point(0.28, 0.28), controlPoint2: point(0.35, 0.24))
+        path.addCurve(to: point(0.68, 0.39), controlPoint1: point(0.55, 0.18), controlPoint2: point(0.66, 0.26))
+        path.addCurve(to: point(0.91, 0.57), controlPoint1: point(0.82, 0.36), controlPoint2: point(0.91, 0.45))
+        path.addCurve(to: point(0.80, 0.76), controlPoint1: point(0.93, 0.68), controlPoint2: point(0.88, 0.74))
+        path.addLine(to: point(0.18, 0.76))
+        path.close()
         return path
     }
 
     private static func flower(in rect: CGRect) -> UIBezierPath {
-        let path = UIBezierPath()
-        let petalWidth = rect.width * 0.42
-        let petalHeight = rect.height * 0.42
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        for index in 0..<6 {
-            let angle = CGFloat(index) * .pi / 3
-            let x = center.x + cos(angle) * rect.width * 0.2 - petalWidth / 2
-            let y = center.y + sin(angle) * rect.height * 0.2 - petalHeight / 2
-            path.append(UIBezierPath(ovalIn: CGRect(x: x, y: y, width: petalWidth, height: petalHeight)))
+        let points = (0..<12).map { index -> CGPoint in
+            let angle = CGFloat(index) * .pi / 6 - .pi / 2
+            let radius = (index.isMultiple(of: 2) ? 0.48 : 0.30) * min(rect.width, rect.height)
+            return CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
         }
-        path.append(UIBezierPath(ovalIn: CGRect(x: rect.midX - rect.width * 0.22, y: rect.midY - rect.height * 0.22, width: rect.width * 0.44, height: rect.height * 0.44)))
+
+        let path = UIBezierPath()
+        path.move(to: midpoint(points.last!, points[0]))
+        for index in points.indices {
+            path.addQuadCurve(
+                to: midpoint(points[index], points[(index + 1) % points.count]),
+                controlPoint: points[index]
+            )
+        }
+        path.close()
         return path
+    }
+
+    private static func midpoint(_ first: CGPoint, _ second: CGPoint) -> CGPoint {
+        CGPoint(x: (first.x + second.x) / 2, y: (first.y + second.y) / 2)
     }
 }
 
@@ -231,31 +247,4 @@ private extension UIImage {
         draw(in: drawRect)
     }
 
-    func petalogForegroundCutout() -> UIImage? {
-        guard #available(iOS 17.0, *), let cgImage else { return nil }
-
-        do {
-            let request = VNGenerateForegroundInstanceMaskRequest()
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            try handler.perform([request])
-
-            guard let observation = request.results?.first else { return nil }
-            let maskBuffer = try observation.generateScaledMaskForImage(forInstances: observation.allInstances, from: handler)
-            let inputImage = CIImage(cgImage: cgImage)
-            let maskImage = CIImage(cvPixelBuffer: maskBuffer)
-            let clearImage = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0)).cropped(to: inputImage.extent)
-
-            guard let filter = CIFilter(name: "CIBlendWithMask") else { return nil }
-            filter.setValue(inputImage, forKey: kCIInputImageKey)
-            filter.setValue(clearImage, forKey: kCIInputBackgroundImageKey)
-            filter.setValue(maskImage, forKey: kCIInputMaskImageKey)
-            guard let outputImage = filter.outputImage else { return nil }
-
-            let context = CIContext()
-            guard let outputCGImage = context.createCGImage(outputImage, from: inputImage.extent) else { return nil }
-            return UIImage(cgImage: outputCGImage, scale: scale, orientation: .up)
-        } catch {
-            return nil
-        }
-    }
 }

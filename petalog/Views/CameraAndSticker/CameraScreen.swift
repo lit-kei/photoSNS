@@ -36,6 +36,7 @@ struct CameraScreen: View {
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black)
                 .clipped()
         } else if camera.permissionState == .authorized {
             CameraPreview(session: camera.session)
@@ -106,6 +107,22 @@ struct CameraScreen: View {
             .overlay { Circle().stroke((camera.permissionState == .authorized ? Color.white.opacity(0.26) : AppColors.border), lineWidth: 0.8) }
 
             Spacer()
+
+            if camera.capturedImage == nil, camera.permissionState == .authorized {
+                Button {
+                    camera.switchCamera()
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                        .frame(width: 42, height: 42)
+                }
+                .disabled(!camera.canSwitchCamera)
+                .foregroundStyle(.white)
+                .background(.black.opacity(0.24))
+                .clipShape(Circle())
+                .overlay { Circle().stroke(Color.white.opacity(0.26), lineWidth: 0.8) }
+                .accessibilityLabel(camera.isUsingFrontCamera ? "背面カメラに切り替える" : "前面カメラに切り替える")
+            }
         }
     }
 
@@ -123,21 +140,18 @@ struct CameraScreen: View {
             }
 
             if let image = camera.capturedImage {
-                HStack(spacing: 12) {
-                    Button {
-                        camera.retake()
-                    } label: {
-                        Label("撮り直す", systemImage: "arrow.counterclockwise")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        retakeButton
+                        stickerCreationLink(image: image)
                     }
-                    .buttonStyle(SecondaryActionButtonStyle())
 
-                    NavigationLink {
-                        StickerCreationScreen(originalImage: image)
-                    } label: {
-                        Label("ステッカーを作る", systemImage: "scissors")
+                    VStack(spacing: 10) {
+                        stickerCreationLink(image: image)
+                        retakeButton
                     }
-                    .buttonStyle(PrimaryActionButtonStyle())
                 }
+                .frame(maxWidth: .infinity)
             } else if camera.permissionState == .denied {
                 EmptyView()
             } else if camera.permissionState == .unknown {
@@ -165,5 +179,24 @@ struct CameraScreen: View {
                 .accessibilityLabel("撮影")
             }
         }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var retakeButton: some View {
+        Button {
+            camera.retake()
+        } label: {
+            Label("撮り直す", systemImage: "arrow.counterclockwise")
+        }
+        .buttonStyle(SecondaryActionButtonStyle())
+    }
+
+    private func stickerCreationLink(image: UIImage) -> some View {
+        NavigationLink {
+            StickerCreationScreen(originalImage: image)
+        } label: {
+            Label("ステッカーを作る", systemImage: "scissors")
+        }
+        .buttonStyle(PrimaryActionButtonStyle())
     }
 }
