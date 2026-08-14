@@ -42,13 +42,23 @@ struct HomeScreen: View {
 
                 Spacer()
 
-                NavigationLink {
-                    GroupManagementScreen(initialMode: .list)
-                } label: {
-                    IconButtonLabel(systemName: "person.2.badge.gearshape")
+                HStack(spacing: 10) {
+                    NavigationLink {
+                        ProfileScreen()
+                    } label: {
+                        IconButtonLabel(systemName: "person.crop.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("プロフィール")
+
+                    NavigationLink {
+                        FriendAddScreen()
+                    } label: {
+                        IconButtonLabel(systemName: "person.badge.plus")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("友達追加")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("グループ管理")
             }
 
             VStack(alignment: .leading, spacing: 8) {

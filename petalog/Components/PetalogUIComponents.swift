@@ -518,7 +518,7 @@ extension AppTab: CaseIterable, Identifiable {
     var id: Self { self }
 
     static var allCases: [AppTab] {
-        [.home, .camera, .memories, .profile]
+        [.home, .camera]
     }
 
     var title: String {

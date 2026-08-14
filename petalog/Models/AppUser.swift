@@ -41,6 +41,7 @@ struct AppUser: Identifiable, Hashable {
     var dictionary: [String: Any] {
         [
             "email": email,
+            "normalizedEmail": email.lowercased(),
             "displayName": displayName,
             "avatar": avatar,
             "avatarURL": avatarURL as Any,

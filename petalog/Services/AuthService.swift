@@ -35,9 +35,9 @@ final class AuthService {
         var user = AppUser(id: account.uid, data: data)
         if user.email.isEmpty {
             user.email = account.email
-            try await userRef.setData(["email": account.email, "updatedAt": FieldValue.serverTimestamp()], merge: true)
+            try await userRef.setData(["email": account.email, "normalizedEmail": account.email.lowercased(), "updatedAt": FieldValue.serverTimestamp()], merge: true)
         } else {
-            try await userRef.setData(["updatedAt": FieldValue.serverTimestamp()], merge: true)
+            try await userRef.setData(["normalizedEmail": user.email.lowercased(), "updatedAt": FieldValue.serverTimestamp()], merge: true)
         }
         return user
     }
