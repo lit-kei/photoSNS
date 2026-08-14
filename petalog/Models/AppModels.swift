@@ -15,6 +15,7 @@ protocol PetalogOption: CaseIterable, Identifiable, Hashable {
 
 struct AppUser: Identifiable, Hashable {
     let id: String
+    var email: String
     var displayName: String
     var avatar: String
     var avatarURL: String?
@@ -23,6 +24,7 @@ struct AppUser: Identifiable, Hashable {
 
     init(
         id: String,
+        email: String = "",
         displayName: String,
         avatar: String = "🙂",
         avatarURL: String? = nil,
@@ -30,6 +32,7 @@ struct AppUser: Identifiable, Hashable {
         updatedAt: Date = Date()
     ) {
         self.id = id
+        self.email = email
         self.displayName = displayName
         self.avatar = avatar
         self.avatarURL = avatarURL
@@ -39,6 +42,7 @@ struct AppUser: Identifiable, Hashable {
 
     init(id: String, data: [String: Any]) {
         self.id = id
+        self.email = data["email"] as? String ?? ""
         self.displayName = data["displayName"] as? String ?? "petalog user"
         self.avatar = data["avatar"] as? String ?? "🙂"
         self.avatarURL = data["avatarURL"] as? String
@@ -48,6 +52,7 @@ struct AppUser: Identifiable, Hashable {
 
     var dictionary: [String: Any] {
         [
+            "email": email,
             "displayName": displayName,
             "avatar": avatar,
             "avatarURL": avatarURL as Any,
@@ -55,6 +60,11 @@ struct AppUser: Identifiable, Hashable {
             "updatedAt": FieldValue.serverTimestamp()
         ]
     }
+}
+
+struct AuthenticatedAccount: Hashable {
+    let uid: String
+    let email: String
 }
 
 struct PetalogGroup: Identifiable, Hashable {

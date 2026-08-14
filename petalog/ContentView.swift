@@ -10,11 +10,16 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if appState.isBootstrapping {
+            switch appState.authState {
+            case .bootstrapping:
                 ProgressView("petalogを準備中")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(PetalogTheme.background)
-            } else {
+            case .signedOut:
+                AuthScreen()
+            case .needsProfile(let email):
+                UsernameSetupScreen(email: email)
+            case .signedIn:
                 TabView(selection: $appState.selectedTab) {
                     HomeScreen()
                         .tabItem { Label("ホーム", systemImage: "house.fill") }
@@ -36,7 +41,7 @@ struct ContentView: View {
             }
         }
         .task {
-            if appState.currentUser == nil {
+            if appState.authState == .bootstrapping {
                 appState.bootstrap()
             }
         }

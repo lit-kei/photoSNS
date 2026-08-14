@@ -30,30 +30,52 @@ final class AuthService {
         self.db = db
     }
 
-    func signInAnonymouslyIfNeeded() async throws -> AppUser {
-        let firebaseUser: FirebaseAuth.User
-        if let currentUser = Auth.auth().currentUser {
-            firebaseUser = currentUser
-        } else {
-            firebaseUser = try await Auth.auth().signInAnonymously().user
-        }
+    func currentAccount() -> AuthenticatedAccount? {
+        guard let user = Auth.auth().currentUser, !user.isAnonymous else { return nil }
+        return AuthenticatedAccount(uid: user.uid, email: user.email ?? "")
+    }
 
-        let userRef = db.collection("users").document(firebaseUser.uid)
+    func signIn(email: String, password: String) async throws -> AuthenticatedAccount {
+        let result = try await Auth.auth().signIn(withEmail: email.trimmedForPetalog, password: password)
+        return AuthenticatedAccount(uid: result.user.uid, email: result.user.email ?? email.trimmedForPetalog)
+    }
+
+    func createAccount(email: String, password: String) async throws -> AuthenticatedAccount {
+        let result = try await Auth.auth().createUser(withEmail: email.trimmedForPetalog, password: password)
+        return AuthenticatedAccount(uid: result.user.uid, email: result.user.email ?? email.trimmedForPetalog)
+    }
+
+    func fetchUser(account: AuthenticatedAccount) async throws -> AppUser? {
+        let userRef = db.collection("users").document(account.uid)
         let snapshot = try await userRef.getDocument()
-        if let data = snapshot.data(), snapshot.exists {
-            let user = AppUser(id: firebaseUser.uid, data: data)
+        guard let data = snapshot.data(), snapshot.exists else { return nil }
+        var user = AppUser(id: account.uid, data: data)
+        if user.email.isEmpty {
+            user.email = account.email
+            try await userRef.setData(["email": account.email, "updatedAt": FieldValue.serverTimestamp()], merge: true)
+        } else {
             try await userRef.setData(["updatedAt": FieldValue.serverTimestamp()], merge: true)
-            return user
+        }
+        return user
+    }
+
+    func createProfile(account: AuthenticatedAccount, displayName: String, avatar: String) async throws -> AppUser {
+        let name = displayName.trimmedForPetalog
+        guard !name.isEmpty else {
+            throw PetalogError.message("ユーザー名を入力してください。")
         }
 
-        let suffix = String(firebaseUser.uid.prefix(4)).uppercased()
-        let user = AppUser(id: firebaseUser.uid, displayName: "petalog \(suffix)", avatar: "🙂")
-        try await userRef.setData(user.dictionary, merge: true)
+        let user = AppUser(id: account.uid, email: account.email, displayName: name, avatar: avatar)
+        try await db.collection("users").document(account.uid).setData(user.dictionary, merge: true)
         return user
     }
 
     func updateProfile(user: AppUser) async throws {
         try await db.collection("users").document(user.id).setData(user.dictionary, merge: true)
+    }
+
+    func signOut() throws {
+        try Auth.auth().signOut()
     }
 }
 
@@ -340,5 +362,20 @@ enum PetalogError: LocalizedError {
         switch self {
         case .message(let message): message
         }
+    }
+}
+
+extension Error {
+    var isPetalogOfflineFirestoreError: Bool {
+        let nsError = self as NSError
+        return nsError.code == FirestoreErrorCode.unavailable.rawValue
+            || nsError.localizedDescription.localizedCaseInsensitiveContains("client is offline")
+    }
+}
+
+extension String {
+    var petalogFallbackDisplayName: String {
+        let name = split(separator: "@").first.map(String.init) ?? ""
+        return name.trimmedForPetalog.isEmpty ? "petalog user" : name
     }
 }

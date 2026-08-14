@@ -13,11 +13,13 @@ final class AppState: ObservableObject {
     @Published var currentUser: AppUser?
     @Published var groups: [PetalogGroup] = []
     @Published var selectedTab: AppTab = .home
-    @Published var isBootstrapping = true
+    @Published var authState: AuthState = .bootstrapping
     @Published var errorMessage: String?
+    @Published var isAuthenticating = false
 
     private let services: AppServices
     private var groupListener: ListenerRegistration?
+    private var pendingAccount: AuthenticatedAccount?
 
     init() {
         self.services = AppServices.shared
@@ -30,14 +32,55 @@ final class AppState: ObservableObject {
     func bootstrap() {
         Task {
             do {
-                let user = try await services.auth.signInAnonymouslyIfNeeded()
-                currentUser = user
-                observeGroups(for: user.id)
-                isBootstrapping = false
+                guard let account = services.auth.currentAccount() else {
+                    clearSignedInState()
+                    authState = .signedOut
+                    return
+                }
+                try await finishAuthentication(account: account)
             } catch {
+                clearSignedInState()
                 errorMessage = error.localizedDescription
-                isBootstrapping = false
+                authState = .signedOut
             }
+        }
+    }
+
+    func signIn(email: String, password: String) async {
+        await authenticate {
+            try await services.auth.signIn(email: email, password: password)
+        }
+    }
+
+    func createAccount(email: String, password: String) async {
+        await authenticate {
+            try await services.auth.createAccount(email: email, password: password)
+        }
+    }
+
+    func completeProfile(displayName: String, avatar: String) async {
+        guard let pendingAccount else { return }
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        do {
+            let user = try await services.auth.createProfile(account: pendingAccount, displayName: displayName, avatar: avatar)
+            self.pendingAccount = nil
+            currentUser = user
+            authState = .signedIn
+            observeGroups(for: user.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func signOut() {
+        do {
+            try services.auth.signOut()
+            clearSignedInState()
+            authState = .signedOut
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -76,6 +119,7 @@ final class AppState: ObservableObject {
         groupListener = services.groups.observeMyGroups(userId: userId) { [weak self] groups, error in
             Task { @MainActor in
                 if let error {
+                    guard !error.isPetalogOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
                 } else {
                     self?.groups = groups
@@ -83,6 +127,60 @@ final class AppState: ObservableObject {
             }
         }
     }
+
+    private func authenticate(_ operation: () async throws -> AuthenticatedAccount) async {
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        do {
+            let account = try await operation()
+            try await finishAuthentication(account: account)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func finishAuthentication(account: AuthenticatedAccount) async throws {
+        do {
+            if let user = try await services.auth.fetchUser(account: account) {
+                pendingAccount = nil
+                currentUser = user
+                authState = .signedIn
+                observeGroups(for: user.id)
+            } else {
+                clearSignedInState()
+                pendingAccount = account
+                authState = .needsProfile(email: account.email)
+            }
+        } catch {
+            guard error.isPetalogOfflineFirestoreError else { throw error }
+            let fallbackUser = AppUser(
+                id: account.uid,
+                email: account.email,
+                displayName: account.email.petalogFallbackDisplayName,
+                avatar: "🙂"
+            )
+            pendingAccount = nil
+            currentUser = fallbackUser
+            authState = .signedIn
+            observeGroups(for: fallbackUser.id)
+        }
+    }
+
+    private func clearSignedInState() {
+        groupListener?.remove()
+        groupListener = nil
+        currentUser = nil
+        groups = []
+        pendingAccount = nil
+    }
+}
+
+enum AuthState: Equatable {
+    case bootstrapping
+    case signedOut
+    case needsProfile(email: String)
+    case signedIn
 }
 
 enum AppTab {

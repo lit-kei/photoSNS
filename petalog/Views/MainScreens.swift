@@ -252,6 +252,11 @@ struct ProfileScreen: View {
             }
             .background(PetalogTheme.background)
             .navigationTitle("プロフィール")
+            .toolbar {
+                Button("ログアウト") {
+                    appState.signOut()
+                }
+            }
             .onAppear {
                 displayName = appState.currentUser?.displayName ?? ""
                 avatar = appState.currentUser?.avatar ?? "🙂"
