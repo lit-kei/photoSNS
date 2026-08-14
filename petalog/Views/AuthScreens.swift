@@ -14,76 +14,89 @@ struct AuthScreen: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("petalog")
-                            .font(.largeTitle.bold())
-                            .foregroundStyle(PetalogTheme.text)
-                        Text("友達との1日を、ステッカーで残そう。")
-                            .font(.headline)
-                            .foregroundStyle(PetalogTheme.secondaryText)
-                    }
-                    .padding(.top, 36)
+            ZStack {
+                PetalogMetalBackground()
 
-                    Picker("認証モード", selection: $mode) {
-                        ForEach(AuthMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
+                GeometryReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 34) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                BrandWordmark()
+                                Text("友達との1日を、ステッカーで残そう。")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(AppColors.secondaryText)
+                                    .lineSpacing(3)
+                            }
+                            .padding(.top, 70)
+
+                            Spacer(minLength: 28)
+
+                            VStack(spacing: 12) {
+                                TextField("メールアドレス", text: $email)
+                                    .textContentType(.emailAddress)
+                                    .keyboardType(.emailAddress)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .textFieldStyle(.plain)
+                                    .metalTextField()
+
+                                SecureField("パスワード", text: $password)
+                                    .textContentType(mode == .signIn ? .password : .newPassword)
+                                    .textFieldStyle(.plain)
+                                    .metalTextField()
+
+                                if mode == .signUp {
+                                    SecureField("パスワード確認", text: $confirmPassword)
+                                        .textContentType(.newPassword)
+                                        .textFieldStyle(.plain)
+                                        .metalTextField()
+                                        .transition(.opacity.combined(with: .move(edge: .top)))
+                                }
+                            }
+
+                            VStack(spacing: 14) {
+                                Button {
+                                    Task { await submit() }
+                                } label: {
+                                    if appState.isAuthenticating {
+                                        ProgressView()
+                                            .tint(.white)
+                                    } else {
+                                        Label(mode.primaryActionTitle, systemImage: mode.systemImage)
+                                    }
+                                }
+                                .buttonStyle(PrimaryActionButtonStyle())
+                                .disabled(!canSubmit || appState.isAuthenticating)
+                                .opacity(canSubmit ? 1 : 0.48)
+
+                                Button {
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                                        mode = mode == .signIn ? .signUp : .signIn
+                                    }
+                                } label: {
+                                    Text(mode == .signIn ? "アカウントを作る" : "ログインに戻る")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(AppColors.mainText)
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            Spacer(minLength: 34)
+
+                            Text("メールアドレスでログインします。アカウント情報は安全に保存されます。")
+                                .font(.system(size: 12))
+                                .foregroundStyle(AppColors.secondaryText)
+                                .lineSpacing(3)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .multilineTextAlignment(.center)
                         }
-                    }
-                    .pickerStyle(.segmented)
-
-                    VStack(spacing: 14) {
-                        TextField("メールアドレス", text: $email)
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .textFieldStyle(.roundedBorder)
-
-                        SecureField("パスワード", text: $password)
-                            .textContentType(mode == .signIn ? .password : .newPassword)
-                            .textFieldStyle(.roundedBorder)
-
-                        if mode == .signUp {
-                            SecureField("パスワード確認", text: $confirmPassword)
-                                .textContentType(.newPassword)
-                                .textFieldStyle(.roundedBorder)
-                        }
-                    }
-
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        if appState.isAuthenticating {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Label(mode.primaryActionTitle, systemImage: mode.systemImage)
-                        }
-                    }
-                    .buttonStyle(PrimaryActionButtonStyle())
-                    .disabled(!canSubmit || appState.isAuthenticating)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("ログイン方法はメールアドレスとパスワードです", systemImage: "envelope.fill")
-                        Label("新規作成後にユーザー名を設定します", systemImage: "person.text.rectangle.fill")
-                        Label("アカウント情報はFirestoreに保存されます", systemImage: "lock.doc.fill")
-                    }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(PetalogTheme.secondaryText)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(PetalogTheme.border, lineWidth: 1)
+                        .padding(.horizontal, AppSpacing.screenHorizontal)
+                        .padding(.bottom, 34)
+                        .frame(minHeight: proxy.size.height, alignment: .top)
                     }
                 }
-                .padding(20)
             }
-            .background(PetalogTheme.glassBackground)
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
@@ -116,70 +129,93 @@ struct UsernameSetupScreen: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    VStack(spacing: 10) {
+            ZStack {
+                PetalogMetalBackground()
+
+                ScrollView {
+                    VStack(spacing: 30) {
+                        VStack(spacing: 10) {
+                            BrandWordmark()
+                            Text("プロフィールを仕上げよう")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(AppColors.mainText)
+                            Text(email)
+                                .font(.system(size: 13))
+                                .foregroundStyle(AppColors.secondaryText)
+                        }
+                        .padding(.top, 62)
+
                         Text(avatar)
-                            .font(.system(size: 78))
-                            .frame(width: 112, height: 112)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .overlay { Circle().stroke(PetalogTheme.border, lineWidth: 1) }
+                            .font(.system(size: 68))
+                            .frame(width: 118, height: 118)
+                            .background {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [AppColors.chromeHighlight, AppColors.silver.opacity(0.54), AppColors.elevatedSurface],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                            }
+                            .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
 
-                        Text("ユーザー名を決めよう")
-                            .font(.largeTitle.bold())
-                            .foregroundStyle(PetalogTheme.text)
+                        TextField("ユーザー名", text: $displayName)
+                            .font(.system(size: 20, weight: .semibold))
                             .multilineTextAlignment(.center)
+                            .textFieldStyle(.plain)
+                            .metalTextField()
 
-                        Text(email)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(PetalogTheme.secondaryText)
-                    }
-                    .padding(.top, 36)
-
-                    TextField("ユーザー名", text: $displayName)
-                        .font(.title3.weight(.bold))
-                        .multilineTextAlignment(.center)
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack(spacing: 8) {
-                        ForEach(["🙂", "😆", "😎", "😊", "🤩", "🌟"], id: \.self) { candidate in
-                            Button(candidate) { avatar = candidate }
-                                .font(.title2)
-                                .frame(width: 42, height: 42)
-                                .background {
-                                    if candidate == avatar {
-                                        Circle().fill(PetalogTheme.primary.opacity(0.16))
-                                    } else {
-                                        Circle().fill(.ultraThinMaterial)
+                        HStack(spacing: 10) {
+                            ForEach(["🙂", "😆", "😎", "😊", "🤩", "🌟"], id: \.self) { candidate in
+                                Button {
+                                    withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
+                                        avatar = candidate
                                     }
+                                } label: {
+                                    Text(candidate)
+                                        .font(.system(size: 21))
+                                        .frame(width: 44, height: 44)
+                                        .background {
+                                            Circle()
+                                                .fill(AppColors.surface.opacity(0.94))
+                                        }
+                                        .overlay {
+                                            Circle()
+                                                .stroke(candidate == avatar ? AppColors.mainText.opacity(0.7) : AppColors.border, lineWidth: candidate == avatar ? 1.2 : 0.8)
+                                        }
+                                        .scaleEffect(candidate == avatar ? 1.07 : 1)
                                 }
-                                .clipShape(Circle())
+                                .buttonStyle(.plain)
+                            }
                         }
-                    }
 
-                    Button {
-                        Task { await appState.completeProfile(displayName: displayName, avatar: avatar) }
-                    } label: {
-                        if appState.isAuthenticating {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Label("petalogを始める", systemImage: "sparkles")
+                        Button {
+                            Task { await appState.completeProfile(displayName: displayName, avatar: avatar) }
+                        } label: {
+                            if appState.isAuthenticating {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Label("petalogを始める", systemImage: "sparkles")
+                            }
                         }
-                    }
-                    .buttonStyle(PrimaryActionButtonStyle())
-                    .disabled(displayName.trimmedForPetalog.isEmpty || appState.isAuthenticating)
+                        .buttonStyle(PrimaryActionButtonStyle())
+                        .disabled(displayName.trimmedForPetalog.isEmpty || appState.isAuthenticating)
+                        .opacity(displayName.trimmedForPetalog.isEmpty ? 0.48 : 1)
 
-                    Button("別のアカウントでログイン") {
-                        appState.signOut()
+                        Button("別のアカウントでログイン") {
+                            appState.signOut()
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppColors.secondaryText)
+                        .buttonStyle(.plain)
                     }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(PetalogTheme.secondaryText)
+                    .padding(.horizontal, AppSpacing.screenHorizontal)
+                    .padding(.bottom, 34)
                 }
-                .padding(20)
             }
-            .background(PetalogTheme.glassBackground)
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }

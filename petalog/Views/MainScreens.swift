@@ -12,85 +12,148 @@ struct HomeScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
                     header
-
-                    NavigationLink {
-                        CameraScreen()
-                    } label: {
-                        Label("写真を撮る", systemImage: "camera.fill")
-                    }
-                    .buttonStyle(PrimaryActionButtonStyle())
-
-                    HStack(spacing: 12) {
-                        NavigationLink {
-                            GroupManagementScreen(initialMode: .create)
-                        } label: {
-                            Label("グループを作る", systemImage: "person.3.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(SecondaryActionButtonStyle())
-                        .frame(maxWidth: .infinity)
-
-                        NavigationLink {
-                            GroupManagementScreen(initialMode: .join)
-                        } label: {
-                            Label("参加する", systemImage: "qrcode.viewfinder")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(SecondaryActionButtonStyle())
-                        .frame(maxWidth: .infinity)
-                    }
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("今日のグループ")
-                            .font(.title2.bold())
-                            .foregroundStyle(PetalogTheme.text)
-
-                        if appState.groups.isEmpty {
-                            EmptyStateView(systemImage: "person.3.sequence.fill", title: "まだグループがありません", message: "友達とグループを作るか、招待コードで参加すると今日の絵日記を始められます。")
-                        } else {
-                            ForEach(appState.groups) { group in
-                                NavigationLink {
-                                    DiaryScreen(group: group)
-                                } label: {
-                                    GroupActivityCard(group: group)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
+                    cameraCTA
+                    quickActions
+                    groupsSection
                 }
-                .padding(20)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.screenTop)
+                .padding(.bottom, 28)
             }
-            .background(PetalogTheme.glassBackground)
-            .navigationTitle("petalog")
-            .toolbar {
-                NavigationLink {
-                    GroupManagementScreen(initialMode: .list)
-                } label: {
-                    Image(systemName: "person.2.badge.gearshape.fill")
-                }
-                .accessibilityLabel("グループ管理")
+            .background {
+                PetalogMetalBackground()
             }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(Date().petalogDisplayDate)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PetalogTheme.secondaryText)
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    BrandWordmark()
+                    Text(Date().petalogDisplayDate)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppColors.secondaryText)
+                }
 
-            Text("今日の思い出をつくろう")
-                .font(.largeTitle.bold())
-                .foregroundStyle(PetalogTheme.text)
-                .fixedSize(horizontal: false, vertical: true)
+                Spacer()
 
-            if let user = appState.currentUser {
-                Text("\(user.avatar) \(user.displayName)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(PetalogTheme.secondaryText)
+                NavigationLink {
+                    GroupManagementScreen(initialMode: .list)
+                } label: {
+                    IconButtonLabel(systemName: "person.2.badge.gearshape")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("グループ管理")
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("今日の思い出をつくろう")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(AppColors.mainText)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let user = appState.currentUser {
+                    Text("\(user.avatar) \(user.displayName)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(AppColors.secondaryText)
+                }
+            }
+        }
+    }
+
+    private var cameraCTA: some View {
+        NavigationLink {
+            CameraScreen()
+        } label: {
+            HStack(spacing: 18) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 24, weight: .semibold))
+                    .frame(width: 54, height: 54)
+                    .background(.white.opacity(0.12))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("写真を撮る")
+                        .font(.system(size: 20, weight: .semibold))
+                    Text("ステッカーにする1枚を残す")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .background(.white.opacity(0.12))
+                    .clipShape(Circle())
+            }
+            .foregroundStyle(.white)
+            .padding(20)
+            .background {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                AppColors.charcoal,
+                                Color(red: 0.22, green: 0.23, blue: 0.25),
+                                AppColors.darkSilver
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(.white.opacity(0.22), lineWidth: 0.8)
+                    }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var quickActions: some View {
+        HStack(spacing: 12) {
+            NavigationLink {
+                GroupManagementScreen(initialMode: .create)
+            } label: {
+                Label("グループを作る", systemImage: "person.3")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryActionButtonStyle())
+
+            NavigationLink {
+                GroupManagementScreen(initialMode: .join)
+            } label: {
+                Label("参加する", systemImage: "qrcode.viewfinder")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryActionButtonStyle())
+        }
+    }
+
+    private var groupsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "今日のグループ", subtitle: appState.groups.isEmpty ? nil : "絵日記に集まる今日の投稿")
+
+            if appState.groups.isEmpty {
+                EmptyStateView(systemImage: "person.3", title: "まだグループがありません", message: "グループを作るか、招待コードで参加すると今日の絵日記を始められます。")
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(appState.groups) { group in
+                        NavigationLink {
+                            DiaryScreen(group: group)
+                        } label: {
+                            GroupActivityCard(group: group)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
     }
@@ -100,55 +163,35 @@ private struct GroupActivityCard: View {
     let group: PetalogGroup
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                HStack(spacing: 10) {
-                    Text(group.icon)
-                        .font(.title2)
-                        .frame(width: 42, height: 42)
-                        .background(PetalogTheme.background)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        MetalCard(padding: 16) {
+            HStack(spacing: 14) {
+                AvatarToken(symbol: group.icon, size: 48, fontSize: 24)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(group.name)
-                            .font(.headline)
-                            .foregroundStyle(PetalogTheme.text)
-                        Text("招待コード \(group.inviteCode)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(PetalogTheme.secondaryText)
-                    }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(group.name)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
+                    Text("invite \(group.inviteCode)")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(AppColors.secondaryText)
                 }
 
                 Spacer()
-                MemberAvatarStack(avatars: group.memberAvatars)
-            }
 
-            DiaryBackgroundView(background: .notebook)
-                .frame(height: 150)
-                .overlay {
-                    VStack(spacing: 8) {
-                        Image(systemName: "square.stack.3d.up.fill")
-                            .font(.title2)
-                            .foregroundStyle(PetalogTheme.primary)
-                        Text("今日の絵日記を見る")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(PetalogTheme.text)
-                    }
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(group.diaryCount)")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
+                    Text("posts")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(AppColors.secondaryText)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-            Text("\(group.memberIds.count)人 / \(group.diaryCount)枚の絵日記")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(PetalogTheme.secondaryText)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.darkSilver)
+            }
         }
-        .padding(14)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(PetalogTheme.border, lineWidth: 1)
-        }
-        .shadow(color: PetalogTheme.glassPink.opacity(0.14), radius: 12, y: 6)
     }
 }
 
@@ -158,49 +201,66 @@ struct MemoriesScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("1日1枚の絵日記")
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(PetalogTheme.text)
+                VStack(alignment: .leading, spacing: AppSpacing.section) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("思い出")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(AppColors.mainText)
+                        Text("1日1枚の絵日記")
+                            .font(.system(size: 15))
+                            .foregroundStyle(AppColors.secondaryText)
+                    }
 
                     if appState.groups.isEmpty {
-                        EmptyStateView(systemImage: "book.closed.fill", title: "思い出はこれから", message: "グループでステッカーを貼ると、1日1枚の絵日記がここに並びます。")
+                        EmptyStateView(systemImage: "book.closed", title: "思い出はこれから", message: "グループでステッカーを貼ると、1日1枚の絵日記がここに並びます。")
                     } else {
-                        ForEach(appState.groups) { group in
-                            NavigationLink {
-                                DiaryScreen(group: group)
-                            } label: {
-                                HStack(spacing: 14) {
-                                    Text(group.icon)
-                                        .font(.largeTitle)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(group.name)
-                                            .font(.headline)
-                                            .foregroundStyle(PetalogTheme.text)
-                                        Text("今日 / \(group.diaryCount)枚")
-                                            .font(.subheadline)
-                                            .foregroundStyle(PetalogTheme.secondaryText)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .foregroundStyle(PetalogTheme.secondaryText)
+                        VStack(spacing: 12) {
+                            ForEach(appState.groups) { group in
+                                NavigationLink {
+                                    DiaryScreen(group: group)
+                                } label: {
+                                    MemoryListCard(group: group)
                                 }
-                                .padding(14)
-                                .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(PetalogTheme.border, lineWidth: 1)
-                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.screenTop + 18)
+                .padding(.bottom, 28)
             }
-            .background(PetalogTheme.glassBackground)
-            .navigationTitle("思い出")
+            .background {
+                PetalogMetalBackground()
+            }
+            .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+}
+
+private struct MemoryListCard: View {
+    let group: PetalogGroup
+
+    var body: some View {
+        MetalCard(padding: 15) {
+            HStack(spacing: 14) {
+                AvatarToken(symbol: group.icon, size: 46, fontSize: 24)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(group.name)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
+                    Text("\(Date().petalogDisplayDate) / \(group.diaryCount)枚")
+                        .font(.system(size: 12))
+                        .foregroundStyle(AppColors.secondaryText)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.darkSilver)
+            }
         }
     }
 }
@@ -213,65 +273,189 @@ struct ProfileScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 22) {
-                    VStack(spacing: 12) {
-                        Text(avatar)
-                            .font(.system(size: 72))
-                            .frame(width: 104, height: 104)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .overlay { Circle().stroke(PetalogTheme.border, lineWidth: 1) }
+                VStack(spacing: 30) {
+                    Text("プロフィール")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(AppColors.mainText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    VStack(spacing: 18) {
+                        MetallicAvatar(symbol: avatar)
 
                         TextField("ユーザー名", text: $displayName)
-                            .font(.title3.weight(.bold))
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(AppColors.mainText)
                             .multilineTextAlignment(.center)
-                            .textFieldStyle(.roundedBorder)
-
-                        HStack(spacing: 8) {
-                            ForEach(["🙂", "😆", "😎", "😊", "🤩", "🌟"], id: \.self) { candidate in
-                                Button(candidate) { avatar = candidate }
-                                    .font(.title2)
-                                    .frame(width: 42, height: 42)
-                                    .background {
-                                        if candidate == avatar {
-                                            Circle().fill(PetalogTheme.primary.opacity(0.16))
-                                        } else {
-                                            Circle().fill(.ultraThinMaterial)
-                                        }
-                                    }
-                                    .clipShape(Circle())
+                            .textFieldStyle(.plain)
+                            .padding(.vertical, 10)
+                            .overlay(alignment: .bottom) {
+                                Rectangle()
+                                    .fill(AppColors.border)
+                                    .frame(height: 1)
                             }
-                        }
 
-                        Button {
-                            Task { await appState.updateProfile(displayName: displayName, avatar: avatar) }
-                        } label: {
-                            Label("プロフィールを保存", systemImage: "checkmark.circle.fill")
-                        }
-                        .buttonStyle(PrimaryActionButtonStyle())
-
-                        HStack(spacing: 12) {
-                            ProfileStat(title: "グループ", value: "\(appState.groups.count)")
-                            ProfileStat(title: "参加中", value: "\(appState.groups.reduce(0) { $0 + $1.memberIds.count })")
-                            ProfileStat(title: "絵日記", value: "\(appState.groups.reduce(0) { $0 + $1.diaryCount })")
+                        HStack(spacing: 10) {
+                            ForEach(["🙂", "😆", "😎", "😊", "🤩", "🌟"], id: \.self) { candidate in
+                                EmojiChip(symbol: candidate, isSelected: candidate == avatar) {
+                                    withAnimation(.spring(response: 0.24, dampingFraction: 0.82)) {
+                                        avatar = candidate
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    EmptyStateView(systemImage: "scissors", title: "作ったステッカー", message: "投稿したステッカーは、次の同期画面で自分だけの一覧として表示していきます。")
+                    Button {
+                        Task { await appState.updateProfile(displayName: displayName, avatar: avatar) }
+                    } label: {
+                        Label("プロフィールを保存", systemImage: "checkmark.circle")
+                    }
+                    .buttonStyle(PrimaryActionButtonStyle())
+
+                    StatsStrip(
+                        groups: appState.groups.count,
+                        members: appState.groups.reduce(0) { $0 + $1.memberIds.count },
+                        diaries: appState.groups.reduce(0) { $0 + $1.diaryCount }
+                    )
+
+                    MetalCard(padding: 16) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "scissors")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(AppColors.mainText)
+                                .frame(width: 42, height: 42)
+                                .background(AppColors.chromeHighlight.opacity(0.78))
+                                .clipShape(Circle())
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("作ったステッカー")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(AppColors.mainText)
+                                Text("ギャラリーは今後ここに表示されます")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(AppColors.secondaryText)
+                            }
+
+                            Spacer()
+                        }
+                    }
+
+                    Button("ログアウト") {
+                        appState.signOut()
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.secondaryText)
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
                 }
-                .padding(20)
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.screenTop + 18)
+                .padding(.bottom, 34)
             }
-            .background(PetalogTheme.glassBackground)
-            .navigationTitle("プロフィール")
-            .toolbar {
-                Button("ログアウト") {
-                    appState.signOut()
-                }
+            .background {
+                PetalogMetalBackground()
             }
+            .toolbar(.hidden, for: .navigationBar)
             .onAppear {
                 displayName = appState.currentUser?.displayName ?? ""
                 avatar = appState.currentUser?.avatar ?? "🙂"
             }
+        }
+    }
+}
+
+private struct AvatarToken: View {
+    let symbol: String
+    let size: CGFloat
+    let fontSize: CGFloat
+
+    var body: some View {
+        Text(symbol)
+            .font(.system(size: fontSize))
+            .frame(width: size, height: size)
+            .background {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [AppColors.chromeHighlight, AppColors.silver.opacity(0.32), AppColors.elevatedSurface],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+    }
+}
+
+private struct MetallicAvatar: View {
+    let symbol: String
+
+    var body: some View {
+        Text(symbol)
+            .font(.system(size: 70))
+            .frame(width: 132, height: 132)
+            .background {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                AppColors.chromeHighlight,
+                                AppColors.silver.opacity(0.54),
+                                AppColors.elevatedSurface,
+                                AppColors.darkSilver.opacity(0.18)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .overlay {
+                Circle().stroke(AppColors.border, lineWidth: 0.8)
+            }
+            .shadow(color: AppColors.silver.opacity(0.22), radius: 18, y: 8)
+    }
+}
+
+private struct EmojiChip: View {
+    let symbol: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(symbol)
+                .font(.system(size: 20))
+                .frame(width: 42, height: 42)
+                .background {
+                    Circle()
+                        .fill(AppColors.surface.opacity(0.95))
+                }
+                .overlay {
+                    Circle()
+                        .stroke(isSelected ? AppColors.mainText.opacity(0.72) : AppColors.border, lineWidth: isSelected ? 1.2 : 0.8)
+                }
+                .shadow(color: isSelected ? AppColors.silver.opacity(0.34) : .clear, radius: 10, y: 4)
+                .scaleEffect(isSelected ? 1.08 : 1)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct StatsStrip: View {
+    let groups: Int
+    let members: Int
+    let diaries: Int
+
+    var body: some View {
+        MetalCard(padding: 0) {
+            HStack(spacing: 0) {
+                ProfileStat(title: "グループ", value: "\(groups)")
+                Divider().frame(height: 34)
+                ProfileStat(title: "参加中", value: "\(members)")
+                Divider().frame(height: 34)
+                ProfileStat(title: "絵日記", value: "\(diaries)")
+            }
+            .padding(.vertical, 16)
         }
     }
 }
@@ -281,17 +465,14 @@ private struct ProfileStat: View {
     let value: String
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 5) {
             Text(value)
-                .font(.title3.bold())
-                .foregroundStyle(PetalogTheme.text)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(AppColors.mainText)
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(PetalogTheme.secondaryText)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(AppColors.secondaryText)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(.white)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
