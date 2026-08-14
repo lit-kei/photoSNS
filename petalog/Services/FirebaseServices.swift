@@ -349,9 +349,9 @@ final class StickerService {
 struct StickerDraft: Hashable {
     var shape: StickerShapeOption = .circle
     var decoration: StickerDecoration = .sparkle
-    var scale: Double = 1
-    var rotation: Double = 0
-    var offset: CGSize = .zero
+    var cropScale: Double = 1
+    var cropRotation: Double = 0
+    var cropOffset: CGSize = .zero
     var comment: String = ""
 }
 

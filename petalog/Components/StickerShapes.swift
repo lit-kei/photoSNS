@@ -39,7 +39,7 @@ struct StickerOutline: View {
     private var outlineColor: Color {
         switch decoration {
         case .whiteOutline, .sparkle: .white
-        case .colorfulOutline: .pink
+        case .colorfulOutline: PetalogTheme.accent
         case .handDrawn: .black.opacity(0.72)
         case .shadow, .none: .clear
         }
@@ -48,15 +48,39 @@ struct StickerOutline: View {
 
 private struct HeartShape: Shape {
     func path(in rect: CGRect) -> Path {
+        let side = min(rect.width, rect.height)
+        let rect = CGRect(
+            x: rect.midX - side / 2,
+            y: rect.midY - side / 2,
+            width: side,
+            height: side
+        ).insetBy(dx: side * 0.04, dy: side * 0.06)
         var path = Path()
         let width = rect.width
         let height = rect.height
+        let bottom = CGPoint(x: rect.midX, y: rect.minY + height * 0.9)
 
-        path.move(to: CGPoint(x: rect.midX, y: rect.maxY * 0.9))
-        path.addCurve(to: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.36), control1: CGPoint(x: rect.minX + width * 0.18, y: rect.minY + height * 0.72), control2: CGPoint(x: rect.minX, y: rect.minY + height * 0.52))
-        path.addCurve(to: CGPoint(x: rect.midX, y: rect.minY + height * 0.26), control1: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.06), control2: CGPoint(x: rect.minX + width * 0.38, y: rect.minY + height * 0.08))
-        path.addCurve(to: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.36), control1: CGPoint(x: rect.maxX - width * 0.38, y: rect.minY + height * 0.08), control2: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.06))
-        path.addCurve(to: CGPoint(x: rect.midX, y: rect.maxY * 0.9), control1: CGPoint(x: rect.maxX, y: rect.minY + height * 0.52), control2: CGPoint(x: rect.maxX - width * 0.18, y: rect.minY + height * 0.72))
+        path.move(to: bottom)
+        path.addCurve(
+            to: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.38),
+            control1: CGPoint(x: rect.midX - width * 0.36, y: rect.minY + height * 0.74),
+            control2: CGPoint(x: rect.minX, y: rect.minY + height * 0.58)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.minY + height * 0.27),
+            control1: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.14),
+            control2: CGPoint(x: rect.midX - width * 0.24, y: rect.minY + height * 0.08)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.38),
+            control1: CGPoint(x: rect.midX + width * 0.24, y: rect.minY + height * 0.08),
+            control2: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.14)
+        )
+        path.addCurve(
+            to: bottom,
+            control1: CGPoint(x: rect.maxX, y: rect.minY + height * 0.58),
+            control2: CGPoint(x: rect.midX + width * 0.36, y: rect.minY + height * 0.74)
+        )
         path.closeSubpath()
         return path
     }

@@ -3,14 +3,17 @@
 //  petalog
 //
 
+import CoreImage
 import SwiftUI
 import UIKit
+import Vision
 
 enum StickerRenderer {
     static func renderPNG(originalImage: UIImage, draft: StickerDraft, canvasSize: CGSize = CGSize(width: 720, height: 720)) throws -> Data {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 2
         format.opaque = false
+        let stickerSource = originalImage.petalogForegroundCutout() ?? originalImage
 
         let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
         let image = renderer.image { context in
@@ -23,14 +26,24 @@ enum StickerRenderer {
                 width: canvasSize.width * 0.78,
                 height: canvasSize.height * 0.78
             )
-            let transformed = baseRect
-                .offsetBy(dx: draft.offset.width * 0.45, dy: draft.offset.height * 0.45)
-                .applying(CGAffineTransform(scaleX: draft.scale, y: draft.scale))
+            let maskRect = baseRect
+            let cropScale = max(1, CGFloat(draft.cropScale))
+            let cropRect = maskRect
+                .scaledAboutCenter(by: cropScale)
+                .offsetBy(
+                    dx: maskRect.width * draft.cropOffset.width,
+                    dy: maskRect.height * draft.cropOffset.height
+                )
 
-            let path = StickerShapePath.path(for: draft.shape, in: transformed)
+            let path = StickerShapePath.path(for: draft.shape, in: maskRect)
+            let center = CGPoint(x: maskRect.midX, y: maskRect.midY)
+
             context.cgContext.saveGState()
             path.addClip()
-            originalImage.drawAspectFill(in: transformed)
+            context.cgContext.translateBy(x: center.x, y: center.y)
+            context.cgContext.rotate(by: CGFloat(draft.cropRotation) * .pi / 180)
+            context.cgContext.translateBy(x: -center.x, y: -center.y)
+            stickerSource.drawAspectFill(in: cropRect)
             context.cgContext.restoreGState()
 
             drawDecoration(draft.decoration, around: path, in: context.cgContext)
@@ -49,10 +62,10 @@ enum StickerRenderer {
             path.lineWidth = 18
             path.stroke()
         case .colorfulOutline:
-            UIColor.systemPink.setStroke()
+            UIColor(red: 0.43, green: 0.45, blue: 0.5, alpha: 1).setStroke()
             path.lineWidth = 18
             path.stroke()
-            UIColor.systemYellow.setStroke()
+            UIColor(red: 0.86, green: 0.87, blue: 0.9, alpha: 1).setStroke()
             path.lineWidth = 7
             path.stroke()
         case .shadow:
@@ -93,7 +106,7 @@ enum StickerRenderer {
         path.addLine(to: CGPoint(x: point.x - size, y: point.y))
         path.addLine(to: CGPoint(x: point.x - size * 0.23, y: point.y - size * 0.23))
         path.close()
-        UIColor.systemYellow.setFill()
+        UIColor(red: 0.78, green: 0.8, blue: 0.84, alpha: 1).setFill()
         path.fill()
     }
 }
@@ -117,12 +130,38 @@ enum StickerShapePath {
     }
 
     private static func heart(in rect: CGRect) -> UIBezierPath {
+        let side = min(rect.width, rect.height)
+        let rect = CGRect(
+            x: rect.midX - side / 2,
+            y: rect.midY - side / 2,
+            width: side,
+            height: side
+        ).insetBy(dx: side * 0.04, dy: side * 0.06)
+        let width = rect.width
+        let height = rect.height
+        let bottom = CGPoint(x: rect.midX, y: rect.minY + height * 0.9)
         let path = UIBezierPath()
-        path.move(to: CGPoint(x: rect.midX, y: rect.maxY * 0.9))
-        path.addCurve(to: CGPoint(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.36), controlPoint1: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.72), controlPoint2: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.52))
-        path.addCurve(to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.26), controlPoint1: CGPoint(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.06), controlPoint2: CGPoint(x: rect.minX + rect.width * 0.38, y: rect.minY + rect.height * 0.08))
-        path.addCurve(to: CGPoint(x: rect.maxX - rect.width * 0.08, y: rect.minY + rect.height * 0.36), controlPoint1: CGPoint(x: rect.maxX - rect.width * 0.38, y: rect.minY + rect.height * 0.08), controlPoint2: CGPoint(x: rect.maxX - rect.width * 0.08, y: rect.minY + rect.height * 0.06))
-        path.addCurve(to: CGPoint(x: rect.midX, y: rect.maxY * 0.9), controlPoint1: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.52), controlPoint2: CGPoint(x: rect.maxX - rect.width * 0.18, y: rect.minY + rect.height * 0.72))
+        path.move(to: bottom)
+        path.addCurve(
+            to: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.38),
+            controlPoint1: CGPoint(x: rect.midX - width * 0.36, y: rect.minY + height * 0.74),
+            controlPoint2: CGPoint(x: rect.minX, y: rect.minY + height * 0.58)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.minY + height * 0.27),
+            controlPoint1: CGPoint(x: rect.minX + width * 0.08, y: rect.minY + height * 0.14),
+            controlPoint2: CGPoint(x: rect.midX - width * 0.24, y: rect.minY + height * 0.08)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.38),
+            controlPoint1: CGPoint(x: rect.midX + width * 0.24, y: rect.minY + height * 0.08),
+            controlPoint2: CGPoint(x: rect.maxX - width * 0.08, y: rect.minY + height * 0.14)
+        )
+        path.addCurve(
+            to: bottom,
+            controlPoint1: CGPoint(x: rect.maxX, y: rect.minY + height * 0.58),
+            controlPoint2: CGPoint(x: rect.midX + width * 0.36, y: rect.minY + height * 0.74)
+        )
         path.close()
         return path
     }
@@ -167,6 +206,18 @@ enum StickerShapePath {
     }
 }
 
+private extension CGRect {
+    func scaledAboutCenter(by scale: CGFloat) -> CGRect {
+        let size = CGSize(width: width * scale, height: height * scale)
+        return CGRect(
+            x: midX - size.width / 2,
+            y: midY - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+}
+
 private extension UIImage {
     func drawAspectFill(in rect: CGRect) {
         let scale = max(rect.width / size.width, rect.height / size.height)
@@ -178,5 +229,33 @@ private extension UIImage {
             height: drawSize.height
         )
         draw(in: drawRect)
+    }
+
+    func petalogForegroundCutout() -> UIImage? {
+        guard #available(iOS 17.0, *), let cgImage else { return nil }
+
+        do {
+            let request = VNGenerateForegroundInstanceMaskRequest()
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            try handler.perform([request])
+
+            guard let observation = request.results?.first else { return nil }
+            let maskBuffer = try observation.generateScaledMaskForImage(forInstances: observation.allInstances, from: handler)
+            let inputImage = CIImage(cgImage: cgImage)
+            let maskImage = CIImage(cvPixelBuffer: maskBuffer)
+            let clearImage = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0)).cropped(to: inputImage.extent)
+
+            guard let filter = CIFilter(name: "CIBlendWithMask") else { return nil }
+            filter.setValue(inputImage, forKey: kCIInputImageKey)
+            filter.setValue(clearImage, forKey: kCIInputBackgroundImageKey)
+            filter.setValue(maskImage, forKey: kCIInputMaskImageKey)
+            guard let outputImage = filter.outputImage else { return nil }
+
+            let context = CIContext()
+            guard let outputCGImage = context.createCGImage(outputImage, from: inputImage.extent) else { return nil }
+            return UIImage(cgImage: outputCGImage, scale: scale, orientation: .up)
+        } catch {
+            return nil
+        }
     }
 }

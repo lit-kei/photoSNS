@@ -14,8 +14,23 @@ struct PrimaryActionButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity)
-            .background(PetalogTheme.primary.opacity(configuration.isPressed ? 0.78 : 1))
+            .background {
+                LinearGradient(
+                    colors: [
+                        PetalogTheme.primary.opacity(configuration.isPressed ? 0.72 : 0.94),
+                        PetalogTheme.glassLavender.opacity(configuration.isPressed ? 0.62 : 0.86),
+                        PetalogTheme.accent.opacity(configuration.isPressed ? 0.58 : 0.78)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(.white.opacity(0.62), lineWidth: 1)
+            }
+            .shadow(color: PetalogTheme.primary.opacity(0.18), radius: 12, y: 6)
     }
 }
 
@@ -27,12 +42,17 @@ struct SecondaryActionButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
-            .background(.white.opacity(configuration.isPressed ? 0.7 : 1))
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .opacity(configuration.isPressed ? 0.72 : 1)
+            }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(PetalogTheme.border, lineWidth: 1)
             }
+            .shadow(color: PetalogTheme.glassLavender.opacity(0.14), radius: 10, y: 5)
     }
 }
 
@@ -41,12 +61,17 @@ struct ListRowButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(PetalogTheme.text)
             .padding(12)
-            .background(.white.opacity(configuration.isPressed ? 0.72 : 1))
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .opacity(configuration.isPressed ? 0.78 : 1)
+            }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(PetalogTheme.border, lineWidth: 1)
             }
+            .shadow(color: PetalogTheme.glassPink.opacity(0.12), radius: 8, y: 4)
     }
 }
 
@@ -62,6 +87,13 @@ struct ControlSection<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(PetalogTheme.border, lineWidth: 1)
+        }
     }
 }
 
@@ -97,7 +129,17 @@ private struct OptionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(isSelected ? .white : PetalogTheme.text)
-            .background(isSelected ? PetalogTheme.primary : .white)
+            .background {
+                if isSelected {
+                    LinearGradient(
+                        colors: [PetalogTheme.primary, PetalogTheme.glassLavender, PetalogTheme.accent],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                } else {
+                    Rectangle().fill(.ultraThinMaterial)
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -144,8 +186,13 @@ struct EmptyStateView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(22)
-        .background(.white)
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(PetalogTheme.border, lineWidth: 1)
+        }
+        .shadow(color: PetalogTheme.glassMint.opacity(0.16), radius: 12, y: 6)
     }
 }
 
@@ -223,7 +270,7 @@ struct SparkleOverlay: View {
 
                     Image(systemName: index.isMultiple(of: 2) ? "sparkle" : "star.fill")
                         .font(.system(size: 10 + CGFloat(index % 3) * 3, weight: .bold))
-                        .foregroundStyle(index.isMultiple(of: 2) ? .yellow : .white)
+                        .foregroundStyle(index.isMultiple(of: 2) ? PetalogTheme.accent : .white)
                         .opacity(pulse)
                         .position(x: x, y: y)
                 }

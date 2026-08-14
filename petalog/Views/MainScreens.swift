@@ -63,7 +63,7 @@ struct HomeScreen: View {
                 }
                 .padding(20)
             }
-            .background(PetalogTheme.background)
+            .background(PetalogTheme.glassBackground)
             .navigationTitle("petalog")
             .toolbar {
                 NavigationLink {
@@ -142,12 +142,13 @@ private struct GroupActivityCard: View {
                 .foregroundStyle(PetalogTheme.secondaryText)
         }
         .padding(14)
-        .background(.white)
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(PetalogTheme.border, lineWidth: 1)
         }
+        .shadow(color: PetalogTheme.glassPink.opacity(0.14), radius: 12, y: 6)
     }
 }
 
@@ -185,8 +186,12 @@ struct MemoriesScreen: View {
                                         .foregroundStyle(PetalogTheme.secondaryText)
                                 }
                                 .padding(14)
-                                .background(.white)
+                                .background(.ultraThinMaterial)
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(PetalogTheme.border, lineWidth: 1)
+                                }
                             }
                             .buttonStyle(.plain)
                         }
@@ -194,7 +199,7 @@ struct MemoriesScreen: View {
                 }
                 .padding(20)
             }
-            .background(PetalogTheme.background)
+            .background(PetalogTheme.glassBackground)
             .navigationTitle("思い出")
         }
     }
@@ -213,7 +218,7 @@ struct ProfileScreen: View {
                         Text(avatar)
                             .font(.system(size: 72))
                             .frame(width: 104, height: 104)
-                            .background(.white)
+                            .background(.ultraThinMaterial)
                             .clipShape(Circle())
                             .overlay { Circle().stroke(PetalogTheme.border, lineWidth: 1) }
 
@@ -227,7 +232,13 @@ struct ProfileScreen: View {
                                 Button(candidate) { avatar = candidate }
                                     .font(.title2)
                                     .frame(width: 42, height: 42)
-                                    .background(candidate == avatar ? PetalogTheme.primary.opacity(0.16) : .white)
+                                    .background {
+                                        if candidate == avatar {
+                                            Circle().fill(PetalogTheme.primary.opacity(0.16))
+                                        } else {
+                                            Circle().fill(.ultraThinMaterial)
+                                        }
+                                    }
                                     .clipShape(Circle())
                             }
                         }
@@ -250,7 +261,7 @@ struct ProfileScreen: View {
                 }
                 .padding(20)
             }
-            .background(PetalogTheme.background)
+            .background(PetalogTheme.glassBackground)
             .navigationTitle("プロフィール")
             .toolbar {
                 Button("ログアウト") {

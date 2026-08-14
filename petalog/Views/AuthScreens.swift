@@ -74,7 +74,7 @@ struct AuthScreen: View {
                     .foregroundStyle(PetalogTheme.secondaryText)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white)
+                    .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -83,7 +83,7 @@ struct AuthScreen: View {
                 }
                 .padding(20)
             }
-            .background(PetalogTheme.background)
+            .background(PetalogTheme.glassBackground)
         }
     }
 
@@ -122,7 +122,7 @@ struct UsernameSetupScreen: View {
                         Text(avatar)
                             .font(.system(size: 78))
                             .frame(width: 112, height: 112)
-                            .background(.white)
+                            .background(.ultraThinMaterial)
                             .clipShape(Circle())
                             .overlay { Circle().stroke(PetalogTheme.border, lineWidth: 1) }
 
@@ -147,7 +147,13 @@ struct UsernameSetupScreen: View {
                             Button(candidate) { avatar = candidate }
                                 .font(.title2)
                                 .frame(width: 42, height: 42)
-                                .background(candidate == avatar ? PetalogTheme.primary.opacity(0.16) : .white)
+                                .background {
+                                    if candidate == avatar {
+                                        Circle().fill(PetalogTheme.primary.opacity(0.16))
+                                    } else {
+                                        Circle().fill(.ultraThinMaterial)
+                                    }
+                                }
                                 .clipShape(Circle())
                         }
                     }
@@ -173,7 +179,7 @@ struct UsernameSetupScreen: View {
                 }
                 .padding(20)
             }
-            .background(PetalogTheme.background)
+            .background(PetalogTheme.glassBackground)
         }
     }
 }

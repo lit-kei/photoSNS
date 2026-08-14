@@ -418,7 +418,7 @@ enum StickerDecoration: String, PetalogOption {
         switch self {
         case .sparkle: "キラキラ"
         case .whiteOutline: "白ふち"
-        case .colorfulOutline: "色ふち"
+        case .colorfulOutline: "メタル"
         case .shadow: "影"
         case .handDrawn: "手描き"
         case .none: "なし"
@@ -454,7 +454,7 @@ enum ScrapbookBackground: String, PetalogOption {
         case .grid: "方眼"
         case .craft: "クラフト"
         case .sky: "水色"
-        case .pink: "ピンク"
+        case .pink: "シルバー"
         case .stars: "星空"
         case .check: "チェック"
         }
@@ -474,15 +474,27 @@ enum ScrapbookBackground: String, PetalogOption {
 }
 
 enum PetalogTheme {
-    static let primary = Color(red: 0.12, green: 0.47, blue: 0.86)
-    static let accent = Color(red: 0.96, green: 0.35, blue: 0.47)
-    static let text = Color(red: 0.13, green: 0.16, blue: 0.22)
-    static let secondaryText = Color(red: 0.46, green: 0.50, blue: 0.58)
-    static let border = Color(red: 0.86, green: 0.88, blue: 0.91)
-    static let background = Color(red: 0.96, green: 0.98, blue: 0.98)
+    static let primary = Color(red: 0.36, green: 0.38, blue: 0.42)
+    static let accent = Color(red: 0.66, green: 0.69, blue: 0.74)
+    static let glassPink = Color(red: 0.88, green: 0.89, blue: 0.91)
+    static let glassMint = Color(red: 0.76, green: 0.79, blue: 0.83)
+    static let glassLavender = Color(red: 0.57, green: 0.6, blue: 0.66)
+    static let text = Color(red: 0.1, green: 0.11, blue: 0.13)
+    static let secondaryText = Color(red: 0.42, green: 0.44, blue: 0.48)
+    static let border = Color.white.opacity(0.74)
+    static let background = Color(red: 0.94, green: 0.95, blue: 0.96)
+    static let glassBackground = LinearGradient(
+        colors: [
+            Color(red: 0.98, green: 0.985, blue: 0.99),
+            Color(red: 0.89, green: 0.9, blue: 0.92),
+            Color(red: 0.97, green: 0.975, blue: 0.98)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
     static let craft = Color(red: 0.77, green: 0.62, blue: 0.42)
     static let sky = Color(red: 0.78, green: 0.91, blue: 1.0)
-    static let pinkPaper = Color(red: 1.0, green: 0.89, blue: 0.92)
+    static let pinkPaper = Color(red: 0.9, green: 0.91, blue: 0.93)
 }
 
 extension Date {
