@@ -34,10 +34,9 @@ struct CameraScreen: View {
         if let image = camera.capturedImage {
             Image(uiImage: image)
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
-                .clipped()
         } else if camera.permissionState == .authorized {
             CameraPreview(session: camera.session)
         } else {
@@ -108,7 +107,12 @@ struct CameraScreen: View {
 
             Spacer()
 
-            if camera.capturedImage == nil, camera.permissionState == .authorized {
+            if let image = camera.capturedImage {
+                HStack(spacing: 10) {
+                    retakeIconButton
+                    stickerCreationIconLink(image: image)
+                }
+            } else if camera.permissionState == .authorized {
                 Button {
                     camera.switchCamera()
                 } label: {
@@ -139,19 +143,8 @@ struct CameraScreen: View {
                     .clipShape(Capsule())
             }
 
-            if let image = camera.capturedImage {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 12) {
-                        retakeButton
-                        stickerCreationLink(image: image)
-                    }
-
-                    VStack(spacing: 10) {
-                        stickerCreationLink(image: image)
-                        retakeButton
-                    }
-                }
-                .frame(maxWidth: .infinity)
+            if camera.capturedImage != nil {
+                EmptyView()
             } else if camera.permissionState == .denied {
                 EmptyView()
             } else if camera.permissionState == .unknown {
@@ -182,21 +175,39 @@ struct CameraScreen: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var retakeButton: some View {
+    private var retakeIconButton: some View {
         Button {
             camera.retake()
         } label: {
-            Label("撮り直す", systemImage: "arrow.counterclockwise")
+            Image(systemName: "arrow.counterclockwise")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 42, height: 42)
         }
-        .buttonStyle(SecondaryActionButtonStyle())
+        .foregroundStyle(.white)
+        .background(.black.opacity(0.28))
+        .clipShape(Circle())
+        .overlay { Circle().stroke(Color.white.opacity(0.26), lineWidth: 0.8) }
+        .accessibilityLabel("撮り直す")
     }
 
-    private func stickerCreationLink(image: UIImage) -> some View {
+    private func stickerCreationIconLink(image: UIImage) -> some View {
         NavigationLink {
             StickerCreationScreen(originalImage: image)
         } label: {
-            Label("ステッカーを作る", systemImage: "scissors")
+            Image(systemName: "scissors")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 42, height: 42)
         }
-        .buttonStyle(PrimaryActionButtonStyle())
+        .foregroundStyle(.white)
+        .background(
+            LinearGradient(
+                colors: [AppColors.charcoal, AppColors.darkSilver],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(Circle())
+        .overlay { Circle().stroke(Color.white.opacity(0.28), lineWidth: 0.8) }
+        .accessibilityLabel("ステッカーを作る")
     }
 }
