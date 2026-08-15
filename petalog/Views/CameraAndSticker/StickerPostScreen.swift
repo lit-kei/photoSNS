@@ -77,7 +77,11 @@ struct StickerPostScreen: View {
                     Task { await upload() }
                 } label: {
                     if viewModel.isUploading {
-                        ProgressView("Firebase Storageに保存中")
+                        VStack(spacing: 5) {
+                            ProgressView(value: viewModel.uploadProgress, total: 1)
+                            Text("Firebase Storageに保存中 \(Int(viewModel.uploadProgress * 100))%")
+                                .font(.footnote)
+                        }
                     } else {
                         Label(uploadButtonTitle, systemImage: "plus.circle.fill")
                     }

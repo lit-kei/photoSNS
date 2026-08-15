@@ -58,16 +58,16 @@ final class AuthService {
     }
 
     func uploadProfileImage(userId: String, imageData: Data) async throws -> URL {
-        let uploadData: Data
-        if let image = UIImage(data: imageData), let jpegData = image.jpegData(compressionQuality: 0.82) {
-            uploadData = jpegData
-        } else {
-            uploadData = imageData
-        }
+        let uploadData = imageData.petalogOptimizedJPEG(
+            maxDimension: 1_024,
+            quality: 0.80,
+            maximumBytes: 700_000
+        )
 
         let ref = storage.reference(withPath: "profilePhotos/\(userId)/avatar.jpg")
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
+        metadata.cacheControl = "private,max-age=31536000,immutable"
 
         _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<StorageMetadata, Error>) in
             ref.putData(uploadData, metadata: metadata) { metadata, error in

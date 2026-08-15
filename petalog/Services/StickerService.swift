@@ -31,7 +31,13 @@ final class StickerService {
             }
     }
 
-    func uploadSticker(stickerPNG: Data, draft: StickerDraft, groups: [PetalogGroup], user: AppUser) async throws -> [StickerPost] {
+    func uploadSticker(
+        stickerPNG: Data,
+        draft: StickerDraft,
+        groups: [PetalogGroup],
+        user: AppUser,
+        onProgress: @escaping (Double) -> Void = { _ in }
+    ) async throws -> [StickerPost] {
         guard !groups.isEmpty else { return [] }
         guard !stickerPNG.isEmpty, stickerPNG.count <= Self.maximumStickerBytes else {
             throw PetalogError.message("ステッカー画像が大きすぎます。もう一度作成してください。")
@@ -46,7 +52,7 @@ final class StickerService {
         let assetId = UUID().uuidString
         let dateKey = Date().petalogDateKey
         let storagePath = "stickerAssets/\(user.id)/\(assetId).png"
-        let stickerURL = try await upload(data: stickerPNG, path: storagePath)
+        let stickerURL = try await upload(data: stickerPNG, path: storagePath, onProgress: onProgress)
         let createdAt = Date()
         let posts = groups.enumerated().map { index, group in
             let postId = UUID().uuidString
@@ -153,14 +159,14 @@ final class StickerService {
         }
     }
 
-    private func upload(data: Data, path: String) async throws -> URL {
+    private func upload(data: Data, path: String, onProgress: @escaping (Double) -> Void) async throws -> URL {
         let ref = storage.reference(withPath: path)
         let metadata = StorageMetadata()
         metadata.contentType = "image/png"
         metadata.cacheControl = "private,max-age=31536000,immutable"
 
         _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<StorageMetadata, Error>) in
-            ref.putData(data, metadata: metadata) { metadata, error in
+            let uploadTask = ref.putData(data, metadata: metadata) { metadata, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let metadata {
@@ -168,6 +174,9 @@ final class StickerService {
                 } else {
                     continuation.resume(throwing: PetalogError.message("画像アップロードに失敗しました。"))
                 }
+            }
+            _ = uploadTask.observe(.progress) { snapshot in
+                onProgress(snapshot.progress?.fractionCompleted ?? 0)
             }
         }
 

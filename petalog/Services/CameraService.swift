@@ -160,7 +160,10 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
         }
 
         Task { @MainActor in
-            self.capturedImage = image.fixedOrientation()
+            // The original photo is used only as the editor source; keep a
+            // 2K working copy so editing does not retain a multi-megapixel
+            // camera buffer unnecessarily.
+            self.capturedImage = image.fixedOrientation().petalogResized(maxDimension: 2_000)
             self.isCapturing = false
             self.stop()
         }
