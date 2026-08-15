@@ -158,7 +158,6 @@ struct CameraScreen: View {
                         Circle()
                             .fill(.white)
                             .frame(width: 78, height: 78)
-                            .shadow(color: .black.opacity(0.28), radius: 16, y: 8)
                         Circle()
                             .stroke(Color.black.opacity(0.72), lineWidth: 3)
                             .frame(width: 62, height: 62)

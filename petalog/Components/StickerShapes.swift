@@ -33,7 +33,6 @@ struct StickerOutline: View {
     var body: some View {
         StickerMaskShape(shape: shape)
             .stroke(outlineColor, style: StrokeStyle(lineWidth: 7, lineCap: .round, dash: decoration == .handDrawn ? [8, 5] : []))
-            .shadow(color: decoration == .shadow ? .black.opacity(0.22) : .clear, radius: 12, y: 8)
     }
 
     private var outlineColor: Color {

@@ -354,6 +354,8 @@ struct ProfileScreen: View {
     @State private var selectedPhotoData: Data?
     @State private var isSavingProfile = false
     @State private var currentAvatarURL: String?
+    @State private var isShowingMyQR = false
+    @State private var selectedFriendProfile: AppUser?
 
     var body: some View {
         ScrollView {
@@ -378,6 +380,37 @@ struct ProfileScreen: View {
                     Text("写真を変更")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(AppColors.secondaryText)
+
+                    if let currentUser = appState.currentUser {
+                        VStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("プレイヤーID")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(AppColors.secondaryText)
+                                Text(currentUser.playerId)
+                                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(AppColors.mainText)
+                                    .lineLimit(2)
+                                    .textSelection(.enabled)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(AppColors.accentBlue.opacity(0.26))
+                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                                    .stroke(AppColors.border, lineWidth: 0.8)
+                            }
+
+                            Button {
+                                isShowingMyQR = true
+                            } label: {
+                                Label("My QRコード", systemImage: "qrcode")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(SecondaryActionButtonStyle())
+                        }
+                    }
 
                     MetalCard(padding: 16) {
                         VStack(alignment: .leading, spacing: 10) {
@@ -475,6 +508,26 @@ struct ProfileScreen: View {
             displayName = appState.currentUser?.displayName ?? ""
             currentAvatarURL = appState.currentUser?.avatarURL
         }
+        .sheet(isPresented: $isShowingMyQR) {
+            if let currentUser = appState.currentUser {
+                MyQRCodeSheet(playerId: currentUser.playerId) { scannedId in
+                    Task { await loadScannedProfile(scannedId) }
+                }
+                .environmentObject(appState)
+            }
+        }
+        .navigationDestination(item: $selectedFriendProfile) { user in
+            FriendProfileScreen(user: user)
+        }
+    }
+
+    private func loadScannedProfile(_ playerId: String) async {
+        let user = await appState.findUser(playerId: playerId)
+        if let user {
+            selectedFriendProfile = user
+        } else if appState.errorMessage == nil {
+            appState.errorMessage = "QRコードのユーザーが見つかりません。"
+        }
     }
 }
 
@@ -519,7 +572,6 @@ private struct ProfilePhotoPickerLabel: View {
                 .overlay {
                     Circle().stroke(AppColors.border, lineWidth: 0.8)
                 }
-                .shadow(color: AppColors.kraftBeige.opacity(0.22), radius: 18, y: 8)
 
             Image(systemName: "camera.fill")
                 .font(.system(size: 15, weight: .semibold))

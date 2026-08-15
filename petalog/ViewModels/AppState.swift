@@ -13,6 +13,7 @@ final class AppState: ObservableObject {
     @Published var currentUser: AppUser?
     @Published var groups: [PetalogGroup] = []
     @Published var friends: [AppFriend] = []
+    @Published var friendTodayStickers: [StickerPost] = []
     @Published var incomingFriendRequests: [FriendRequest] = []
     @Published var outgoingFriendRequests: [FriendRequest] = []
     @Published var selectedTab: AppTab = .home
@@ -26,6 +27,7 @@ final class AppState: ObservableObject {
     let stickerUploadCoordinator: StickerUploadCoordinator
     private var groupListener: ListenerRegistration?
     private var friendListener: ListenerRegistration?
+    private var friendTodayStickerListeners: [ListenerRegistration] = []
     private var incomingFriendRequestListener: ListenerRegistration?
     private var outgoingFriendRequestListener: ListenerRegistration?
     private var pendingAccount: AuthenticatedAccount?
@@ -154,6 +156,16 @@ final class AppState: ObservableObject {
         }
     }
 
+    func findUser(playerId: String) async -> AppUser? {
+        do {
+            return try await services.friends.findUser(playerId: playerId)
+        } catch {
+            guard !error.isPetalogOfflineFirestoreError else { return nil }
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
     func fetchUser(userId: String) async -> AppUser? {
         do {
             return try await services.friends.fetchUser(userId: userId)
@@ -250,6 +262,27 @@ final class AppState: ObservableObject {
                     self?.errorMessage = error.localizedDescription
                 } else {
                     self?.friends = friends
+                    self?.observeTodayFriendStickers(for: friends)
+                }
+            }
+        }
+    }
+
+    private func observeTodayFriendStickers(for friends: [AppFriend]) {
+        removeFriendTodayStickerListeners()
+        let friendIds = friends.map(\.friendId)
+        guard !friendIds.isEmpty else {
+            friendTodayStickers = []
+            return
+        }
+
+        friendTodayStickerListeners = services.stickers.observeTodayFriendStickers(friendIds: friendIds) { [weak self] stickers, error in
+            Task { @MainActor in
+                if let error {
+                    guard !error.isPetalogOfflineFirestoreError else { return }
+                    self?.errorMessage = error.localizedDescription
+                } else {
+                    self?.friendTodayStickers = stickers
                 }
             }
         }
@@ -343,6 +376,7 @@ final class AppState: ObservableObject {
         groupListener = nil
         friendListener?.remove()
         friendListener = nil
+        removeFriendTodayStickerListeners()
         incomingFriendRequestListener?.remove()
         incomingFriendRequestListener = nil
         outgoingFriendRequestListener?.remove()
@@ -350,12 +384,18 @@ final class AppState: ObservableObject {
         currentUser = nil
         groups = []
         friends = []
+        friendTodayStickers = []
         incomingFriendRequests = []
         outgoingFriendRequests = []
         isShowingNotifications = false
         hasLoadedIncomingFriendRequests = false
         knownIncomingFriendRequestIds = []
         pendingAccount = nil
+    }
+
+    private func removeFriendTodayStickerListeners() {
+        friendTodayStickerListeners.forEach { $0.remove() }
+        friendTodayStickerListeners = []
     }
 
     private func applyIncomingFriendRequests(_ requests: [FriendRequest]) {

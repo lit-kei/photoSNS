@@ -90,7 +90,7 @@ struct ContentView: View {
                     appState.selectedTab = .home
                 }
         case .friends:
-                FriendAddScreen()
+                FriendFeedScreen()
         case .memories:
                 MemoriesScreen()
         case .profile:

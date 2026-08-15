@@ -37,6 +37,43 @@ final class StickerService {
             }
     }
 
+    func observeTodayFriendStickers(friendIds: [String], onChange: @escaping ([StickerPost], Error?) -> Void) -> [ListenerRegistration] {
+        let uniqueFriendIds = Array(Set(friendIds)).sorted()
+        guard !uniqueFriendIds.isEmpty else {
+            onChange([], nil)
+            return []
+        }
+
+        let todayKey = Date().petalogDateKey
+        let chunks = uniqueFriendIds.chunked(into: 10)
+        let lock = NSLock()
+        var postsByChunk: [Int: [String: StickerPost]] = [:]
+
+        return chunks.enumerated().map { index, ids in
+            db.collection("stickers")
+                .whereField("dateKey", isEqualTo: todayKey)
+                .whereField("authorId", in: ids)
+                .addSnapshotListener { snapshot, error in
+                    if let error {
+                        onChange([], error)
+                        return
+                    }
+
+                    let posts = snapshot?.documents
+                        .map { StickerPost(id: $0.documentID, data: $0.data()) } ?? []
+
+                    lock.lock()
+                    postsByChunk[index] = Dictionary(uniqueKeysWithValues: posts.map { ($0.id, $0) })
+                    let mergedPosts = postsByChunk.values
+                        .flatMap { $0.values }
+                        .sorted { $0.createdAt > $1.createdAt }
+                    lock.unlock()
+
+                    onChange(mergedPosts, nil)
+                }
+        }
+    }
+
     func uploadSticker(
         stickerPNG: Data,
         draft: StickerDraft,

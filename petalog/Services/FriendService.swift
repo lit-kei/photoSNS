@@ -53,10 +53,29 @@ final class FriendService {
         return AppUser(id: document.documentID, data: document.data())
     }
 
+    func findUser(playerId: String) async throws -> AppUser? {
+        let normalizedPlayerId = playerId.trimmedForPetalog.uppercased()
+        guard !normalizedPlayerId.isEmpty else { return nil }
+
+        let snapshot = try await db.collection("users")
+            .whereField("playerId", isEqualTo: normalizedPlayerId)
+            .limit(to: 1)
+            .getDocuments()
+        if let document = snapshot.documents.first {
+            return AppUser(id: document.documentID, data: document.data())
+        }
+
+        return try await fetchUser(userId: playerId.trimmedForPetalog)
+    }
+
     func fetchUser(userId: String) async throws -> AppUser? {
         let snapshot = try await db.collection("users").document(userId).getDocument()
         guard let data = snapshot.data(), snapshot.exists else { return nil }
-        return AppUser(id: snapshot.documentID, data: data)
+        let user = AppUser(id: snapshot.documentID, data: data)
+        if data["playerId"] == nil {
+            try await snapshot.reference.setData(["playerId": user.playerId, "updatedAt": FieldValue.serverTimestamp()], merge: true)
+        }
+        return user
     }
 
     func sendRequest(to targetUser: AppUser, currentUser: AppUser) async throws {

@@ -17,7 +17,6 @@ struct StickerCreationModeScreen: View {
                         RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                             .stroke(AppColors.border, lineWidth: 0.8)
                     }
-                    .shadow(color: .black.opacity(0.12), radius: 14, y: 7)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("作り方を選んでください")

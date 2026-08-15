@@ -33,12 +33,18 @@ final class AuthService {
         let snapshot = try await userRef.getDocument()
         guard let data = snapshot.data(), snapshot.exists else { return nil }
         var user = AppUser(id: account.uid, data: data)
+        var updateData: [String: Any] = [
+            "playerId": user.playerId,
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
         if user.email.isEmpty {
             user.email = account.email
-            try await userRef.setData(["email": account.email, "normalizedEmail": account.email.lowercased(), "updatedAt": FieldValue.serverTimestamp()], merge: true)
+            updateData["email"] = account.email
+            updateData["normalizedEmail"] = account.email.lowercased()
         } else {
-            try await userRef.setData(["normalizedEmail": user.email.lowercased(), "updatedAt": FieldValue.serverTimestamp()], merge: true)
+            updateData["normalizedEmail"] = user.email.lowercased()
         }
+        try await userRef.setData(updateData, merge: true)
         return user
     }
 

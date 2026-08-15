@@ -4,6 +4,7 @@ import Foundation
 struct AppUser: Identifiable, Hashable {
     let id: String
     var email: String
+    var playerId: String
     var displayName: String
     var avatar: String
     var avatarURL: String?
@@ -13,6 +14,7 @@ struct AppUser: Identifiable, Hashable {
     init(
         id: String,
         email: String = "",
+        playerId: String? = nil,
         displayName: String,
         avatar: String = "",
         avatarURL: String? = nil,
@@ -21,6 +23,7 @@ struct AppUser: Identifiable, Hashable {
     ) {
         self.id = id
         self.email = email
+        self.playerId = playerId ?? Self.makePlayerId(from: id)
         self.displayName = displayName
         self.avatar = avatar
         self.avatarURL = avatarURL
@@ -31,6 +34,7 @@ struct AppUser: Identifiable, Hashable {
     init(id: String, data: [String: Any]) {
         self.id = id
         self.email = data["email"] as? String ?? ""
+        self.playerId = data["playerId"] as? String ?? Self.makePlayerId(from: id)
         self.displayName = data["displayName"] as? String ?? "petalog user"
         self.avatar = data["avatar"] as? String ?? ""
         self.avatarURL = data["avatarURL"] as? String
@@ -42,6 +46,7 @@ struct AppUser: Identifiable, Hashable {
         [
             "email": email,
             "normalizedEmail": email.lowercased(),
+            "playerId": playerId,
             "displayName": displayName,
             "avatar": avatar,
             "avatarURL": avatarURL as Any,
@@ -57,6 +62,13 @@ struct AppUser: Identifiable, Hashable {
             return avatarURL
         }
         return avatar.isEmpty ? "system:person.fill" : avatar
+    }
+
+    static func makePlayerId(from userId: String) -> String {
+        let compactId = userId
+            .uppercased()
+            .filter { $0.isLetter || $0.isNumber }
+        return "P" + String(compactId.prefix(8))
     }
 }
 

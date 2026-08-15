@@ -35,7 +35,6 @@ struct StickerUploadBanner: View {
                 RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(0.16), radius: 14, y: 7)
             .transition(.move(edge: .top).combined(with: .opacity))
             .animation(.spring(response: 0.3, dampingFraction: 0.86), value: coordinator.state)
         }
@@ -140,7 +139,11 @@ struct MetalCard<Content: View>: View {
     var radius: CGFloat = AppRadius.card
     let content: Content
 
-    init(padding: CGFloat = AppSpacing.card, radius: CGFloat = AppRadius.card, @ViewBuilder content: () -> Content) {
+    init(
+        padding: CGFloat = AppSpacing.card,
+        radius: CGFloat = AppRadius.card,
+        @ViewBuilder content: () -> Content
+    ) {
         self.padding = padding
         self.radius = radius
         self.content = content()
@@ -158,7 +161,6 @@ struct MetalCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
     }
 }
 
@@ -214,7 +216,6 @@ struct PrimaryActionButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(0.14), radius: 6, y: 2)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.88 : 1)
             .animation(.spring(response: 0.24, dampingFraction: 0.86), value: configuration.isPressed)

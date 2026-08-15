@@ -1,21 +1,16 @@
-import AVFoundation
-import CoreImage.CIFilterBuiltins
 import SwiftUI
-import UIKit
 
 struct FriendAddScreen: View {
     @EnvironmentObject private var appState: AppState
-    @State private var email = ""
+    @State private var playerId = ""
     @State private var selectedProfile: AppUser?
     @State private var isSearching = false
-    @State private var isShowingScanner = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
                 searchCard
-                qrCard
                 requestSections
                 friendsSection
             }
@@ -29,12 +24,6 @@ struct FriendAddScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $selectedProfile) { user in
             FriendProfileScreen(user: user)
-        }
-        .sheet(isPresented: $isShowingScanner) {
-            QRScannerSheet { userId in
-                isShowingScanner = false
-                Task { await loadQRUser(userId: userId) }
-            }
         }
     }
 
@@ -53,12 +42,33 @@ struct FriendAddScreen: View {
     private var searchCard: some View {
         MetalCard(padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Label("メールアドレスで探す", systemImage: "envelope")
+                if let currentUser = appState.currentUser {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("あなたのプレイヤーID")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(AppColors.secondaryText)
+                        Text(currentUser.playerId)
+                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(AppColors.mainText)
+                            .lineLimit(2)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(AppColors.accentBlue.opacity(0.26))
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                            .stroke(AppColors.border, lineWidth: 0.8)
+                    }
+                }
+
+                Label("プレイヤーIDで探す", systemImage: "number")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(AppColors.secondaryText)
 
-                TextField("friend@example.com", text: $email)
-                    .keyboardType(.emailAddress)
+                TextField("プレイヤーIDを入力", text: $playerId)
+                    .keyboardType(.asciiCapable)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .textFieldStyle(.plain)
@@ -75,35 +85,8 @@ struct FriendAddScreen: View {
                     }
                 }
                 .buttonStyle(PrimaryActionButtonStyle())
-                .disabled(email.trimmedForPetalog.isEmpty || isSearching)
-                .opacity(email.trimmedForPetalog.isEmpty ? 0.48 : 1)
-
-            }
-        }
-    }
-
-    private var qrCard: some View {
-        ControlSection(title: "QRコード") {
-            VStack(spacing: 12) {
-                if let currentUser = appState.currentUser {
-                    QRCodeView(payload: currentUser.id)
-                        .frame(width: 168, height: 168)
-                        .frame(maxWidth: .infinity)
-                        .padding(18)
-                        .background(AppColors.surface.opacity(0.94))
-                        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                                .stroke(AppColors.border, lineWidth: 0.8)
-                        }
-                }
-
-                Button {
-                    isShowingScanner = true
-                } label: {
-                    Label("QRコードを読み取る", systemImage: "qrcode.viewfinder")
-                }
-                .buttonStyle(SecondaryActionButtonStyle())
+                .disabled(playerId.trimmedForPetalog.isEmpty || isSearching)
+                .opacity(playerId.trimmedForPetalog.isEmpty ? 0.48 : 1)
 
             }
         }
@@ -164,26 +147,18 @@ struct FriendAddScreen: View {
 
     private func searchUser() async {
         isSearching = true
-        let user = await appState.findUser(email: email)
+        let user = await appState.findUser(playerId: playerId)
         isSearching = false
         if let user {
             selectedProfile = user
         } else if appState.errorMessage == nil {
-            appState.errorMessage = "このメールアドレスのユーザーが見つかりません。"
+            appState.errorMessage = "このプレイヤーIDのユーザーが見つかりません。"
         }
     }
 
-    private func loadQRUser(userId: String) async {
-        let user = await appState.fetchUser(userId: userId)
-        if let user {
-            selectedProfile = user
-        } else if appState.errorMessage == nil {
-            appState.errorMessage = "QRコードのユーザーが見つかりません。"
-        }
-    }
 }
 
-private struct FriendProfileScreen: View {
+struct FriendProfileScreen: View {
     @EnvironmentObject private var appState: AppState
     let user: AppUser
     @State private var isSending = false
@@ -198,7 +173,11 @@ private struct FriendProfileScreen: View {
     }
 
     private var hasOutgoingRequest: Bool {
-        didSend || appState.outgoingFriendRequests.contains {
+        didSend || hasPendingOutgoingRequest
+    }
+
+    private var hasPendingOutgoingRequest: Bool {
+        appState.outgoingFriendRequests.contains {
             $0.toUserId == user.id && $0.status == "pending"
         }
     }
@@ -220,11 +199,11 @@ private struct FriendProfileScreen: View {
                         .font(.system(size: 27, weight: .bold))
                         .foregroundStyle(AppColors.mainText)
 
-                    if !user.email.isEmpty {
-                        Text(user.email)
-                            .font(.system(size: 14))
-                            .foregroundStyle(AppColors.secondaryText)
-                    }
+                    Text("player ID \(user.playerId)")
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(AppColors.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .textSelection(.enabled)
                 }
 
                 profileAction
@@ -240,6 +219,10 @@ private struct FriendProfileScreen: View {
         }
         .navigationTitle("プロフィール")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear(perform: syncLocalSendState)
+        .onChange(of: appState.outgoingFriendRequests) { _, _ in
+            syncLocalSendState()
+        }
     }
 
     @ViewBuilder
@@ -277,6 +260,12 @@ private struct FriendProfileScreen: View {
             }
             .buttonStyle(PrimaryActionButtonStyle())
             .disabled(isSending)
+        }
+    }
+
+    private func syncLocalSendState() {
+        if didSend && !hasPendingOutgoingRequest {
+            didSend = false
         }
     }
 }
@@ -421,106 +410,5 @@ private struct PublicUserAvatar: View {
         Image(systemName: "person.fill")
             .font(.system(size: size * 0.38, weight: .semibold))
             .foregroundStyle(AppColors.mainText.opacity(0.72))
-    }
-}
-
-private struct QRCodeView: View {
-    let payload: String
-    private let context = CIContext()
-    private let filter = CIFilter.qrCodeGenerator()
-
-    var body: some View {
-        if let image = makeImage() {
-            Image(uiImage: image)
-                .resizable()
-                .interpolation(.none)
-                .scaledToFit()
-        } else {
-            Image(systemName: "qrcode")
-                .font(.system(size: 80))
-                .foregroundStyle(AppColors.mainText)
-        }
-    }
-
-    private func makeImage() -> UIImage? {
-        filter.message = Data(payload.utf8)
-        guard let outputImage = filter.outputImage,
-              let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else { return nil }
-        return UIImage(cgImage: cgImage)
-    }
-}
-
-private struct QRScannerSheet: View {
-    let onScan: (String) -> Void
-
-    var body: some View {
-        NavigationStack {
-            QRScannerView(onScan: onScan)
-                .ignoresSafeArea()
-                .navigationTitle("QRコードを読み取る")
-                .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-}
-
-private struct QRScannerView: UIViewControllerRepresentable {
-    let onScan: (String) -> Void
-
-    func makeUIViewController(context: Context) -> QRScannerViewController {
-        let controller = QRScannerViewController()
-        controller.onScan = onScan
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: QRScannerViewController, context: Context) {}
-}
-
-private final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
-    var onScan: ((String) -> Void)?
-    private let session = AVCaptureSession()
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .black
-        configure()
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        session.stopRunning()
-    }
-
-    private func configure() {
-        guard let device = AVCaptureDevice.default(for: .video),
-              let input = try? AVCaptureDeviceInput(device: device),
-              session.canAddInput(input) else { return }
-        session.addInput(input)
-
-        let output = AVCaptureMetadataOutput()
-        guard session.canAddOutput(output) else { return }
-        session.addOutput(output)
-        output.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
-        output.metadataObjectTypes = [.qr]
-
-        let preview = AVCaptureVideoPreviewLayer(session: session)
-        preview.videoGravity = .resizeAspectFill
-        preview.frame = view.bounds
-        view.layer.addSublayer(preview)
-
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.session.startRunning()
-        }
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        (view.layer.sublayers?.first as? AVCaptureVideoPreviewLayer)?.frame = view.bounds
-    }
-
-    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        guard let object = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
-              let value = object.stringValue else { return }
-        session.stopRunning()
-        onScan?(value)
     }
 }

@@ -32,6 +32,15 @@ extension String {
     }
 }
 
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
+    }
+}
+
 extension Data {
     /// Creates a phone-friendly JPEG without first decoding the full-resolution
     /// source into a large UIKit bitmap. The original data is returned only if

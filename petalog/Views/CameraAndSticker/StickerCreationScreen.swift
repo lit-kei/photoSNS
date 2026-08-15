@@ -170,7 +170,6 @@ private struct StickerComposerPreview: View {
                 .highPriorityGesture(cropDragGesture(referenceSide: referenceSide))
                 .simultaneousGesture(cropScaleGesture())
                 .simultaneousGesture(cropRotationGesture())
-                .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
                 .overlay(alignment: .bottomTrailing) {
                     Button {
                         draft.resetCrop(imageAspectRatio: image.petalogAspectRatio)

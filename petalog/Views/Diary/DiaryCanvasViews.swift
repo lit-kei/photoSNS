@@ -123,7 +123,6 @@ struct RemoteStickerView: View {
     var body: some View {
         AsyncStickerImage(urlString: sticker.stickerImageURL, fallbackSystemImage: "photo.fill")
             .frame(width: size, height: size)
-            .shadow(color: sticker.decoration == .shadow ? .black.opacity(0.24) : .clear, radius: 12, y: 8)
             .overlay {
                 if sticker.decoration == .sparkle {
                     SparkleOverlay()
