@@ -5,6 +5,43 @@ protocol PetalogOption: CaseIterable, Identifiable, Hashable {
     var systemImage: String { get }
 }
 
+enum StickerCreationMode: String, CaseIterable, Identifiable, Hashable {
+    case crop
+    case backgroundRemoval
+
+    var id: String { rawValue }
+}
+
+enum StickerEffect: String, PetalogOption {
+    case original
+    case grayscale
+    case noir
+    case sepia
+    case vivid
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .original: "オリジナル"
+        case .grayscale: "グレースケール"
+        case .noir: "ノワール"
+        case .sepia: "セピア"
+        case .vivid: "ビビッド"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .original: "photo"
+        case .grayscale: "circle.lefthalf.filled"
+        case .noir: "circle.inset.filled"
+        case .sepia: "camera.filters"
+        case .vivid: "sun.max.fill"
+        }
+    }
+}
+
 enum StickerShapeOption: String, PetalogOption {
     case circle
     case square

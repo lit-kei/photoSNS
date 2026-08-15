@@ -84,6 +84,8 @@ final class StickerService {
                 comment: draft.comment.trimmedForPetalog,
                 shape: draft.shape,
                 decoration: draft.decoration,
+                creationMode: draft.creationMode,
+                effect: draft.effect,
                 stickerImageURL: stickerURL.absoluteString,
                 layout: layout,
                 createdAt: createdAt

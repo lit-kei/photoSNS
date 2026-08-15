@@ -192,7 +192,7 @@ struct CameraScreen: View {
 
     private func stickerCreationIconLink(image: UIImage) -> some View {
         NavigationLink {
-            StickerCreationScreen(originalImage: image)
+            StickerCreationModeScreen(originalImage: image)
         } label: {
             Image(systemName: "scissors")
                 .font(.system(size: 17, weight: .semibold))
