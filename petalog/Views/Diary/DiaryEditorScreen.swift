@@ -24,7 +24,7 @@ struct DiaryEditorScreen: View {
                     EmptyStateView(systemImage: "lock.fill", title: "編集中のメンバーがいます", message: lockMessage)
                 }
 
-                if var draftDiary {
+                if let draftDiary {
                     TextField("タイトル", text: Binding(
                         get: { draftDiary.title },
                         set: { self.draftDiary?.title = $0 }
@@ -35,6 +35,16 @@ struct DiaryEditorScreen: View {
 
                     EditableDiaryCanvas(diary: draftDiary, stickers: viewModel.stickers, layouts: $localLayouts, selectedStickerId: $selectedStickerId)
                         .frame(height: 480)
+
+                    if let selectedSticker = selectedSticker,
+                       selectedSticker.authorId == appState.currentUser?.id {
+                        Button {
+                            Task { await deleteSelectedSticker(selectedSticker) }
+                        } label: {
+                            Label("この写真を削除", systemImage: "trash")
+                        }
+                        .buttonStyle(SecondaryActionButtonStyle())
+                    }
 
                     ControlSection(title: "背景") {
                         HorizontalOptionPicker(options: ScrapbookBackground.allCases, selection: Binding(
@@ -131,6 +141,19 @@ struct DiaryEditorScreen: View {
         await viewModel.saveDiary(page)
         isSaving = false
         dismiss()
+    }
+
+    private var selectedSticker: StickerPost? {
+        guard let selectedStickerId else { return nil }
+        return viewModel.stickers.first { $0.id == selectedStickerId }
+    }
+
+    private func deleteSelectedSticker(_ sticker: StickerPost) async {
+        guard let user = appState.currentUser else { return }
+        selectedStickerId = nil
+        localLayouts.removeValue(forKey: sticker.id)
+        draftDiary?.stickerLayout.removeAll { $0.stickerId == sticker.id }
+        await viewModel.deleteSticker(sticker, user: user)
     }
 }
 

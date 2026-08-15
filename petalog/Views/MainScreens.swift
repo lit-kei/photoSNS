@@ -23,6 +23,12 @@ struct HomeScreen: View {
                 .padding(.top, AppSpacing.screenTop)
                 .padding(.bottom, AppSpacing.floatingTabClearance)
             }
+            .safeAreaInset(edge: .bottom) {
+                FloatingTabBar(selection: $appState.selectedTab)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 8)
+                    .padding(.bottom, 10)
+            }
             .background {
                 PetalogMetalBackground()
             }
@@ -78,8 +84,8 @@ struct HomeScreen: View {
     }
 
     private var cameraCTA: some View {
-        NavigationLink {
-            CameraScreen()
+        Button {
+            appState.selectedTab = .camera
         } label: {
             HStack(spacing: 18) {
                 Image(systemName: "camera.viewfinder")
@@ -176,7 +182,7 @@ private struct GroupActivityCard: View {
     var body: some View {
         MetalCard(padding: 16) {
             HStack(spacing: 14) {
-                AvatarToken(symbol: group.icon, size: 48, fontSize: 24)
+                GroupIconView(icon: group.icon, iconURL: group.iconURL, imageData: nil, size: 48, fontSize: 24)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(group.name)
@@ -255,7 +261,7 @@ private struct MemoryListCard: View {
     var body: some View {
         MetalCard(padding: 15) {
             HStack(spacing: 14) {
-                AvatarToken(symbol: group.icon, size: 46, fontSize: 24)
+                GroupIconView(icon: group.icon, iconURL: group.iconURL, imageData: nil, size: 46, fontSize: 24)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(group.name)
@@ -278,25 +284,44 @@ private struct MemoryListCard: View {
 
 struct ProfileScreen: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     @State private var displayName = ""
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedPhotoData: Data?
     @State private var isSavingProfile = false
+    @State private var currentAvatarURL: String?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 30) {
-                    Text("プロフィール")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(AppColors.mainText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack {
+                        Text("プロフィール")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(AppColors.mainText)
+
+                        Spacer()
+
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(AppColors.mainText)
+                                .frame(width: 42, height: 42)
+                                .background(AppColors.surface.opacity(0.94))
+                                .clipShape(Circle())
+                                .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("閉じる")
+                    }
 
                     VStack(spacing: 18) {
                         PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
                             ProfilePhotoPickerLabel(
                                 imageData: selectedPhotoData,
-                                imageURLString: appState.currentUser?.avatarURL
+                                imageURLString: currentAvatarURL
                             )
                         }
                         .buttonStyle(.plain)
@@ -337,6 +362,7 @@ struct ProfileScreen: View {
                         Task {
                             isSavingProfile = true
                             await appState.updateProfile(displayName: displayName, avatarImageData: selectedPhotoData)
+                            currentAvatarURL = appState.currentUser?.avatarURL
                             selectedPhotoData = nil
                             selectedPhotoItem = nil
                             isSavingProfile = false
@@ -398,6 +424,7 @@ struct ProfileScreen: View {
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
                 displayName = appState.currentUser?.displayName ?? ""
+                currentAvatarURL = appState.currentUser?.avatarURL
             }
         }
     }

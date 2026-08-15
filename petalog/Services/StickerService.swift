@@ -77,6 +77,28 @@ final class StickerService {
         return post
     }
 
+    func deleteSticker(_ sticker: StickerPost, user: AppUser) async throws {
+        guard sticker.authorId == user.id else {
+            throw PetalogError.message("自分が撮った写真だけ削除できます。")
+        }
+
+        let diaryRef = db.collection("diaries").document(sticker.diaryId)
+        let diarySnapshot = try await diaryRef.getDocument()
+        var diaryData = diarySnapshot.data() ?? [:]
+        let layouts = diaryData["stickerLayout"] as? [[String: Any]] ?? []
+        diaryData["stickerLayout"] = layouts.filter { $0["stickerId"] as? String != sticker.id }
+        diaryData["updatedAt"] = FieldValue.serverTimestamp()
+
+        let batch = db.batch()
+        batch.deleteDocument(db.collection("stickers").document(sticker.id))
+        batch.setData(diaryData, forDocument: diaryRef, merge: true)
+        batch.updateData(["diaryCount": FieldValue.increment(Int64(-1))], forDocument: db.collection("groups").document(sticker.groupId))
+        try await batch.commit()
+
+        try? await storage.reference(forURL: sticker.stickerImageURL).delete()
+        try? await storage.reference(forURL: sticker.originalPhotoURL).delete()
+    }
+
     private func upload(data: Data, path: String, contentType: String) async throws -> URL {
         let ref = storage.reference(withPath: path)
         let metadata = StorageMetadata()

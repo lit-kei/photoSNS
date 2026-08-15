@@ -1,11 +1,15 @@
 import FirebaseFirestore
+import FirebaseStorage
 import Foundation
+import UIKit
 
 final class GroupService {
     private let db: Firestore
+    private let storage: Storage
 
-    init(db: Firestore) {
+    init(db: Firestore, storage: Storage) {
         self.db = db
+        self.storage = storage
     }
 
     func observeMyGroups(userId: String, onChange: @escaping ([PetalogGroup], Error?) -> Void) -> ListenerRegistration {
@@ -24,13 +28,21 @@ final class GroupService {
             }
     }
 
-    func createGroup(name: String, icon: String, currentUser: AppUser) async throws -> PetalogGroup {
+    func createGroup(name: String, icon: String, iconImageData: Data? = nil, currentUser: AppUser) async throws -> PetalogGroup {
         let groupRef = db.collection("groups").document()
         let inviteCode = Self.makeInviteCode()
+        let iconURL: String?
+        if let iconImageData {
+            iconURL = try await uploadGroupIcon(groupId: groupRef.documentID, imageData: iconImageData).absoluteString
+        } else {
+            iconURL = nil
+        }
+
         let group = PetalogGroup(
             id: groupRef.documentID,
             name: name.trimmedForPetalog,
             icon: icon,
+            iconURL: iconURL,
             inviteCode: inviteCode,
             ownerId: currentUser.id,
             memberIds: [currentUser.id],
@@ -55,6 +67,19 @@ final class GroupService {
         return group
     }
 
+    func findGroup(inviteCode: String) async throws -> PetalogGroup? {
+        let code = inviteCode.trimmedForPetalog.uppercased()
+        guard !code.isEmpty else { return nil }
+
+        let snapshot = try await db.collection("groups")
+            .whereField("inviteCode", isEqualTo: code)
+            .limit(to: 1)
+            .getDocuments()
+
+        guard let document = snapshot.documents.first else { return nil }
+        return PetalogGroup(id: document.documentID, data: document.data())
+    }
+
     func joinGroup(inviteCode: String, currentUser: AppUser) async throws {
         let code = inviteCode.trimmedForPetalog.uppercased()
         let snapshot = try await db.collection("groups")
@@ -67,6 +92,10 @@ final class GroupService {
         }
 
         let group = PetalogGroup(id: document.documentID, data: document.data())
+        guard !group.memberIds.contains(currentUser.id) else {
+            throw PetalogError.message("すでにこのグループに参加しています。")
+        }
+
         let batch = db.batch()
         batch.updateData(
             [
@@ -88,7 +117,71 @@ final class GroupService {
             forDocument: db.collection("groupMembers").document("\(group.id)_\(currentUser.id)"),
             merge: true
         )
+
+        for memberId in group.memberIds where memberId != currentUser.id {
+            let notificationRef = db.collection("notifications").document()
+            batch.setData(
+                [
+                    "recipientId": memberId,
+                    "type": "group_joined",
+                    "groupId": group.id,
+                    "groupName": group.name,
+                    "actorId": currentUser.id,
+                    "actorName": currentUser.displayName,
+                    "message": "\(currentUser.displayName)さんが\(group.name)に参加しました。",
+                    "isRead": false,
+                    "createdAt": FieldValue.serverTimestamp()
+                ],
+                forDocument: notificationRef
+            )
+        }
         try await batch.commit()
+    }
+
+    func updateGroup(group: PetalogGroup, name: String, icon: String, iconImageData: Data? = nil) async throws {
+        let trimmedName = name.trimmedForPetalog
+        guard !trimmedName.isEmpty else {
+            throw PetalogError.message("グループ名を入力してください。")
+        }
+
+        var data: [String: Any] = [
+            "name": trimmedName,
+            "icon": icon
+        ]
+
+        if let iconImageData {
+            let iconURL = try await uploadGroupIcon(groupId: group.id, imageData: iconImageData).absoluteString
+            data["iconURL"] = iconURL
+        }
+
+        try await db.collection("groups").document(group.id).setData(data, merge: true)
+    }
+
+    private func uploadGroupIcon(groupId: String, imageData: Data) async throws -> URL {
+        let uploadData: Data
+        if let image = UIImage(data: imageData), let jpegData = image.jpegData(compressionQuality: 0.82) {
+            uploadData = jpegData
+        } else {
+            uploadData = imageData
+        }
+
+        let ref = storage.reference(withPath: "groupIcons/\(groupId)/icon.jpg")
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+
+        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<StorageMetadata, Error>) in
+            ref.putData(uploadData, metadata: metadata) { metadata, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let metadata {
+                    continuation.resume(returning: metadata)
+                } else {
+                    continuation.resume(throwing: PetalogError.message("グループアイコンの保存に失敗しました。"))
+                }
+            }
+        }
+
+        return try await ref.downloadURL()
     }
 
     private static func makeInviteCode() -> String {

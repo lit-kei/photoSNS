@@ -11,16 +11,17 @@ struct StickerCreationScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 22) {
+            VStack(spacing: 16) {
                 StickerComposerPreview(image: originalImage, draft: $draft, isInteracting: $isInteractingWithCrop)
                     .frame(maxWidth: .infinity)
-                    .aspectRatio(1, contentMode: .fit)
+                    .frame(height: min(UIScreen.main.bounds.width - 40, 320))
 
                 ControlSection(title: "トリミング") {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 10) {
                         Text("写真は固定したまま、フレームをドラッグ・ピンチ・回転できます。")
                             .font(.footnote)
                             .foregroundStyle(AppColors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         HStack(spacing: 12) {
                             Image(systemName: "crop")
@@ -68,7 +69,9 @@ struct StickerCreationScreen: View {
                         .foregroundStyle(.red)
                 }
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
         }
         .scrollDisabled(isInteractingWithCrop)
         .background {
@@ -170,6 +173,7 @@ private struct StickerComposerPreview: View {
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
         }
+        .frame(maxWidth: .infinity)
         .onChange(of: draft.cropScale) { _, _ in
             clampCropOffset()
         }

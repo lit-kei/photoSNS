@@ -12,6 +12,8 @@ final class AppState: ObservableObject {
     @Published var currentUser: AppUser?
     @Published var groups: [PetalogGroup] = []
     @Published var friends: [AppFriend] = []
+    @Published var incomingFriendRequests: [FriendRequest] = []
+    @Published var outgoingFriendRequests: [FriendRequest] = []
     @Published var selectedTab: AppTab = .home
     @Published var authState: AuthState = .bootstrapping
     @Published var errorMessage: String?
@@ -20,6 +22,8 @@ final class AppState: ObservableObject {
     private let services: AppServices
     private var groupListener: ListenerRegistration?
     private var friendListener: ListenerRegistration?
+    private var incomingFriendRequestListener: ListenerRegistration?
+    private var outgoingFriendRequestListener: ListenerRegistration?
     private var pendingAccount: AuthenticatedAccount?
 
     init() {
@@ -69,8 +73,7 @@ final class AppState: ObservableObject {
             self.pendingAccount = nil
             currentUser = user
             authState = .signedIn
-            observeGroups(for: user.id)
-            observeFriends(for: user.id)
+            observeSignedInData(for: user.id)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -86,10 +89,10 @@ final class AppState: ObservableObject {
         }
     }
 
-    func createGroup(name: String, icon: String) async {
+    func createGroup(name: String, icon: String, iconImageData: Data? = nil) async {
         guard let currentUser else { return }
         do {
-            _ = try await services.groups.createGroup(name: name, icon: icon, currentUser: currentUser)
+            _ = try await services.groups.createGroup(name: name, icon: icon, iconImageData: iconImageData, currentUser: currentUser)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -104,10 +107,66 @@ final class AppState: ObservableObject {
         }
     }
 
-    func addFriend(email: String) async {
+    func findGroup(inviteCode: String) async -> PetalogGroup? {
+        do {
+            return try await services.groups.findGroup(inviteCode: inviteCode)
+        } catch {
+            guard !error.isPetalogOfflineFirestoreError else { return nil }
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func updateGroup(group: PetalogGroup, name: String, icon: String, iconImageData: Data? = nil) async {
+        do {
+            try await services.groups.updateGroup(group: group, name: name, icon: icon, iconImageData: iconImageData)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func findUser(email: String) async -> AppUser? {
+        do {
+            return try await services.friends.findUser(email: email)
+        } catch {
+            guard !error.isPetalogOfflineFirestoreError else { return nil }
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func fetchUser(userId: String) async -> AppUser? {
+        do {
+            return try await services.friends.fetchUser(userId: userId)
+        } catch {
+            guard !error.isPetalogOfflineFirestoreError else { return nil }
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func sendFriendRequest(to targetUser: AppUser) async {
         guard let currentUser else { return }
         do {
-            try await services.friends.addFriend(email: email, currentUser: currentUser)
+            try await services.friends.sendRequest(to: targetUser, currentUser: currentUser)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func acceptFriendRequest(_ request: FriendRequest) async {
+        guard let currentUser else { return }
+        do {
+            try await services.friends.acceptRequest(request, currentUser: currentUser)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func rejectFriendRequest(_ request: FriendRequest) async {
+        guard let currentUser else { return }
+        do {
+            try await services.friends.rejectRequest(request, currentUser: currentUser)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -156,6 +215,39 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func observeFriendRequests(for userId: String) {
+        incomingFriendRequestListener?.remove()
+        outgoingFriendRequestListener?.remove()
+
+        incomingFriendRequestListener = services.friends.observeIncomingRequests(userId: userId) { [weak self] requests, error in
+            Task { @MainActor in
+                if let error {
+                    guard !error.isPetalogOfflineFirestoreError else { return }
+                    self?.errorMessage = error.localizedDescription
+                } else {
+                    self?.incomingFriendRequests = requests
+                }
+            }
+        }
+
+        outgoingFriendRequestListener = services.friends.observeOutgoingRequests(userId: userId) { [weak self] requests, error in
+            Task { @MainActor in
+                if let error {
+                    guard !error.isPetalogOfflineFirestoreError else { return }
+                    self?.errorMessage = error.localizedDescription
+                } else {
+                    self?.outgoingFriendRequests = requests
+                }
+            }
+        }
+    }
+
+    private func observeSignedInData(for userId: String) {
+        observeGroups(for: userId)
+        observeFriends(for: userId)
+        observeFriendRequests(for: userId)
+    }
+
     private func authenticate(_ operation: () async throws -> AuthenticatedAccount) async {
         isAuthenticating = true
         defer { isAuthenticating = false }
@@ -174,8 +266,7 @@ final class AppState: ObservableObject {
                 pendingAccount = nil
                 currentUser = user
                 authState = .signedIn
-                observeGroups(for: user.id)
-                observeFriends(for: user.id)
+                observeSignedInData(for: user.id)
             } else {
                 clearSignedInState()
                 pendingAccount = account
@@ -192,8 +283,7 @@ final class AppState: ObservableObject {
             pendingAccount = nil
             currentUser = fallbackUser
             authState = .signedIn
-            observeGroups(for: fallbackUser.id)
-            observeFriends(for: fallbackUser.id)
+            observeSignedInData(for: fallbackUser.id)
         }
     }
 
@@ -202,9 +292,15 @@ final class AppState: ObservableObject {
         groupListener = nil
         friendListener?.remove()
         friendListener = nil
+        incomingFriendRequestListener?.remove()
+        incomingFriendRequestListener = nil
+        outgoingFriendRequestListener?.remove()
+        outgoingFriendRequestListener = nil
         currentUser = nil
         groups = []
         friends = []
+        incomingFriendRequests = []
+        outgoingFriendRequests = []
         pendingAccount = nil
     }
 }

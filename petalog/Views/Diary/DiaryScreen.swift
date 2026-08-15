@@ -4,6 +4,7 @@ struct DiaryScreen: View {
     let group: PetalogGroup
     @StateObject private var viewModel: DiaryViewModel
     @State private var selectedSticker: StickerPost?
+    @State private var selectedDate = Date()
 
     init(group: PetalogGroup) {
         self.group = group
@@ -14,12 +15,29 @@ struct DiaryScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(Date().petalogDisplayDate)
+                    DatePicker(
+                        "絵日記の日付",
+                        selection: $selectedDate,
+                        in: ...Date(),
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.compact)
+                    .labelsHidden()
+                    .tint(AppColors.mainText)
+                    .onChange(of: selectedDate) { _, date in
+                        changeDate(to: date)
+                    }
+
+                    Text(selectedDate.petalogDisplayDate)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(AppColors.secondaryText)
-                    Text(group.name)
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundStyle(AppColors.mainText)
+                    HStack(alignment: .center, spacing: 12) {
+                        GroupIconView(icon: group.icon, iconURL: group.iconURL, imageData: nil, size: 50, fontSize: 24)
+                        Text(group.name)
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundStyle(AppColors.mainText)
+                            .lineLimit(2)
+                    }
                     MemberAvatarStack(avatars: group.memberAvatars)
                 }
 
@@ -40,6 +58,13 @@ struct DiaryScreen: View {
                     EmptyStateView(systemImage: "doc.text.image.fill", title: "今日のページを準備中", message: "ステッカーを投稿すると、このキャンバスに集まります。")
                 }
 
+                NavigationLink {
+                    GroupEditScreen(group: group)
+                } label: {
+                    Label("グループを編集", systemImage: "person.3.sequence")
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
+
                 if let error = viewModel.errorMessage {
                     Text(error)
                         .font(.footnote)
@@ -50,6 +75,17 @@ struct DiaryScreen: View {
             .padding(.top, 20)
             .padding(.bottom, AppSpacing.floatingTabClearance)
         }
+        .gesture(
+            DragGesture(minimumDistance: 44)
+                .onEnded { value in
+                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                    if value.translation.width < -44 {
+                        changeDate(to: selectedDate.addingTimeInterval(24 * 60 * 60))
+                    } else if value.translation.width > 44 {
+                        changeDate(to: selectedDate.addingTimeInterval(-24 * 60 * 60))
+                    }
+                }
+        )
         .background {
             PetalogMetalBackground()
         }
@@ -61,6 +97,14 @@ struct DiaryScreen: View {
             StickerDetailSheet(sticker: sticker)
                 .presentationDetents([.medium])
         }
+    }
+
+    private func changeDate(to date: Date) {
+        let clampedDate = min(date, Date())
+        let nextDateKey = clampedDate.petalogDateKey
+        selectedDate = clampedDate
+        guard nextDateKey != viewModel.dateKey else { return }
+        viewModel.changeDate(to: nextDateKey)
     }
 }
 

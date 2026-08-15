@@ -14,12 +14,13 @@ struct StickerPostScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 22) {
+            VStack(spacing: 16) {
                 if let uiImage = UIImage(data: stickerPNG) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
-                        .frame(height: 220)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: min(UIScreen.main.bounds.width * 0.48, 190))
                         .padding(12)
                         .background(AppColors.surface.opacity(0.94))
                         .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
@@ -52,9 +53,11 @@ struct StickerPostScreen: View {
                                 Button {
                                     toggleSelection(for: group)
                                 } label: {
-                                    HStack {
-                                        Text(group.icon).font(.title2)
-                                        Text(group.name).font(.headline)
+                                    HStack(spacing: 10) {
+                                        GroupIconView(icon: group.icon, iconURL: group.iconURL, imageData: nil, size: 34, fontSize: 18)
+                                        Text(group.name)
+                                            .font(.headline)
+                                            .lineLimit(1)
                                         Spacer()
                                         if selectedGroupIDs.contains(group.id) {
                                             Image(systemName: "checkmark.circle.fill")
@@ -96,7 +99,9 @@ struct StickerPostScreen: View {
                     .buttonStyle(SecondaryActionButtonStyle())
                 }
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
         }
         .background {
             PetalogMetalBackground()

@@ -12,7 +12,7 @@ final class DiaryViewModel: ObservableObject {
 
     private let services: AppServices
     private let group: PetalogGroup
-    private let dateKey: String
+    private(set) var dateKey: String
     private var diaryListener: ListenerRegistration?
     private var stickerListener: ListenerRegistration?
 
@@ -43,6 +43,18 @@ final class DiaryViewModel: ObservableObject {
     func stop() {
         diaryListener?.remove()
         stickerListener?.remove()
+        diaryListener = nil
+        stickerListener = nil
+    }
+
+    func changeDate(to dateKey: String) {
+        stop()
+        self.dateKey = dateKey
+        diary = nil
+        stickers = []
+        isLoading = true
+        errorMessage = nil
+        start()
     }
 
     func acquireEditLock(user: AppUser) async -> Bool {
@@ -65,6 +77,15 @@ final class DiaryViewModel: ObservableObject {
     func saveDiary(_ diary: DiaryPage) async {
         do {
             try await services.diaries.saveDiaryLayout(diary)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteSticker(_ sticker: StickerPost, user: AppUser) async {
+        do {
+            try await services.stickers.deleteSticker(sticker, user: user)
+            stickers.removeAll { $0.id == sticker.id }
         } catch {
             errorMessage = error.localizedDescription
         }

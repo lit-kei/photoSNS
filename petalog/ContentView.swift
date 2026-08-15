@@ -55,14 +55,6 @@ struct ContentView: View {
                 ProfileScreen()
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            if appState.selectedTab != .camera {
-                FloatingTabBar(selection: $appState.selectedTab)
-                    .padding(.horizontal, 18)
-                    .padding(.top, 8)
-                    .padding(.bottom, 10)
-            }
-        }
         .tint(AppColors.mainText)
     }
 }
