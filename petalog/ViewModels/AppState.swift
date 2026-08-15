@@ -6,6 +6,7 @@
 import Combine
 import FirebaseFirestore
 import Foundation
+import UserNotifications
 
 @MainActor
 final class AppState: ObservableObject {
@@ -18,6 +19,7 @@ final class AppState: ObservableObject {
     @Published var authState: AuthState = .bootstrapping
     @Published var errorMessage: String?
     @Published var isAuthenticating = false
+    @Published var isShowingNotifications = false
 
     private let services: AppServices
     let networkMonitor: NetworkMonitor
@@ -27,6 +29,8 @@ final class AppState: ObservableObject {
     private var incomingFriendRequestListener: ListenerRegistration?
     private var outgoingFriendRequestListener: ListenerRegistration?
     private var pendingAccount: AuthenticatedAccount?
+    private var hasLoadedIncomingFriendRequests = false
+    private var knownIncomingFriendRequestIds: Set<String> = []
 
     init() {
         let services = AppServices.shared
@@ -189,6 +193,11 @@ final class AppState: ObservableObject {
         }
     }
 
+    func openNotifications() {
+        selectedTab = .home
+        isShowingNotifications = true
+    }
+
     func updateProfile(displayName: String, avatarImageData: Data? = nil) async {
         guard var user = currentUser else { return }
         user.displayName = displayName.trimmedForPetalog
@@ -256,7 +265,7 @@ final class AppState: ObservableObject {
                     guard !error.isPetalogOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
                 } else {
-                    self?.incomingFriendRequests = requests
+                    self?.applyIncomingFriendRequests(requests)
                 }
             }
         }
@@ -343,7 +352,41 @@ final class AppState: ObservableObject {
         friends = []
         incomingFriendRequests = []
         outgoingFriendRequests = []
+        isShowingNotifications = false
+        hasLoadedIncomingFriendRequests = false
+        knownIncomingFriendRequestIds = []
         pendingAccount = nil
+    }
+
+    private func applyIncomingFriendRequests(_ requests: [FriendRequest]) {
+        let incomingIds = Set(requests.map(\.id))
+        let newRequests = requests.filter { !knownIncomingFriendRequestIds.contains($0.id) }
+        incomingFriendRequests = requests
+
+        if hasLoadedIncomingFriendRequests {
+            for request in newRequests {
+                sendFriendRequestNotification(request)
+            }
+        }
+
+        hasLoadedIncomingFriendRequests = true
+        knownIncomingFriendRequestIds = incomingIds
+    }
+
+    private func sendFriendRequestNotification(_ request: FriendRequest) {
+        Task {
+            let content = UNMutableNotificationContent()
+            content.title = "友達申請が届きました"
+            content.body = "\(request.fromName)さんから友達申請が届いています。"
+            content.sound = .default
+            content.userInfo = ["petalogDestination": "notifications"]
+            let notificationRequest = UNNotificationRequest(
+                identifier: "friend-request-\(request.id)",
+                content: content,
+                trigger: nil
+            )
+            try? await UNUserNotificationCenter.current().add(notificationRequest)
+        }
     }
 }
 

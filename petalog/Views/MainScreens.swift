@@ -64,6 +64,22 @@ struct HomeScreen: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("友達追加")
+
+                    NavigationLink {
+                        HomeNotificationScreen()
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            IconButtonLabel(systemName: "bell")
+                            if !appState.incomingFriendRequests.isEmpty {
+                                Circle()
+                                    .fill(AppColors.accentPink)
+                                    .frame(width: 9, height: 9)
+                                    .offset(x: -2, y: 2)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("通知")
                 }
             }
         }
@@ -91,7 +107,7 @@ struct HomeScreen: View {
 
     private var groupsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: "今日のグループ", subtitle: appState.groups.isEmpty ? nil : "絵日記に集まる今日の投稿")
+            SectionHeader(title: "グループ", subtitle: appState.groups.isEmpty ? nil : "絵日記に集まる今日の投稿")
 
             if appState.groups.isEmpty {
                 EmptyStateView(systemImage: "person.3", title: "まだグループがありません", message: "グループを作るか、招待コードで参加すると今日の絵日記を始められます。")
@@ -107,6 +123,120 @@ struct HomeScreen: View {
                     }
                 }
             }
+        }
+    }
+}
+
+struct HomeNotificationScreen: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                SectionHeader(title: "通知", subtitle: notificationSubtitle)
+
+                if appState.incomingFriendRequests.isEmpty {
+                    EmptyStateView(systemImage: "bell", title: "新しい通知はありません", message: "友達申請などのお知らせがここに表示されます。")
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(appState.incomingFriendRequests) { request in
+                            incomingRequestRow(request)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.screenTop)
+            .padding(.bottom, AppSpacing.section)
+        }
+        .background {
+            PetalogMetalBackground()
+        }
+        .navigationTitle("通知")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var notificationSubtitle: String {
+        appState.incomingFriendRequests.isEmpty ? "お知らせはありません" : "\(appState.incomingFriendRequests.count)件の友達申請"
+    }
+
+    private func incomingRequestRow(_ request: FriendRequest) -> some View {
+        HStack(spacing: 12) {
+            notificationAvatar(request)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(request.fromName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText)
+                Text("友達申請が届いています")
+                    .font(.system(size: 12))
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+
+            Spacer()
+
+            Button {
+                Task {
+                    await appState.acceptFriendRequest(request)
+                }
+            } label: {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppColors.mainText)
+            .background(AppColors.accentPink, in: Circle())
+
+            Button {
+                Task {
+                    await appState.rejectFriendRequest(request)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppColors.mainText)
+            .background(AppColors.surface.opacity(0.94), in: Circle())
+            .overlay {
+                Circle().stroke(AppColors.border, lineWidth: 0.8)
+            }
+        }
+        .padding(14)
+        .background(AppColors.elevatedSurface.opacity(0.96), in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(AppColors.border, lineWidth: 0.8)
+        }
+    }
+
+    private func notificationAvatar(_ request: FriendRequest) -> some View {
+        Group {
+            if let avatarURL = request.fromAvatarURL,
+               let url = URL(string: avatarURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 19, weight: .semibold))
+                            .foregroundStyle(AppColors.mainText.opacity(0.72))
+                    }
+                }
+            } else {
+                Image(systemName: "person.fill")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText.opacity(0.72))
+            }
+        }
+        .frame(width: 44, height: 44)
+        .background(AppColors.chromeHighlight.opacity(0.78), in: Circle())
+        .clipShape(Circle())
+        .overlay {
+            Circle().stroke(AppColors.border, lineWidth: 0.8)
         }
     }
 }

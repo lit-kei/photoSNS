@@ -4,33 +4,10 @@
 //
 
 import SwiftUI
-import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage(DebugThemeColors.mainAccentKey) private var debugMainAccentHex = DebugThemeColors.defaultMainAccentHex
-    @AppStorage(DebugThemeColors.cameraAccentKey) private var debugCameraAccentHex = DebugThemeColors.defaultCameraAccentHex
-    #if DEBUG
-    @State private var showsDebugThemePicker = false
-    #endif
-
-    init() {
-        Self.configureTabBarAppearance()
-    }
-
-    private static func configureTabBarAppearance() {
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(AppColors.pureWhite)
-        appearance.shadowColor = UIColor(AppColors.border)
-        appearance.stackedLayoutAppearance.selected.iconColor = UIColor(AppColors.accentPink)
-        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor(AppColors.mainText)]
-        appearance.stackedLayoutAppearance.normal.iconColor = UIColor(AppColors.secondaryText)
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor(AppColors.secondaryText)]
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
-    }
 
     var body: some View {
         Group {
@@ -59,20 +36,10 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newValue in
             appState.stickerUploadCoordinator.setAppActive(newValue == .active)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .petalogOpenNotifications)) { _ in
+            appState.openNotifications()
+        }
         .preferredColorScheme(.light)
-        .onChange(of: debugMainAccentHex) { _, _ in
-            Self.configureTabBarAppearance()
-        }
-        .onChange(of: debugCameraAccentHex) { _, _ in
-            Self.configureTabBarAppearance()
-        }
-        #if DEBUG
-        .sheet(isPresented: $showsDebugThemePicker) {
-            DebugThemePickerSheet()
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-        }
-        #endif
         .alert("エラー", isPresented: Binding(
             get: { appState.errorMessage != nil },
             set: { if !$0 { appState.errorMessage = nil } }
@@ -88,14 +55,10 @@ struct ContentView: View {
             ForEach(AppTab.allCases) { tab in
                 tabContent(for: tab)
                     .tag(tab)
-                    .tabItem {
-                        Label(tab.title, systemImage: tab.systemImage)
-                    }
             }
         }
         .tint(AppColors.accentPink)
-        .toolbarBackground(AppColors.pureWhite, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
+        .toolbar(.hidden, for: .tabBar)
         .overlay(alignment: .top) {
             StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
                 .padding(.horizontal, 16)
@@ -103,52 +66,18 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom) {
             if appState.selectedTab != .camera {
-                cameraTabButton
-                    .padding(.bottom, 14)
+                AttachedBottomTabBar(selection: $appState.selectedTab)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
             }
         }
-        #if DEBUG
-        .overlay(alignment: .topTrailing) {
-            Button {
-                showsDebugThemePicker = true
-            } label: {
-                Image(systemName: "paintpalette")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(AppColors.mainText)
-                    .frame(width: 40, height: 40)
-                    .background(AppColors.elevatedSurface.opacity(0.96), in: Circle())
-                    .overlay {
-                        Circle().stroke(AppColors.border, lineWidth: 0.8)
-                    }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .sheet(isPresented: $appState.isShowingNotifications) {
+            NavigationStack {
+                HomeNotificationScreen()
+                    .environmentObject(appState)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 8)
-            .padding(.trailing, 14)
-            .accessibilityLabel("デバッグカラー設定")
+            .presentationDragIndicator(.visible)
         }
-        #endif
-    }
-
-    private var cameraTabButton: some View {
-        Button {
-            appState.selectedTab = .camera
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(AppColors.mainText)
-                .frame(width: 64, height: 64)
-                .background {
-                    Circle()
-                        .fill(AppColors.accentBlue)
-                        .shadow(color: AppColors.accentBlue.opacity(0.38), radius: 14, y: 7)
-                }
-                .overlay {
-                    Circle()
-                        .stroke(Color.white.opacity(0.82), lineWidth: 3)
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("カメラ")
     }
 
     @ViewBuilder
@@ -177,83 +106,78 @@ struct ContentView_Previews: PreviewProvider {
     }
 }
 
-#if DEBUG
-private struct DebugThemePickerSheet: View {
-    @AppStorage(DebugThemeColors.mainAccentKey) private var mainAccentHex = DebugThemeColors.defaultMainAccentHex
-    @AppStorage(DebugThemeColors.cameraAccentKey) private var cameraAccentHex = DebugThemeColors.defaultCameraAccentHex
-
-    private var mainAccent: Binding<Color> {
-        Binding {
-            DebugThemeColors.color(for: DebugThemeColors.mainAccentKey, fallbackHex: DebugThemeColors.defaultMainAccentHex)
-        } set: { newValue in
-            mainAccentHex = UIColor(newValue).petalogHexString
-        }
-    }
-
-    private var cameraAccent: Binding<Color> {
-        Binding {
-            DebugThemeColors.color(for: DebugThemeColors.cameraAccentKey, fallbackHex: DebugThemeColors.defaultCameraAccentHex)
-        } set: { newValue in
-            cameraAccentHex = UIColor(newValue).petalogHexString
-        }
-    }
+private struct AttachedBottomTabBar: View {
+    @Binding var selection: AppTab
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("色を試すためのデバッグ機能です。選んだ色はこの端末に保存されます。")
-                    .font(.system(size: 13))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineSpacing(3)
+        ZStack(alignment: .top) {
+            tabSurface
 
-                VStack(spacing: 14) {
-                    ColorPicker("メインカラー", selection: mainAccent, supportsOpacity: false)
-                    colorPreview(hex: mainAccentHex, color: AppColors.accentPink)
-
-                    Divider()
-
-                    ColorPicker("カメラボタン", selection: cameraAccent, supportsOpacity: false)
-                    colorPreview(hex: cameraAccentHex, color: AppColors.accentBlue)
-                }
-                .padding(18)
-                .background(AppColors.elevatedSurface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            Circle()
+                .fill(AppColors.pureWhite)
+                .frame(width: 78, height: 78)
                 .overlay {
-                    RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                    Circle()
                         .stroke(AppColors.border, lineWidth: 0.8)
                 }
+                .offset(y: -25)
 
-                Button {
-                    DebugThemeColors.reset()
-                    mainAccentHex = DebugThemeColors.defaultMainAccentHex
-                    cameraAccentHex = DebugThemeColors.defaultCameraAccentHex
-                } label: {
-                    Label("デフォルトに戻す", systemImage: "arrow.counterclockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(SecondaryActionButtonStyle())
-
-                Spacer()
+            Button {
+                selection = .camera
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText)
+                    .frame(width: 62, height: 62)
+                    .background(AppColors.accentBlue, in: Circle())
+                    .overlay {
+                        Circle().stroke(Color.white.opacity(0.86), lineWidth: 3)
+                    }
             }
-            .padding(22)
-            .background(PetalogMetalBackground())
-            .navigationTitle("Theme Debug")
-            .navigationBarTitleDisplayMode(.inline)
+            .buttonStyle(.plain)
+            .offset(y: -17)
+            .accessibilityLabel("カメラ")
+        }
+        .frame(maxWidth: .infinity)
+        .background(AppColors.pureWhite)
+    }
+
+    private var tabSurface: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(AppColors.border)
+                .frame(height: 0.8)
+
+            HStack {
+                tabButton(.home)
+
+                Spacer(minLength: 96)
+
+                tabButton(.friends)
+            }
+            .padding(.horizontal, 52)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+            .frame(height: 76)
+            .background(AppColors.pureWhite)
         }
     }
 
-    private func colorPreview(hex: String, color: Color) -> some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(color)
-                .frame(width: 28, height: 28)
-                .overlay {
-                    Circle().stroke(AppColors.border, lineWidth: 0.8)
-                }
-            Text(hex)
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundStyle(AppColors.secondaryText)
-            Spacer()
+    private func tabButton(_ tab: AppTab) -> some View {
+        Button {
+            selection = tab
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: 21, weight: selection == tab ? .semibold : .regular))
+                Text(tab.title)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundStyle(selection == tab ? AppColors.accentPink : AppColors.secondaryText)
+            .frame(width: 68, height: 54)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tab.title)
     }
 }
-#endif
