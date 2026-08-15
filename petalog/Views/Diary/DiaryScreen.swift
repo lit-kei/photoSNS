@@ -11,6 +11,7 @@ struct DiaryScreen: View {
     @State private var pageEntranceOffset: CGFloat = 0
     @State private var isPageTransitioning = false
     @State private var transitionID = UUID()
+    @State private var isShowingPastEditExplanation = false
 
     init(group: PetalogGroup) {
         self.group = group
@@ -18,81 +19,40 @@ struct DiaryScreen: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    DateNavigator(
-                        selectedDate: $selectedDate,
-                        canMoveForward: !Calendar.current.isDateInToday(selectedDate),
-                        movePrevious: { changeDate(to: selectedDate.addingTimeInterval(-24 * 60 * 60)) },
-                        moveNext: { changeDate(to: selectedDate.addingTimeInterval(24 * 60 * 60)) }
-                    )
-                    .disabled(viewModel.isLoading)
-                    .onChange(of: selectedDate) { oldDate, newDate in
-                        changeDate(to: newDate, relativeTo: oldDate)
-                    }
-
-                    Text(selectedDate.petalogDisplayDate)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(AppColors.secondaryText)
-                    HStack(alignment: .center, spacing: 12) {
-                        GroupIconView(icon: group.icon, iconURL: group.iconURL, imageData: nil, size: 50, fontSize: 24)
-                        Text(group.name)
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundStyle(AppColors.mainText)
-                            .lineLimit(2)
-                    }
-                    MemberAvatarStack(avatars: group.memberAvatars)
-                }
-
-                VStack(spacing: 18) {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 520, maxHeight: 520)
-                        diaryEditButtonPlaceholder
-                    } else if let diary = viewModel.diary {
-                        DiaryCanvasView(diary: diary, stickers: viewModel.stickers, selectedSticker: $selectedSticker)
-                            .frame(height: 520)
-                            .id(viewModel.dateKey)
-                            .offset(x: dragOffset + pageEntranceOffset)
-                            .opacity(1.0 - min(Double(abs(dragOffset + pageEntranceOffset)) / 520.0, 0.24))
-
-                        NavigationLink {
-                            DiaryEditorScreen(group: group)
-                        } label: {
-                            Label("絵日記を編集", systemImage: "pencil.and.outline")
-                        }
-                        .buttonStyle(SecondaryActionButtonStyle())
-                    } else {
-                        EmptyStateView(systemImage: "doc.text.image.fill", title: "今日のページを準備中", message: "ステッカーを投稿すると、このキャンバスに集まります。")
-                            .frame(maxWidth: .infinity, minHeight: 520, maxHeight: 520)
-                        diaryEditButtonPlaceholder
-                    }
-                }
-                .frame(height: 590, alignment: .top)
-
-                NavigationLink {
-                    GroupEditScreen(group: group)
-                } label: {
-                    Label("グループを編集", systemImage: "person.3.sequence")
-                }
-                .buttonStyle(SecondaryActionButtonStyle())
-
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
+        VStack(spacing: 10) {
+            DateNavigator(
+                selectedDate: $selectedDate,
+                canMoveForward: !Calendar.current.isDateInToday(selectedDate),
+                movePrevious: { changeDate(to: selectedDate.addingTimeInterval(-24 * 60 * 60)) },
+                moveNext: { changeDate(to: selectedDate.addingTimeInterval(24 * 60 * 60)) },
+                moveToday: { changeDate(to: Date()) }
+            )
+            .disabled(viewModel.isLoading)
+            .onChange(of: selectedDate) { oldDate, newDate in
+                changeDate(to: newDate, relativeTo: oldDate)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, AppSpacing.floatingTabClearance)
+
+            diaryPageViewport
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            diaryEditArea
+
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
         .simultaneousGesture(dateSwipeGesture)
         .background {
             PetalogMetalBackground()
         }
-        .navigationTitle("今日の絵日記")
+        .navigationTitle(group.name)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
@@ -102,6 +62,14 @@ struct DiaryScreen: View {
                 } label: {
                     Label("戻る", systemImage: "chevron.left")
                 }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    GroupEditScreen(group: group)
+                } label: {
+                    Image(systemName: "person.3")
+                }
+                .accessibilityLabel("グループを編集")
             }
         }
         .onAppear { viewModel.start() }
@@ -123,12 +91,87 @@ struct DiaryScreen: View {
             StickerDetailSheet(sticker: sticker)
                 .presentationDetents([.medium])
         }
+        .alert("過去の絵日記は編集できません", isPresented: $isShowingPastEditExplanation) {
+            Button("今日へ移動") {
+                changeDate(to: Date())
+            }
+            Button("閉じる", role: .cancel) {}
+        } message: {
+            Text("絵日記の編集は当日のみできます。今日の絵日記に移動して編集してください。")
+        }
+    }
+
+    @ViewBuilder
+    private var diaryPageViewport: some View {
+        if viewModel.isLoading {
+            DiaryPageViewport {
+                ProgressView()
+            }
+        } else if let diary = viewModel.diary {
+            DiaryPageViewport {
+                DiaryCanvasView(diary: diary, stickers: viewModel.stickers, selectedSticker: $selectedSticker)
+            }
+            .id(viewModel.dateKey)
+            .offset(x: dragOffset + pageEntranceOffset)
+            .opacity(1.0 - min(Double(abs(dragOffset + pageEntranceOffset)) / 520.0, 0.24))
+        } else {
+            DiaryPageViewport {
+                EmptyStateView(
+                    systemImage: "doc.text.image.fill",
+                    title: "今日のページを準備中",
+                    message: "ステッカーを投稿すると、このキャンバスに集まります。"
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var diaryEditArea: some View {
+        if viewModel.isLoading {
+            diaryEditButtonPlaceholder
+        } else if viewModel.diary != nil {
+            diaryEditControl
+        } else if canEditSelectedDiary {
+            diaryEditButtonPlaceholder
+        } else {
+            pastDiaryEditButton
+        }
+    }
+
+    @ViewBuilder
+    private var diaryEditControl: some View {
+        if canEditSelectedDiary {
+            NavigationLink {
+                DiaryEditorScreen(group: group)
+            } label: {
+                Label("絵日記を編集", systemImage: "pencil.and.outline")
+            }
+            .buttonStyle(SecondaryActionButtonStyle())
+        } else {
+            pastDiaryEditButton
+        }
+    }
+
+    private var pastDiaryEditButton: some View {
+        Button {
+            isShowingPastEditExplanation = true
+        } label: {
+            Label("絵日記を編集", systemImage: "lock.fill")
+        }
+        .buttonStyle(SecondaryActionButtonStyle())
+        .opacity(0.48)
+        .accessibilityLabel("過去の絵日記は編集できません")
+        .accessibilityHint("タップすると編集できない理由を表示します")
     }
 
     private var diaryEditButtonPlaceholder: some View {
         Color.clear
             .frame(height: 52)
             .accessibilityHidden(true)
+    }
+
+    private var canEditSelectedDiary: Bool {
+        Calendar.current.isDateInToday(selectedDate)
     }
 
     private var pageTravelDistance: CGFloat {
@@ -225,11 +268,33 @@ struct DiaryScreen: View {
     }
 }
 
+private struct DiaryPageViewport<Content: View>: View {
+    private let logicalHeight: CGFloat = 480
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let logicalWidth = max(proxy.size.width, 1)
+            let scale = min(1, max(proxy.size.height, 1) / logicalHeight)
+
+            content
+                .frame(width: logicalWidth, height: logicalHeight)
+                .scaleEffect(scale)
+                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+        }
+    }
+}
+
 private struct DateNavigator: View {
     @Binding var selectedDate: Date
     let canMoveForward: Bool
     let movePrevious: () -> Void
     let moveNext: () -> Void
+    let moveToday: () -> Void
 
     var body: some View {
         MetalCard(padding: 12) {
@@ -270,14 +335,29 @@ private struct DateNavigator: View {
                     .disabled(!canMoveForward)
                 }
 
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.left.and.right")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("左右にスワイプして日付を移動")
-                        .font(.system(size: 12, weight: .medium))
+                Group {
+                    if canMoveForward {
+                        Button(action: moveToday) {
+                            Label("今日の絵日記へ", systemImage: "calendar.badge.clock")
+                                .font(.system(size: 12, weight: .semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(AppColors.accentBlue.opacity(0.72), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(AppColors.mainText)
+                    } else {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.left.and.right")
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("左右にスワイプして日付を移動")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(AppColors.secondaryText)
+                    }
                 }
-                .foregroundStyle(AppColors.secondaryText)
                 .frame(maxWidth: .infinity)
+                .frame(height: 30)
             }
         }
     }

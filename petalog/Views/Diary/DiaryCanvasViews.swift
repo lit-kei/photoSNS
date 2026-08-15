@@ -69,17 +69,27 @@ struct DiaryCanvasView: View {
 
             ForEach(stickers) { sticker in
                 let layout = diary.stickerLayout.first(where: { $0.stickerId == sticker.id }) ?? sticker.layout
-                Button {
-                    selectedSticker = sticker
-                } label: {
-                    RemoteStickerView(sticker: sticker, size: 118)
-                }
-                .buttonStyle(.plain)
-                .scaleEffect(layout.scale)
-                .rotationEffect(.degrees(layout.rotation))
-                .offset(x: layout.x, y: layout.y)
-                .zIndex(Double(layout.zIndex))
-                .transition(.scale.combined(with: .opacity))
+                RemoteStickerView(sticker: sticker, size: 118)
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0)
+                            .onEnded { value in
+                                guard isIntentionalStickerTap(value) else { return }
+                                selectedSticker = sticker
+                            }
+                    )
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(sticker.authorName)のステッカー")
+                    .accessibilityHint("ダブルタップすると詳細を表示します")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction {
+                        selectedSticker = sticker
+                    }
+                    .scaleEffect(layout.scale)
+                    .rotationEffect(.degrees(layout.rotation))
+                    .offset(x: layout.x, y: layout.y)
+                    .zIndex(Double(layout.zIndex))
+                    .transition(.scale.combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.72), value: stickers.count)
@@ -88,6 +98,15 @@ struct DiaryCanvasView: View {
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
+    }
+
+    private func isIntentionalStickerTap(_ value: DragGesture.Value) -> Bool {
+        let movement = hypot(value.translation.width, value.translation.height)
+        let predictedMovement = hypot(
+            value.predictedEndLocation.x - value.startLocation.x,
+            value.predictedEndLocation.y - value.startLocation.y
+        )
+        return movement <= 6 && predictedMovement <= 14
     }
 }
 

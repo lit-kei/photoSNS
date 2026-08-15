@@ -156,7 +156,7 @@ struct GroupManagementScreen: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
-            .padding(.bottom, AppSpacing.floatingTabClearance)
+            .padding(.bottom, 16)
         }
         .background {
             PetalogMetalBackground()
@@ -277,7 +277,7 @@ struct GroupEditScreen: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
-            .padding(.bottom, AppSpacing.floatingTabClearance)
+            .padding(.bottom, 16)
         }
         .background {
             PetalogMetalBackground()

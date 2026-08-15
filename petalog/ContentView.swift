@@ -64,13 +64,6 @@ struct ContentView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
         }
-        .overlay(alignment: .bottom) {
-            if appState.selectedTab != .camera {
-                AttachedBottomTabBar(selection: $appState.selectedTab)
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
-            }
-        }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         .sheet(isPresented: $appState.isShowingNotifications) {
             NavigationStack {
                 HomeNotificationScreen()
@@ -84,17 +77,19 @@ struct ContentView: View {
     private func tabContent(for tab: AppTab) -> some View {
         switch tab {
         case .home:
-                HomeScreen()
+            HomeScreen(showsRootTabBar: true)
         case .camera:
-                CameraScreen {
-                    appState.selectedTab = .home
-                }
+            CameraScreen {
+                appState.selectedTab = .home
+            }
         case .friends:
-                FriendFeedScreen()
+            NavigationStack {
+                FriendFeedScreen(showsRootTabBar: true)
+            }
         case .memories:
-                MemoriesScreen()
+            MemoriesScreen()
         case .profile:
-                ProfileScreen()
+            ProfileScreen()
         }
     }
 }
@@ -106,7 +101,7 @@ struct ContentView_Previews: PreviewProvider {
     }
 }
 
-private struct AttachedBottomTabBar: View {
+struct AttachedBottomTabBar: View {
     @Binding var selection: AppTab
 
     var body: some View {
@@ -115,27 +110,27 @@ private struct AttachedBottomTabBar: View {
 
             Circle()
                 .fill(AppColors.pureWhite)
-                .frame(width: 78, height: 78)
+                .frame(width: 66, height: 66)
                 .overlay {
                     Circle()
                         .stroke(AppColors.border, lineWidth: 0.8)
                 }
-                .offset(y: -25)
+                .offset(y: -20)
 
             Button {
                 selection = .camera
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
-                    .frame(width: 62, height: 62)
+                    .frame(width: 52, height: 52)
                     .background(AppColors.accentBlue, in: Circle())
                     .overlay {
                         Circle().stroke(Color.white.opacity(0.86), lineWidth: 3)
                     }
             }
             .buttonStyle(.plain)
-            .offset(y: -17)
+            .offset(y: -13)
             .accessibilityLabel("カメラ")
         }
         .frame(maxWidth: .infinity)
@@ -151,14 +146,14 @@ private struct AttachedBottomTabBar: View {
             HStack {
                 tabButton(.home)
 
-                Spacer(minLength: 96)
+                Spacer(minLength: 84)
 
                 tabButton(.friends)
             }
-            .padding(.horizontal, 52)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
-            .frame(height: 76)
+            .padding(.horizontal, 46)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
+            .frame(height: 60)
             .background(AppColors.pureWhite)
         }
     }
@@ -167,14 +162,14 @@ private struct AttachedBottomTabBar: View {
         Button {
             selection = tab
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: 3) {
                 Image(systemName: tab.systemImage)
-                    .font(.system(size: 21, weight: selection == tab ? .semibold : .regular))
+                    .font(.system(size: 19, weight: selection == tab ? .semibold : .regular))
                 Text(tab.title)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 9, weight: .medium))
             }
             .foregroundStyle(selection == tab ? AppColors.accentPink : AppColors.secondaryText)
-            .frame(width: 68, height: 54)
+            .frame(width: 64, height: 46)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

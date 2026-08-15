@@ -36,6 +36,7 @@ struct DiaryEditorScreen: View {
     @State private var isSaving = false
     @State private var activeElement: CanvasElementID?
     @State private var isShowingFontPicker = false
+    @State private var inputBuffer = DiaryTextInputBuffer()
 
     init(group: PetalogGroup) {
         self.group = group
@@ -55,10 +56,16 @@ struct DiaryEditorScreen: View {
             }
 
             if let draftDiary {
-                TextField("タイトル", text: Binding(
-                    get: { draftDiary.title },
-                    set: { self.draftDiary?.title = $0 }
-                ))
+                BufferedDiaryTextField(
+                    placeholder: "タイトル",
+                    initialText: draftDiary.title,
+                    lineLimit: 1,
+                    onImmediateChange: { inputBuffer.title = $0 },
+                    onCommit: { value in
+                        guard self.draftDiary?.title != value else { return }
+                        self.draftDiary?.title = value
+                    }
+                )
                 .font(.headline.weight(.bold))
                 .textFieldStyle(.plain)
                 .metalTextField()
@@ -87,7 +94,8 @@ struct DiaryEditorScreen: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
         .background {
             ZStack {
                 PetalogMetalBackground()
@@ -232,11 +240,18 @@ struct DiaryEditorScreen: View {
     private func selectedDockControls(for element: CanvasElementID) -> some View {
         switch element {
         case .text(let textID):
-            TextField("文字を入力", text: Binding(
-                get: { selectedText?.text ?? "" },
-                set: { value in updateText(textID) { $0.text = value } }
-            ), axis: .vertical)
-            .lineLimit(1...2)
+            BufferedDiaryTextField(
+                placeholder: "文字を入力",
+                initialText: selectedText?.text ?? "",
+                axis: .vertical,
+                lineLimit: 2,
+                onImmediateChange: { inputBuffer.textValues[textID] = $0 },
+                onCommit: { value in
+                    guard selectedText?.text != value else { return }
+                    updateText(textID) { $0.text = value }
+                }
+            )
+            .id(textID)
             .textFieldStyle(.plain)
             .metalTextField()
 
@@ -312,6 +327,7 @@ struct DiaryEditorScreen: View {
     private func save(_ diary: DiaryPage) async {
         isSaving = true
         var page = diary
+        inputBuffer.apply(to: &page)
         var layouts = localLayouts
         let order = diaryLayerEntries(diary: page, stickers: viewModel.stickers, layouts: layouts).map(\.element)
         applyDiaryLayerOrder(order, diary: &page, stickers: viewModel.stickers, layouts: &layouts)
@@ -487,6 +503,7 @@ struct DiaryEditorScreen: View {
     }
 
     private func deleteText(_ id: String) {
+        inputBuffer.textValues.removeValue(forKey: id)
         draftDiary?.textItems.removeAll { $0.id == id }
         activeElement = nil
         selectedElement = nil
@@ -505,6 +522,88 @@ struct DiaryEditorScreen: View {
         localLayouts.removeValue(forKey: sticker.id)
         draftDiary?.stickerLayout.removeAll { $0.stickerId == sticker.id }
         await viewModel.deleteSticker(sticker, user: user)
+    }
+}
+
+@MainActor
+private final class DiaryTextInputBuffer {
+    var title: String?
+    var textValues: [String: String] = [:]
+
+    func apply(to diary: inout DiaryPage) {
+        if let title {
+            diary.title = title
+        }
+        for (id, text) in textValues {
+            guard let index = diary.textItems.firstIndex(where: { $0.id == id }) else { continue }
+            diary.textItems[index].text = text
+        }
+    }
+}
+
+private struct BufferedDiaryTextField: View {
+    let placeholder: String
+    let initialText: String
+    var axis: Axis = .horizontal
+    var lineLimit: Int = 1
+    let onImmediateChange: (String) -> Void
+    let onCommit: (String) -> Void
+
+    @State private var text: String
+    @State private var pendingCommit: Task<Void, Never>?
+    @FocusState private var isFocused: Bool
+
+    init(
+        placeholder: String,
+        initialText: String,
+        axis: Axis = .horizontal,
+        lineLimit: Int = 1,
+        onImmediateChange: @escaping (String) -> Void,
+        onCommit: @escaping (String) -> Void
+    ) {
+        self.placeholder = placeholder
+        self.initialText = initialText
+        self.axis = axis
+        self.lineLimit = lineLimit
+        self.onImmediateChange = onImmediateChange
+        self.onCommit = onCommit
+        _text = State(initialValue: initialText)
+    }
+
+    var body: some View {
+        TextField(placeholder, text: $text, axis: axis)
+            .lineLimit(lineLimit)
+            .focused($isFocused)
+            .onChange(of: text) { _, value in
+                onImmediateChange(value)
+                scheduleCommit(value)
+            }
+            .onChange(of: initialText) { _, value in
+                guard !isFocused, text != value else { return }
+                text = value
+            }
+            .onChange(of: isFocused) { _, focused in
+                if !focused {
+                    commitImmediately()
+                }
+            }
+            .onDisappear {
+                commitImmediately()
+            }
+    }
+
+    private func scheduleCommit(_ value: String) {
+        pendingCommit?.cancel()
+        pendingCommit = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(140))
+            guard !Task.isCancelled else { return }
+            onCommit(value)
+        }
+    }
+
+    private func commitImmediately() {
+        pendingCommit?.cancel()
+        onCommit(text)
     }
 }
 
@@ -679,7 +778,10 @@ struct EditableDiaryCanvas: View {
                 }
             }
             .coordinateSpace(name: "diaryCanvas")
-            .onPreferenceChange(DiaryElementFramePreferenceKey.self) { elementFrames = $0 }
+            .onPreferenceChange(DiaryElementFramePreferenceKey.self) { frames in
+                guard frames != elementFrames else { return }
+                elementFrames = frames
+            }
             .onChange(of: selectedElement) { _, element in
                 if element == nil || element.map({ !tapCandidates.contains($0) }) == true {
                     resetTapCycle()
@@ -690,9 +792,12 @@ struct EditableDiaryCanvas: View {
                     .onEnded { value in selectElement(at: value.location) }
             )
             .onAppear {
-                canvasSize = proxy.size
+                if canvasSize != proxy.size {
+                    canvasSize = proxy.size
+                }
             }
             .onChange(of: proxy.size) { _, size in
+                guard canvasSize != size else { return }
                 canvasSize = size
             }
         }

@@ -16,7 +16,7 @@ struct FriendAddScreen: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
-            .padding(.bottom, 34)
+            .padding(.bottom, 16)
         }
         .background {
             PetalogMetalBackground()

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FriendFeedScreen: View {
     @EnvironmentObject private var appState: AppState
+    var showsRootTabBar = false
 
     var body: some View {
         ScrollView {
@@ -11,10 +12,16 @@ struct FriendFeedScreen: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
-            .padding(.bottom, 112)
+            .padding(.bottom, 16)
         }
         .background {
             PetalogMetalBackground()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showsRootTabBar {
+                AttachedBottomTabBar(selection: $appState.selectedTab)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+            }
         }
     }
 

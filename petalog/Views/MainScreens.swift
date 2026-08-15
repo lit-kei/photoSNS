@@ -9,6 +9,7 @@ import UIKit
 
 struct HomeScreen: View {
     @EnvironmentObject private var appState: AppState
+    var showsRootTabBar = false
 
     var body: some View {
         NavigationStack {
@@ -20,10 +21,16 @@ struct HomeScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.screenTop)
-                .padding(.bottom, AppSpacing.floatingTabClearance)
+                .padding(.bottom, 16)
             }
             .background {
                 PetalogMetalBackground()
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if showsRootTabBar {
+                    AttachedBottomTabBar(selection: $appState.selectedTab)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
         }
@@ -253,7 +260,7 @@ private struct GroupActivityCard: View {
                     Text(group.name)
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(AppColors.mainText)
-                    Text("invite \(group.inviteCode)")
+                    Text("招待 \(group.inviteCode)")
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(AppColors.secondaryText)
                 }
@@ -310,7 +317,7 @@ struct MemoriesScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.screenTop + 18)
-                .padding(.bottom, AppSpacing.floatingTabClearance)
+                .padding(.bottom, 16)
             }
             .background {
                 PetalogMetalBackground()
@@ -498,7 +505,7 @@ struct ProfileScreen: View {
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.screenTop + 18)
-            .padding(.bottom, AppSpacing.floatingTabClearance)
+            .padding(.bottom, 16)
         }
         .background {
             PetalogMetalBackground()
