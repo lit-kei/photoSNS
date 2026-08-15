@@ -357,6 +357,7 @@ enum AuthState: Equatable {
 enum AppTab {
     case home
     case camera
+    case friends
     case memories
     case profile
 }

@@ -461,13 +461,14 @@ extension AppTab: CaseIterable, Identifiable {
     var id: Self { self }
 
     static var allCases: [AppTab] {
-        [.home, .camera]
+        [.home, .camera, .friends]
     }
 
     var title: String {
         switch self {
         case .home: "ホーム"
         case .camera: "カメラ"
+        case .friends: "友達"
         case .memories: "思い出"
         case .profile: "プロフィール"
         }
@@ -476,7 +477,8 @@ extension AppTab: CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .home: "house"
-        case .camera: "camera"
+        case .camera: "plus"
+        case .friends: "person.2"
         case .memories: "book.pages"
         case .profile: "person.crop.circle"
         }
