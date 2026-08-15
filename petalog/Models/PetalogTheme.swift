@@ -28,6 +28,8 @@ enum AppColors {
     static let dustyPink = Color(red: 0.86, green: 0.68, blue: 0.66)
     static let mutedLavender = Color(red: 0.70, green: 0.64, blue: 0.72)
     static let kraftBeige = Color(red: 0.73, green: 0.62, blue: 0.49)
+    static let burntOrange = Color(red: 0.87, green: 0.40, blue: 0.16)
+    static let deepGreen = Color(red: 0.06, green: 0.25, blue: 0.20)
     static let paperCream = Color(red: 0.974, green: 0.946, blue: 0.889)
     static let tape = Color(red: 0.88, green: 0.81, blue: 0.68)
     static let silver = dustyPink

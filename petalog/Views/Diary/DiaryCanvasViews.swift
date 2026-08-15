@@ -61,24 +61,14 @@ struct RemoteStickerView: View {
     let size: CGFloat
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            AsyncStickerImage(urlString: sticker.stickerImageURL, fallbackSystemImage: "photo.fill")
-                .frame(width: size, height: size)
-                .shadow(color: sticker.decoration == .shadow ? .black.opacity(0.24) : .clear, radius: 12, y: 8)
-                .overlay {
-                    if sticker.decoration == .sparkle {
-                        SparkleOverlay()
-                            .frame(width: size * 1.12, height: size * 1.12)
-                    }
+        AsyncStickerImage(urlString: sticker.stickerImageURL, fallbackSystemImage: "photo.fill")
+            .frame(width: size, height: size)
+            .shadow(color: sticker.decoration == .shadow ? .black.opacity(0.24) : .clear, radius: 12, y: 8)
+            .overlay {
+                if sticker.decoration == .sparkle {
+                    SparkleOverlay()
+                        .frame(width: size * 1.12, height: size * 1.12)
                 }
-
-            Text(sticker.authorAvatar)
-                .font(.system(size: size * 0.22))
-                .frame(width: size * 0.31, height: size * 0.31)
-                .background(AppColors.surface.opacity(0.94))
-                .clipShape(Circle())
-                .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
-        }
-        .frame(width: size * 1.22, height: size * 1.22)
+            }
     }
 }

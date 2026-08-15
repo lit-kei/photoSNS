@@ -1,8 +1,16 @@
 import SwiftUI
 
 struct PetalogMetalBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        AppColors.appBackground
+        ZStack {
+            AppColors.appBackground
+
+            if colorScheme == .dark {
+                DarkCollageBackdrop()
+            }
+        }
         .ignoresSafeArea()
     }
 }
@@ -37,6 +45,7 @@ struct SectionHeader: View {
 }
 
 struct MetalCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
     var padding: CGFloat = AppSpacing.card
     var radius: CGFloat = AppRadius.card
     let content: Content
@@ -54,12 +63,12 @@ struct MetalCard<Content: View>: View {
             .background {
                 ZStack {
                     RoundedRectangle(cornerRadius: radius + 3, style: .continuous)
-                        .fill(AppColors.mutedLavender.opacity(0.20))
+                        .fill(colorScheme == .dark ? AppColors.burntOrange.opacity(0.34) : AppColors.mutedLavender.opacity(0.20))
                         .rotationEffect(.degrees(-1.8))
                         .offset(x: -4, y: 5)
 
                     RoundedRectangle(cornerRadius: radius + 2, style: .continuous)
-                        .fill(AppColors.dustyPink.opacity(0.24))
+                        .fill(colorScheme == .dark ? AppColors.deepGreen.opacity(0.36) : AppColors.dustyPink.opacity(0.24))
                         .rotationEffect(.degrees(1.5))
                         .offset(x: 5, y: -4)
 
@@ -68,9 +77,9 @@ struct MetalCard<Content: View>: View {
                         .overlay {
                             LinearGradient(
                                 colors: [
-                                    .white.opacity(0.58),
-                                    AppColors.dustyPink.opacity(0.10),
-                                    AppColors.kraftBeige.opacity(0.12)
+                                    .white.opacity(colorScheme == .dark ? 0.06 : 0.58),
+                                    (colorScheme == .dark ? AppColors.burntOrange : AppColors.dustyPink).opacity(colorScheme == .dark ? 0.26 : 0.10),
+                                    AppColors.kraftBeige.opacity(colorScheme == .dark ? 0.24 : 0.12)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -78,8 +87,17 @@ struct MetalCard<Content: View>: View {
                             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
                         }
                         .overlay {
-                            PaperGrain(opacity: 0.07)
+                            PaperGrain(opacity: colorScheme == .dark ? 0.12 : 0.07)
                                 .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+                        }
+                        .overlay(alignment: .bottomTrailing) {
+                            if colorScheme == .dark {
+                                ZebraPatch()
+                                    .frame(width: 92, height: 46)
+                                    .opacity(0.34)
+                                    .rotationEffect(.degrees(-7))
+                                    .offset(x: -16, y: 8)
+                            }
                         }
                 }
             }
@@ -88,10 +106,11 @@ struct MetalCard<Content: View>: View {
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
             .overlay(alignment: .topLeading) {
-                PaperTape(width: 58)
+                PaperTape(width: colorScheme == .dark ? 70 : 58)
+                    .rotationEffect(.degrees(colorScheme == .dark ? -6 : 0))
                     .offset(x: 18, y: -9)
             }
-            .shadow(color: AppColors.kraftBeige.opacity(0.22), radius: 12, y: 6)
+            .shadow(color: (colorScheme == .dark ? AppColors.burntOrange : AppColors.kraftBeige).opacity(colorScheme == .dark ? 0.30 : 0.22), radius: 12, y: 6)
     }
 }
 
@@ -130,6 +149,8 @@ struct SecondaryButton<Label: View>: View {
 }
 
 struct PrimaryActionButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
@@ -144,20 +165,28 @@ struct PrimaryActionButtonStyle: ButtonStyle {
                     .fill(
                         LinearGradient(
                             colors: [
-                                AppColors.dustyPink,
-                                AppColors.mutedLavender.opacity(0.92),
-                                AppColors.kraftBeige.opacity(0.86)
+                                colorScheme == .dark ? AppColors.burntOrange : AppColors.dustyPink,
+                                colorScheme == .dark ? AppColors.kraftBeige.opacity(0.98) : AppColors.mutedLavender.opacity(0.92),
+                                colorScheme == .dark ? AppColors.deepGreen.opacity(0.90) : AppColors.kraftBeige.opacity(0.86)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .overlay(alignment: .topLeading) {
-                        CollageGrid()
-                            .stroke(.white.opacity(0.18), lineWidth: 0.7)
-                            .frame(width: 82, height: 54)
-                            .rotationEffect(.degrees(-8))
-                            .offset(x: 16, y: -7)
+                        if colorScheme == .dark {
+                            ZebraPatch()
+                                .frame(width: 108, height: 54)
+                                .opacity(0.24)
+                                .rotationEffect(.degrees(-6))
+                                .offset(x: 10, y: -3)
+                        } else {
+                            CollageGrid()
+                                .stroke(.white.opacity(0.18), lineWidth: 0.7)
+                                .frame(width: 82, height: 54)
+                                .rotationEffect(.degrees(-8))
+                                .offset(x: 16, y: -7)
+                        }
                     }
                     .overlay(alignment: .top) {
                         RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
@@ -171,8 +200,8 @@ struct PrimaryActionButtonStyle: ButtonStyle {
                     }
             }
             .overlay(alignment: .topLeading) {
-                PaperTape(width: 44, height: 12)
-                    .rotationEffect(.degrees(-7))
+                PaperTape(width: colorScheme == .dark ? 56 : 44, height: 12)
+                    .rotationEffect(.degrees(colorScheme == .dark ? -12 : -7))
                     .offset(x: 16, y: -6)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
@@ -182,6 +211,8 @@ struct PrimaryActionButtonStyle: ButtonStyle {
 }
 
 struct SecondaryActionButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 15, weight: .semibold))
@@ -194,14 +225,18 @@ struct SecondaryActionButtonStyle: ButtonStyle {
             .background {
                 ZStack {
                     RoundedRectangle(cornerRadius: AppRadius.button + 2, style: .continuous)
-                        .fill(AppColors.dustyPink.opacity(0.22))
+                        .fill((colorScheme == .dark ? AppColors.burntOrange : AppColors.dustyPink).opacity(colorScheme == .dark ? 0.32 : 0.22))
                         .rotationEffect(.degrees(-1.4))
                         .offset(x: -3, y: 3)
                     RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
                         .fill(AppColors.elevatedSurface.opacity(configuration.isPressed ? 0.88 : 0.98))
                         .overlay {
                             LinearGradient(
-                                colors: [.white.opacity(0.62), AppColors.dustyPink.opacity(0.16), AppColors.kraftBeige.opacity(0.12)],
+                                colors: [
+                                    .white.opacity(colorScheme == .dark ? 0.06 : 0.62),
+                                    (colorScheme == .dark ? AppColors.burntOrange : AppColors.dustyPink).opacity(colorScheme == .dark ? 0.24 : 0.16),
+                                    AppColors.kraftBeige.opacity(colorScheme == .dark ? 0.22 : 0.12)
+                                ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -262,6 +297,7 @@ struct ControlSection<Content: View>: View {
 }
 
 struct IconButtonLabel: View {
+    @Environment(\.colorScheme) private var colorScheme
     let systemName: String
     var size: CGFloat = 44
 
@@ -275,7 +311,11 @@ struct IconButtonLabel: View {
                     .fill(AppColors.elevatedSurface.opacity(0.96))
                     .overlay {
                         LinearGradient(
-                            colors: [.white.opacity(0.76), AppColors.dustyPink.opacity(0.18), AppColors.kraftBeige.opacity(0.08)],
+                            colors: [
+                                .white.opacity(colorScheme == .dark ? 0.08 : 0.76),
+                                (colorScheme == .dark ? AppColors.burntOrange : AppColors.dustyPink).opacity(colorScheme == .dark ? 0.28 : 0.18),
+                                AppColors.kraftBeige.opacity(colorScheme == .dark ? 0.18 : 0.08)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -455,6 +495,7 @@ struct EmptyStateView: View {
 }
 
 struct FloatingTabBar: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var selection: AppTab
 
     var body: some View {
@@ -478,8 +519,8 @@ struct FloatingTabBar: View {
                                 .fill(
                                     LinearGradient(
                                         colors: [
-                                            AppColors.dustyPink.opacity(0.32),
-                                            AppColors.mutedLavender.opacity(0.20),
+                                            (colorScheme == .dark ? AppColors.burntOrange : AppColors.dustyPink).opacity(colorScheme == .dark ? 0.48 : 0.32),
+                                            (colorScheme == .dark ? AppColors.kraftBeige : AppColors.mutedLavender).opacity(colorScheme == .dark ? 0.38 : 0.20),
                                             AppColors.elevatedSurface.opacity(0.92)
                                         ],
                                         startPoint: .topLeading,
@@ -492,7 +533,7 @@ struct FloatingTabBar: View {
                                 .overlay(alignment: .topTrailing) {
                                     Image(systemName: "heart.fill")
                                         .font(.system(size: 9, weight: .bold))
-                                        .foregroundStyle(AppColors.dustyPink.opacity(0.72))
+                                        .foregroundStyle((colorScheme == .dark ? AppColors.burntOrange : AppColors.dustyPink).opacity(0.72))
                                         .offset(x: -10, y: 8)
                                 }
                                 .transition(.opacity.combined(with: .scale(scale: 0.94)))
@@ -511,8 +552,8 @@ struct FloatingTabBar: View {
                     LinearGradient(
                         colors: [
                             .white.opacity(0.72),
-                            AppColors.paperCream.opacity(0.9),
-                            AppColors.kraftBeige.opacity(0.08)
+                            colorScheme == .dark ? AppColors.deepGreen.opacity(0.25) : AppColors.paperCream.opacity(0.9),
+                            AppColors.kraftBeige.opacity(colorScheme == .dark ? 0.22 : 0.08)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -524,8 +565,45 @@ struct FloatingTabBar: View {
             RoundedRectangle(cornerRadius: AppRadius.tabBar, style: .continuous)
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
-        .shadow(color: AppColors.kraftBeige.opacity(0.24), radius: 16, y: 8)
+        .shadow(color: (colorScheme == .dark ? AppColors.burntOrange : AppColors.kraftBeige).opacity(colorScheme == .dark ? 0.30 : 0.24), radius: 16, y: 8)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: selection)
+    }
+}
+
+private struct DarkCollageBackdrop: View {
+    var body: some View {
+        ZStack {
+            TornPaperPatch(seed: 2)
+                .fill(AppColors.deepGreen.opacity(0.36))
+                .frame(width: 190, height: 120)
+                .rotationEffect(.degrees(-11))
+                .offset(x: -138, y: -252)
+
+            TornPaperPatch(seed: 5)
+                .fill(AppColors.burntOrange.opacity(0.34))
+                .frame(width: 170, height: 112)
+                .rotationEffect(.degrees(16))
+                .offset(x: 142, y: -164)
+
+            TornPaperPatch(seed: 8)
+                .fill(AppColors.kraftBeige.opacity(0.24))
+                .frame(width: 210, height: 126)
+                .rotationEffect(.degrees(-8))
+                .offset(x: 128, y: 276)
+
+            ZebraPatch()
+                .frame(width: 170, height: 92)
+                .opacity(0.16)
+                .rotationEffect(.degrees(-13))
+                .offset(x: -126, y: 190)
+
+            CollageGrid()
+                .stroke(.white.opacity(0.08), lineWidth: 0.8)
+                .frame(width: 132, height: 132)
+                .rotationEffect(.degrees(8))
+                .offset(x: 132, y: 80)
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -544,6 +622,54 @@ private struct PaperGrain: View {
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+private struct TornPaperPatch: Shape {
+    let seed: Int
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let points = 18
+        for index in 0..<points {
+            let progress = CGFloat(index) / CGFloat(points)
+            let angle = progress * .pi * 2
+            let noise = CGFloat(((index * 37 + seed * 19) % 11) - 5) / 42
+            let radiusX = rect.width * (0.48 + noise)
+            let radiusY = rect.height * (0.48 - noise * 0.6)
+            let point = CGPoint(
+                x: rect.midX + cos(angle) * radiusX,
+                y: rect.midY + sin(angle) * radiusY
+            )
+            if index == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct ZebraPatch: View {
+    var body: some View {
+        Canvas { context, size in
+            let base = Path(CGRect(origin: .zero, size: size))
+            context.fill(base, with: .color(.white.opacity(0.84)))
+
+            for index in -2..<10 {
+                var stripe = Path()
+                let x = CGFloat(index) * size.width / 7
+                stripe.move(to: CGPoint(x: x, y: 0))
+                stripe.addLine(to: CGPoint(x: x + size.width * 0.22, y: 0))
+                stripe.addLine(to: CGPoint(x: x + size.width * 0.52, y: size.height))
+                stripe.addLine(to: CGPoint(x: x + size.width * 0.30, y: size.height))
+                stripe.closeSubpath()
+                context.fill(stripe, with: .color(.black.opacity(0.78)))
+            }
+        }
+        .clipShape(TornPaperPatch(seed: 11))
     }
 }
 
