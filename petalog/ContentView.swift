@@ -7,6 +7,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -26,9 +27,14 @@ struct ContentView: View {
             }
         }
         .task {
+            appState.stickerUploadCoordinator.setAppActive(scenePhase == .active)
+            appState.stickerUploadCoordinator.prepareNotifications()
             if appState.authState == .bootstrapping {
                 appState.bootstrap()
             }
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            appState.stickerUploadCoordinator.setAppActive(newValue == .active)
         }
         .alert("エラー", isPresented: Binding(
             get: { appState.errorMessage != nil },
@@ -56,6 +62,11 @@ struct ContentView: View {
             }
         }
         .tint(AppColors.mainText)
+        .overlay(alignment: .top) {
+            StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+        }
     }
 }
 

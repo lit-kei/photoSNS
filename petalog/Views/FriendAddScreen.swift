@@ -400,16 +400,9 @@ private struct PublicUserAvatar: View {
 
     var body: some View {
         Group {
-            if let avatarURL = user.avatarURL, let url = URL(string: avatarURL), !avatarURL.isEmpty {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        placeholder
-                    }
+            if let avatarURL = user.avatarURL, !avatarURL.isEmpty {
+                RemoteImageView(urlString: avatarURL) {
+                    placeholder
                 }
             } else if user.avatar.isEmpty {
                 placeholder

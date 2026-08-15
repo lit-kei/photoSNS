@@ -1,5 +1,104 @@
 import SwiftUI
 
+struct StickerUploadBanner: View {
+    @ObservedObject var coordinator: StickerUploadCoordinator
+    @ObservedObject private var networkMonitor: NetworkMonitor
+
+    init(coordinator: StickerUploadCoordinator) {
+        self.coordinator = coordinator
+        self._networkMonitor = ObservedObject(wrappedValue: coordinator.networkMonitor)
+    }
+
+    var body: some View {
+        if coordinator.state != .idle {
+            HStack(spacing: 12) {
+                statusIcon
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
+                    if let detailText {
+                        Text(detailText)
+                            .font(.caption)
+                            .foregroundStyle(AppColors.secondaryText)
+                            .lineLimit(2)
+                    }
+                }
+                Spacer(minLength: 4)
+                actions
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .background(AppColors.elevatedSurface.opacity(0.98))
+            .clipShape(RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
+                    .stroke(AppColors.border, lineWidth: 0.8)
+            }
+            .shadow(color: .black.opacity(0.16), radius: 14, y: 7)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: coordinator.state)
+        }
+    }
+
+    @ViewBuilder
+    private var statusIcon: some View {
+        switch coordinator.state {
+        case .success:
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        case .failure:
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+        default:
+            ProgressView().tint(AppColors.mainText)
+        }
+    }
+
+    private var title: String {
+        switch coordinator.state {
+        case .idle: ""
+        case .uploading: "画像をアップロード中"
+        case .resolvingURL: "画像URLを確認中"
+        case .savingPost: "投稿情報を保存中"
+        case .success: "投稿しました"
+        case .failure: "投稿できませんでした"
+        }
+    }
+
+    private var detailText: String? {
+        switch coordinator.state {
+        case .failure(let message):
+            message
+        case .success:
+            "絵日記への保存が完了しました。"
+        default:
+            nil
+        }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        switch coordinator.state {
+        case .failure:
+            HStack(spacing: 8) {
+                Button("再試行") { coordinator.retry() }
+                    .font(.caption.weight(.semibold))
+                    .disabled(networkMonitor.status != .online)
+                Button { coordinator.dismissBanner() } label: {
+                    Image(systemName: "xmark")
+                }
+                .accessibilityLabel("閉じる")
+            }
+        case .success:
+            Button { coordinator.dismissBanner() } label: {
+                Image(systemName: "xmark")
+            }
+            .accessibilityLabel("閉じる")
+        default:
+            EmptyView()
+        }
+    }
+}
+
 struct PetalogMetalBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 

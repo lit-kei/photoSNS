@@ -29,7 +29,12 @@ struct StickerCreationScreen: View {
                             Slider(
                                 value: Binding(
                                     get: { draft.cropScale },
-                                    set: { draft.updateCrop(scale: $0) }
+                                    set: {
+                                        draft.updateCrop(
+                                            scale: $0,
+                                            imageAspectRatio: originalImage.petalogAspectRatio
+                                        )
+                                    }
                                 ),
                                 in: 1...2.8
                             )
@@ -41,7 +46,12 @@ struct StickerCreationScreen: View {
                             Slider(
                                 value: Binding(
                                     get: { draft.cropRotation },
-                                    set: { draft.updateCrop(rotation: $0) }
+                                    set: {
+                                        draft.updateCrop(
+                                            rotation: $0,
+                                            imageAspectRatio: originalImage.petalogAspectRatio
+                                        )
+                                    }
                                 ),
                                 in: -180...180
                             )
@@ -110,11 +120,11 @@ private struct StickerComposerPreview: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let previewSide = min(proxy.size.width, proxy.size.height)
-            let maskSide = previewSide * 0.72
+            let imageSize = aspectFitSize(for: image, in: proxy.size)
+            let referenceSide = min(imageSize.width, imageSize.height)
             let cropScale = CGFloat(max(1, draft.cropScale))
-            let frameSide = maskSide / cropScale
-            let frameOffset = displayedFrameOffset(maskSide: maskSide, cropScale: cropScale)
+            let frameSide = referenceSide / cropScale
+            let frameOffset = displayedFrameOffset(referenceSide: referenceSide, cropScale: cropScale)
 
             ZStack {
                 TransparentStickerPreviewBackground()
@@ -122,9 +132,8 @@ private struct StickerComposerPreview: View {
                 ZStack {
                     Image(uiImage: image)
                         .resizable()
-                        .scaledToFill()
-                        .frame(width: maskSide, height: maskSide)
-                        .clipped()
+                        .scaledToFit()
+                        .frame(width: imageSize.width, height: imageSize.height)
 
                     ZStack {
                         Color.black.opacity(0.38)
@@ -155,16 +164,16 @@ private struct StickerComposerPreview: View {
                             .offset(frameOffset)
                     }
                 }
-                .frame(width: maskSide, height: maskSide)
+                .frame(width: imageSize.width, height: imageSize.height)
                 .clipped()
                 .contentShape(Rectangle())
-                .highPriorityGesture(cropDragGesture(maskSide: maskSide))
+                .highPriorityGesture(cropDragGesture(referenceSide: referenceSide))
                 .simultaneousGesture(cropScaleGesture())
                 .simultaneousGesture(cropRotationGesture())
                 .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
                 .overlay(alignment: .bottomTrailing) {
                     Button {
-                        draft.resetCrop()
+                        draft.resetCrop(imageAspectRatio: image.petalogAspectRatio)
                     } label: {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.headline)
@@ -186,10 +195,10 @@ private struct StickerComposerPreview: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func cropDragGesture(maskSide: CGFloat) -> some Gesture {
+    private func cropDragGesture(referenceSide: CGFloat) -> some Gesture {
         DragGesture()
             .onChanged { value in
-                guard maskSide.isFinite, maskSide > 1 else { return }
+                guard referenceSide.isFinite, referenceSide > 1 else { return }
                 isDragging = true
                 updateInteractionState()
                 let start = cropDragStart ?? draft.cropOffset
@@ -197,9 +206,10 @@ private struct StickerComposerPreview: View {
                 let scale = CGFloat(max(1, draft.cropScale))
                 draft.updateCrop(
                     offset: CGSize(
-                        width: start.width - value.translation.width * scale / maskSide,
-                        height: start.height - value.translation.height * scale / maskSide
-                    )
+                        width: start.width - value.translation.width * scale / referenceSide,
+                        height: start.height - value.translation.height * scale / referenceSide
+                    ),
+                    imageAspectRatio: image.petalogAspectRatio
                 )
             }
             .onEnded { _ in
@@ -216,7 +226,10 @@ private struct StickerComposerPreview: View {
                 updateInteractionState()
                 let start = cropScaleStart ?? draft.cropScale
                 cropScaleStart = start
-                draft.updateCrop(scale: start / Double(value))
+                draft.updateCrop(
+                    scale: start / Double(value),
+                    imageAspectRatio: image.petalogAspectRatio
+                )
             }
             .onEnded { _ in
                 cropScaleStart = nil
@@ -232,7 +245,10 @@ private struct StickerComposerPreview: View {
                 updateInteractionState()
                 let start = cropRotationStart ?? draft.cropRotation
                 cropRotationStart = start
-                draft.updateCrop(rotation: start - value.degrees)
+                draft.updateCrop(
+                    rotation: start - value.degrees,
+                    imageAspectRatio: image.petalogAspectRatio
+                )
             }
             .onEnded { _ in
                 cropRotationStart = nil
@@ -241,12 +257,25 @@ private struct StickerComposerPreview: View {
             }
     }
 
-    private func displayedFrameOffset(maskSide: CGFloat, cropScale: CGFloat) -> CGSize {
-        guard maskSide.isFinite, cropScale.isFinite, cropScale > 0 else { return .zero }
+    private func displayedFrameOffset(referenceSide: CGFloat, cropScale: CGFloat) -> CGSize {
+        guard referenceSide.isFinite, cropScale.isFinite, cropScale > 0 else { return .zero }
         return CGSize(
-            width: -maskSide * draft.cropOffset.width / cropScale,
-            height: -maskSide * draft.cropOffset.height / cropScale
+            width: -referenceSide * draft.cropOffset.width / cropScale,
+            height: -referenceSide * draft.cropOffset.height / cropScale
         )
+    }
+
+    private func aspectFitSize(for image: UIImage, in bounds: CGSize) -> CGSize {
+        let available = CGSize(width: bounds.width * 0.94, height: bounds.height * 0.94)
+        let aspectRatio = image.petalogAspectRatio
+        guard available.width > 0, available.height > 0, aspectRatio.isFinite, aspectRatio > 0 else {
+            return .zero
+        }
+
+        if aspectRatio > available.width / available.height {
+            return CGSize(width: available.width, height: available.width / aspectRatio)
+        }
+        return CGSize(width: available.height * aspectRatio, height: available.height)
     }
 
     private func updateInteractionState() {
@@ -255,7 +284,12 @@ private struct StickerComposerPreview: View {
 }
 
 private extension StickerDraft {
-    mutating func updateCrop(scale: Double? = nil, rotation: Double? = nil, offset: CGSize? = nil) {
+    mutating func updateCrop(
+        scale: Double? = nil,
+        rotation: Double? = nil,
+        offset: CGSize? = nil,
+        imageAspectRatio: CGFloat = 1
+    ) {
         let proposedScale = scale ?? cropScale
         let proposedRotation = rotation ?? cropRotation
 
@@ -263,21 +297,34 @@ private extension StickerDraft {
         cropRotation = (proposedRotation.isFinite ? proposedRotation : 0).clamped(to: -180...180)
 
         let proposedOffset = offset ?? cropOffset
-        let limit = cropOffsetLimit
+        let limit = cropOffsetLimit(imageAspectRatio: imageAspectRatio)
         cropOffset = CGSize(
-            width: proposedOffset.width.finiteOrZero.clamped(to: -limit...limit),
-            height: proposedOffset.height.finiteOrZero.clamped(to: -limit...limit)
+            width: proposedOffset.width.finiteOrZero.clamped(to: -limit.width...limit.width),
+            height: proposedOffset.height.finiteOrZero.clamped(to: -limit.height...limit.height)
         )
     }
 
-    mutating func resetCrop() {
-        updateCrop(scale: 1, rotation: 0, offset: .zero)
+    mutating func resetCrop(imageAspectRatio: CGFloat = 1) {
+        updateCrop(scale: 1, rotation: 0, offset: .zero, imageAspectRatio: imageAspectRatio)
     }
 
-    private var cropOffsetLimit: CGFloat {
+    private func cropOffsetLimit(imageAspectRatio: CGFloat) -> CGSize {
+        let aspectRatio = imageAspectRatio.isFinite && imageAspectRatio > 0 ? imageAspectRatio : 1
+        let widthRatio = aspectRatio >= 1 ? aspectRatio : 1
+        let heightRatio = aspectRatio >= 1 ? 1 : 1 / aspectRatio
         let radians = CGFloat(cropRotation) * .pi / 180
         let rotatedExtent = abs(cos(radians)) + abs(sin(radians))
-        return max(0, (CGFloat(cropScale) - rotatedExtent) / 2)
+        return CGSize(
+            width: max(0, (CGFloat(cropScale) * widthRatio - rotatedExtent) / 2),
+            height: max(0, (CGFloat(cropScale) * heightRatio - rotatedExtent) / 2)
+        )
+    }
+}
+
+private extension UIImage {
+    var petalogAspectRatio: CGFloat {
+        guard size.height > 0 else { return 1 }
+        return size.width / size.height
     }
 }
 

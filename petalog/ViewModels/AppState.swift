@@ -20,6 +20,8 @@ final class AppState: ObservableObject {
     @Published var isAuthenticating = false
 
     private let services: AppServices
+    let networkMonitor: NetworkMonitor
+    let stickerUploadCoordinator: StickerUploadCoordinator
     private var groupListener: ListenerRegistration?
     private var friendListener: ListenerRegistration?
     private var incomingFriendRequestListener: ListenerRegistration?
@@ -27,11 +29,24 @@ final class AppState: ObservableObject {
     private var pendingAccount: AuthenticatedAccount?
 
     init() {
-        self.services = AppServices.shared
+        let services = AppServices.shared
+        let networkMonitor = NetworkMonitor()
+        self.services = services
+        self.networkMonitor = networkMonitor
+        self.stickerUploadCoordinator = StickerUploadCoordinator(
+            services: services,
+            networkMonitor: networkMonitor
+        )
     }
 
     init(services: AppServices) {
+        let networkMonitor = NetworkMonitor()
         self.services = services
+        self.networkMonitor = networkMonitor
+        self.stickerUploadCoordinator = StickerUploadCoordinator(
+            services: services,
+            networkMonitor: networkMonitor
+        )
     }
 
     func bootstrap() {
@@ -177,14 +192,25 @@ final class AppState: ObservableObject {
     func updateProfile(displayName: String, avatarImageData: Data? = nil) async {
         guard var user = currentUser else { return }
         user.displayName = displayName.trimmedForPetalog
+        let previousAvatarURL = user.avatarURL
+        var uploadedAvatarURL: URL?
         do {
             if let avatarImageData {
                 let imageURL = try await services.auth.uploadProfileImage(userId: user.id, imageData: avatarImageData)
+                uploadedAvatarURL = imageURL
                 user.avatarURL = imageURL.absoluteString
             }
             try await services.auth.updateProfile(user: user)
             currentUser = user
+            if let previousAvatarURL,
+               previousAvatarURL != uploadedAvatarURL?.absoluteString,
+               uploadedAvatarURL != nil {
+                await services.auth.deleteProfileImage(at: previousAvatarURL)
+            }
         } catch {
+            if let uploadedAvatarURL {
+                await services.auth.deleteProfileImage(at: uploadedAvatarURL.absoluteString)
+            }
             errorMessage = error.localizedDescription
         }
     }
@@ -290,6 +316,7 @@ final class AppState: ObservableObject {
     }
 
     private func clearSignedInState() {
+        stickerUploadCoordinator.cancelAndClear()
         groupListener?.remove()
         groupListener = nil
         friendListener?.remove()

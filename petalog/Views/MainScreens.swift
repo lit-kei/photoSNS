@@ -500,20 +500,9 @@ private struct ProfilePhotoPickerLabel: View {
             Image(uiImage: uiImage)
                 .resizable()
                 .scaledToFill()
-        } else if let imageURLString, let url = URL(string: imageURLString), !imageURLString.isEmpty {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                case .failure:
-                    placeholder
-                case .empty:
-                    ProgressView()
-                @unknown default:
-                    placeholder
-                }
+        } else if let imageURLString, !imageURLString.isEmpty {
+            RemoteImageView(urlString: imageURLString) {
+                placeholder
             }
         } else {
             placeholder

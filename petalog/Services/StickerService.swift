@@ -3,6 +3,12 @@ import FirebaseStorage
 import Foundation
 import UIKit
 
+enum StickerUploadStage: Sendable {
+    case uploading(Double)
+    case resolvingDownloadURL
+    case savingPost
+}
+
 final class StickerService {
     private static let maximumStickerBytes = 2 * 1024 * 1024
 
@@ -36,7 +42,7 @@ final class StickerService {
         draft: StickerDraft,
         groups: [PetalogGroup],
         user: AppUser,
-        onProgress: @escaping (Double) -> Void = { _ in }
+        onStageChange: @escaping (StickerUploadStage) -> Void = { _ in }
     ) async throws -> [StickerPost] {
         guard !groups.isEmpty else { return [] }
         guard !stickerPNG.isEmpty, stickerPNG.count <= Self.maximumStickerBytes else {
@@ -52,7 +58,8 @@ final class StickerService {
         let assetId = UUID().uuidString
         let dateKey = Date().petalogDateKey
         let storagePath = "stickerAssets/\(user.id)/\(assetId).png"
-        let stickerURL = try await upload(data: stickerPNG, path: storagePath, onProgress: onProgress)
+        let stickerURL = try await upload(data: stickerPNG, path: storagePath, onStageChange: onStageChange)
+        onStageChange(.savingPost)
         let createdAt = Date()
         let posts = groups.enumerated().map { index, group in
             let postId = UUID().uuidString
@@ -108,7 +115,11 @@ final class StickerService {
             throw error
         }
 
-        await StickerImageCache.shared.store(data: stickerPNG, for: stickerURL)
+        // Remote persistence is complete at this point. Cache population can
+        // continue without delaying the transition back to the home screen.
+        Task {
+            await RemoteImageCache.shared.store(data: stickerPNG, for: stickerURL)
+        }
         return posts
     }
 
@@ -154,12 +165,16 @@ final class StickerService {
             let storagePath = "stickerAssets/\(sticker.authorId)/\(sticker.assetId).png"
             try? await storage.reference(withPath: storagePath).delete()
             if let url = URL(string: sticker.stickerImageURL) {
-                await StickerImageCache.shared.remove(for: url)
+                await RemoteImageCache.shared.remove(for: url)
             }
         }
     }
 
-    private func upload(data: Data, path: String, onProgress: @escaping (Double) -> Void) async throws -> URL {
+    private func upload(
+        data: Data,
+        path: String,
+        onStageChange: @escaping (StickerUploadStage) -> Void
+    ) async throws -> URL {
         let ref = storage.reference(withPath: path)
         let metadata = StorageMetadata()
         metadata.contentType = "image/png"
@@ -176,10 +191,16 @@ final class StickerService {
                 }
             }
             _ = uploadTask.observe(.progress) { snapshot in
-                onProgress(snapshot.progress?.fractionCompleted ?? 0)
+                onStageChange(.uploading(snapshot.progress?.fractionCompleted ?? 0))
             }
         }
 
-        return try await ref.downloadURL()
+        onStageChange(.resolvingDownloadURL)
+        do {
+            return try await ref.downloadURL()
+        } catch {
+            try? await ref.delete()
+            throw error
+        }
     }
 }

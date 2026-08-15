@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import UIKit
 
-final class CachedStickerImage: @unchecked Sendable {
+final class CachedRemoteImage: @unchecked Sendable {
     let image: UIImage
 
     nonisolated init(image: UIImage) {
@@ -10,15 +10,15 @@ final class CachedStickerImage: @unchecked Sendable {
     }
 }
 
-actor StickerImageCache {
-    static let shared = StickerImageCache()
+actor RemoteImageCache {
+    static let shared = RemoteImageCache()
 
-    private static let maximumDownloadBytes = 2 * 1024 * 1024
-    private static let memoryLimit = 32 * 1024 * 1024
-    private static let diskLimit = 100 * 1024 * 1024
+    private static let maximumDownloadBytes = 5 * 1024 * 1024
+    private static let memoryLimit = 48 * 1024 * 1024
+    private static let diskLimit = 150 * 1024 * 1024
     private static let maximumDiskAge: TimeInterval = 30 * 24 * 60 * 60
 
-    private let memoryCache = NSCache<NSString, CachedStickerImage>()
+    private let memoryCache = NSCache<NSString, CachedRemoteImage>()
     private let fileManager: FileManager
     private let cacheDirectory: URL
     private var inFlight: [String: Task<Data, Error>] = [:]
@@ -28,11 +28,11 @@ actor StickerImageCache {
         self.fileManager = fileManager
         let baseDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
-        self.cacheDirectory = baseDirectory.appendingPathComponent("petalog-sticker-images", isDirectory: true)
+        self.cacheDirectory = baseDirectory.appendingPathComponent("petalog-remote-images", isDirectory: true)
         memoryCache.totalCostLimit = Self.memoryLimit
     }
 
-    func image(for url: URL) async throws -> CachedStickerImage {
+    func image(for url: URL) async throws -> CachedRemoteImage {
         prepareDiskCacheIfNeeded()
         let key = url.absoluteString
         if let cached = memoryCache.object(forKey: key as NSString) {
@@ -108,9 +108,9 @@ actor StickerImageCache {
         pruneDiskCache()
     }
 
-    private func makeCachedImage(from data: Data) -> CachedStickerImage? {
+    private func makeCachedImage(from data: Data) -> CachedRemoteImage? {
         guard let image = UIImage(data: data) else { return nil }
-        return CachedStickerImage(image: image)
+        return CachedRemoteImage(image: image)
     }
 
     private func memoryCost(of image: UIImage) -> Int {
@@ -141,7 +141,7 @@ actor StickerImageCache {
         let digest = SHA256.hash(data: Data(key.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
-        return cacheDirectory.appendingPathComponent(digest).appendingPathExtension("png")
+        return cacheDirectory.appendingPathComponent(digest).appendingPathExtension("img")
     }
 
     private func pruneDiskCache() {

@@ -331,17 +331,10 @@ struct GroupIconView: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-            } else if let iconURL, let url = URL(string: iconURL), !iconURL.isEmpty {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        Text(icon)
-                            .font(.system(size: fontSize))
-                    }
+            } else if let iconURL, !iconURL.isEmpty {
+                RemoteImageView(urlString: iconURL) {
+                    Text(icon)
+                        .font(.system(size: fontSize))
                 }
             } else {
                 Text(icon)

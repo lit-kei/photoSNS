@@ -5,6 +5,7 @@ import Foundation
 final class StickerPostViewModel: ObservableObject {
     @Published var isUploading = false
     @Published var uploadProgress = 0.0
+    @Published var uploadStage: StickerUploadStage?
     @Published var errorMessage: String?
 
     private let services: AppServices
@@ -21,6 +22,7 @@ final class StickerPostViewModel: ObservableObject {
         guard !groups.isEmpty else { return [] }
         isUploading = true
         uploadProgress = 0
+        uploadStage = .uploading(0)
         defer { isUploading = false }
         errorMessage = nil
 
@@ -30,15 +32,20 @@ final class StickerPostViewModel: ObservableObject {
                 draft: draft,
                 groups: groups,
                 user: user,
-                onProgress: { [weak self] progress in
+                onStageChange: { [weak self] stage in
                     Task { @MainActor in
-                        self?.uploadProgress = progress
+                        self?.uploadStage = stage
+                        if case .uploading(let progress) = stage {
+                            self?.uploadProgress = progress
+                        }
                     }
                 }
             )
             uploadProgress = 1
+            uploadStage = nil
             return posts
         } catch {
+            uploadStage = nil
             errorMessage = error.localizedDescription
             return []
         }

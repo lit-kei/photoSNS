@@ -7,7 +7,9 @@ struct CameraPreview: UIViewRepresentable {
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
         view.videoPreviewLayer.session = session
-        view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        // Show the complete sensor image so the visible range matches the
+        // photo returned by AVCapturePhotoOutput.
+        view.videoPreviewLayer.videoGravity = .resizeAspect
         view.backgroundColor = .black
         return view
     }
@@ -30,20 +32,47 @@ final class PreviewView: UIView {
 struct AsyncStickerImage: View {
     let urlString: String
     let fallbackSystemImage: String
-    @State private var cachedImage: CachedStickerImage?
+
+    var body: some View {
+        RemoteImageView(urlString: urlString, contentMode: .fit) {
+            Image(systemName: fallbackSystemImage)
+                .font(.system(size: 42, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(AppColors.charcoal.opacity(0.82))
+        }
+    }
+}
+
+struct RemoteImageView<Placeholder: View>: View {
+    let urlString: String?
+    let contentMode: ContentMode
+    let placeholder: Placeholder
+    @State private var cachedImage: CachedRemoteImage?
     @State private var loadedURLString: String?
     @State private var isLoading = false
+
+    init(
+        urlString: String?,
+        contentMode: ContentMode = .fill,
+        @ViewBuilder placeholder: () -> Placeholder
+    ) {
+        self.urlString = urlString
+        self.contentMode = contentMode
+        self.placeholder = placeholder()
+    }
 
     var body: some View {
         Group {
             if let cachedImage {
                 Image(uiImage: cachedImage.image)
                     .resizable()
-                    .scaledToFit()
+                    .aspectRatio(contentMode: contentMode)
             } else if isLoading {
-                ProgressView()
+                placeholder
+                    .overlay { ProgressView() }
             } else {
-                fallback
+                placeholder
             }
         }
         .task(id: urlString) {
@@ -51,17 +80,9 @@ struct AsyncStickerImage: View {
         }
     }
 
-    private var fallback: some View {
-        Image(systemName: fallbackSystemImage)
-            .font(.system(size: 42, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(AppColors.charcoal.opacity(0.82))
-    }
-
     @MainActor
     private func loadImage() async {
-        guard let url = URL(string: urlString), !urlString.isEmpty else {
+        guard let urlString, let url = URL(string: urlString), !urlString.isEmpty else {
             cachedImage = nil
             loadedURLString = nil
             isLoading = false
@@ -76,7 +97,7 @@ struct AsyncStickerImage: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            let loadedImage = try await StickerImageCache.shared.image(for: url)
+            let loadedImage = try await RemoteImageCache.shared.image(for: url)
             guard !Task.isCancelled else { return }
             cachedImage = loadedImage
             loadedURLString = urlString

@@ -63,7 +63,14 @@ final class GroupService {
             ],
             forDocument: db.collection("groupMembers").document("\(group.id)_\(currentUser.id)")
         )
-        try await batch.commit()
+        do {
+            try await batch.commit()
+        } catch {
+            if let iconURL {
+                await deleteGroupIcon(at: iconURL)
+            }
+            throw error
+        }
         return group
     }
 
@@ -149,12 +156,27 @@ final class GroupService {
             "icon": icon
         ]
 
+        var uploadedIconURL: URL?
         if let iconImageData {
-            let iconURL = try await uploadGroupIcon(groupId: group.id, imageData: iconImageData).absoluteString
-            data["iconURL"] = iconURL
+            let iconURL = try await uploadGroupIcon(groupId: group.id, imageData: iconImageData)
+            uploadedIconURL = iconURL
+            data["iconURL"] = iconURL.absoluteString
         }
 
-        try await db.collection("groups").document(group.id).setData(data, merge: true)
+        do {
+            try await db.collection("groups").document(group.id).setData(data, merge: true)
+        } catch {
+            if let uploadedIconURL {
+                await deleteGroupIcon(at: uploadedIconURL.absoluteString)
+            }
+            throw error
+        }
+
+        if let oldIconURL = group.iconURL,
+           let uploadedIconURL,
+           oldIconURL != uploadedIconURL.absoluteString {
+            await deleteGroupIcon(at: oldIconURL)
+        }
     }
 
     private func uploadGroupIcon(groupId: String, imageData: Data) async throws -> URL {
@@ -164,7 +186,7 @@ final class GroupService {
             maximumBytes: 700_000
         )
 
-        let ref = storage.reference(withPath: "groupIcons/\(groupId)/icon.jpg")
+        let ref = storage.reference(withPath: "groupIcons/\(groupId)/\(UUID().uuidString).jpg")
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
         metadata.cacheControl = "private,max-age=31536000,immutable"
@@ -181,7 +203,21 @@ final class GroupService {
             }
         }
 
-        return try await ref.downloadURL()
+        let url: URL
+        do {
+            url = try await ref.downloadURL()
+        } catch {
+            try? await ref.delete()
+            throw error
+        }
+        Task { await RemoteImageCache.shared.store(data: uploadData, for: url) }
+        return url
+    }
+
+    private func deleteGroupIcon(at urlString: String) async {
+        guard let url = URL(string: urlString) else { return }
+        try? await storage.reference(forURL: urlString).delete()
+        await RemoteImageCache.shared.remove(for: url)
     }
 
     private static func makeInviteCode() -> String {

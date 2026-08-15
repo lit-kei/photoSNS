@@ -3,13 +3,11 @@ import UIKit
 
 struct StickerPostScreen: View {
     @EnvironmentObject private var appState: AppState
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel = StickerPostViewModel()
 
     let stickerPNG: Data
     let draft: StickerDraft
     @State private var selectedGroupIDs: Set<String> = []
-    @State private var postedGroups: [PetalogGroup] = []
+    @State private var submissionError: String?
 
     var body: some View {
         ScrollView {
@@ -73,34 +71,13 @@ struct StickerPostScreen: View {
                     }
                 }
 
-                Button {
-                    Task { await upload() }
-                } label: {
-                    if viewModel.isUploading {
-                        VStack(spacing: 5) {
-                            ProgressView(value: viewModel.uploadProgress, total: 1)
-                            Text("Firebase Storageに保存中 \(Int(viewModel.uploadProgress * 100))%")
-                                .font(.footnote)
-                        }
-                    } else {
-                        Label(uploadButtonTitle, systemImage: "plus.circle.fill")
-                    }
-                }
-                .buttonStyle(PrimaryActionButtonStyle())
-                .disabled(selectedGroupIDs.isEmpty || viewModel.isUploading || stickerPNG.isEmpty)
-
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
-                }
-
-                ForEach(postedGroups) { group in
-                    NavigationLink("\(group.name)の絵日記を見る") {
-                        DiaryScreen(group: group)
-                    }
-                    .buttonStyle(SecondaryActionButtonStyle())
-                }
+                StickerSubmissionControl(
+                    networkMonitor: appState.networkMonitor,
+                    coordinator: appState.stickerUploadCoordinator,
+                    isSelectionValid: !selectedGroupIDs.isEmpty && !stickerPNG.isEmpty,
+                    title: uploadButtonTitle,
+                    onSubmit: submit
+                )
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
@@ -116,19 +93,33 @@ struct StickerPostScreen: View {
                 selectedGroupIDs.insert(firstGroup.id)
             }
         }
+        .alert("投稿を開始できません", isPresented: Binding(
+            get: { submissionError != nil },
+            set: { if !$0 { submissionError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(submissionError ?? "")
+        }
     }
 
-    private func upload() async {
-        guard let user = appState.currentUser else { return }
+    private func submit() {
+        guard let user = appState.currentUser else {
+            submissionError = "ログイン情報を確認できません。"
+            return
+        }
         let selectedGroups = appState.groups.filter { selectedGroupIDs.contains($0.id) }
-        let posts = await viewModel.upload(
+        let error = appState.stickerUploadCoordinator.submit(
             stickerPNG: stickerPNG,
             draft: draft,
             groups: selectedGroups,
             user: user
         )
-        let postedGroupIDs = Set(posts.map(\.groupId))
-        postedGroups = selectedGroups.filter { postedGroupIDs.contains($0.id) }
+        if let error {
+            submissionError = error
+        } else {
+            appState.selectedTab = .home
+        }
     }
 
     private var uploadButtonTitle: String {
@@ -154,6 +145,45 @@ struct StickerPostScreen: View {
             selectedGroupIDs.removeAll()
         } else {
             selectedGroupIDs = Set(appState.groups.map(\.id))
+        }
+    }
+}
+
+private struct StickerSubmissionControl: View {
+    @ObservedObject var networkMonitor: NetworkMonitor
+    @ObservedObject var coordinator: StickerUploadCoordinator
+    let isSelectionValid: Bool
+    let title: String
+    let onSubmit: () -> Void
+
+    var body: some View {
+        VStack(spacing: 9) {
+            Button(action: onSubmit) {
+                Label(title, systemImage: "plus.circle.fill")
+            }
+            .buttonStyle(PrimaryActionButtonStyle())
+            .disabled(!isSelectionValid || networkMonitor.status != .online || coordinator.state.isRunning)
+
+            if let message = statusMessage {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(networkMonitor.status == .offline ? .red : AppColors.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    private var statusMessage: String? {
+        if coordinator.state.isRunning {
+            return "別の投稿を保存しています。"
+        }
+        switch networkMonitor.status {
+        case .checking:
+            return "通信状態を確認しています…"
+        case .offline:
+            return "インターネット接続がないため投稿できません。"
+        case .online:
+            return nil
         }
     }
 }

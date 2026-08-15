@@ -64,7 +64,7 @@ final class AuthService {
             maximumBytes: 700_000
         )
 
-        let ref = storage.reference(withPath: "profilePhotos/\(userId)/avatar.jpg")
+        let ref = storage.reference(withPath: "profilePhotos/\(userId)/\(UUID().uuidString).jpg")
         let metadata = StorageMetadata()
         metadata.contentType = "image/jpeg"
         metadata.cacheControl = "private,max-age=31536000,immutable"
@@ -81,7 +81,21 @@ final class AuthService {
             }
         }
 
-        return try await ref.downloadURL()
+        let url: URL
+        do {
+            url = try await ref.downloadURL()
+        } catch {
+            try? await ref.delete()
+            throw error
+        }
+        Task { await RemoteImageCache.shared.store(data: uploadData, for: url) }
+        return url
+    }
+
+    func deleteProfileImage(at urlString: String) async {
+        guard let url = URL(string: urlString) else { return }
+        try? await storage.reference(forURL: urlString).delete()
+        await RemoteImageCache.shared.remove(for: url)
     }
 
     func signOut() throws {
