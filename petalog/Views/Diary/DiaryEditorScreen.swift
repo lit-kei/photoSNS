@@ -162,6 +162,9 @@ struct EditableDiaryCanvas: View {
     let stickers: [StickerPost]
     @Binding var layouts: [String: StickerLayout]
     @Binding var selectedStickerId: String?
+    @State private var dragOrigins: [String: CGSize] = [:]
+    @State private var scaleOrigins: [String: Double] = [:]
+    @State private var rotationOrigins: [String: Double] = [:]
 
     var body: some View {
         ZStack {
@@ -186,30 +189,58 @@ struct EditableDiaryCanvas: View {
                         }
                     }
                     .gesture(
-                        DragGesture().onChanged { value in
-                            update(sticker.id) { current in
-                                current.x = value.translation.width
-                                current.y = value.translation.height
+                        DragGesture()
+                            .onChanged { value in
+                                let origin = dragOrigins[sticker.id] ?? CGSize(width: layout.x, height: layout.y)
+                                if dragOrigins[sticker.id] == nil {
+                                    dragOrigins[sticker.id] = origin
+                                }
+                                update(sticker) { current in
+                                    current.x = origin.width + value.translation.width
+                                    current.y = origin.height + value.translation.height
+                                }
                             }
-                        }
+                            .onEnded { _ in
+                                dragOrigins.removeValue(forKey: sticker.id)
+                            }
                     )
                     .simultaneousGesture(
-                        MagnificationGesture().onChanged { value in
-                            update(sticker.id) { current in
-                                current.scale = min(1.8, max(0.55, value))
+                        MagnificationGesture()
+                            .onChanged { value in
+                                let origin = scaleOrigins[sticker.id] ?? layout.scale
+                                if scaleOrigins[sticker.id] == nil {
+                                    scaleOrigins[sticker.id] = origin
+                                }
+                                update(sticker) { current in
+                                    current.scale = min(1.8, max(0.55, origin * value))
+                                }
                             }
-                        }
+                            .onEnded { _ in
+                                scaleOrigins.removeValue(forKey: sticker.id)
+                            }
                     )
                     .simultaneousGesture(
-                        RotationGesture().onChanged { value in
-                            update(sticker.id) { current in
-                                current.rotation = value.degrees
+                        RotationGesture()
+                            .onChanged { value in
+                                let origin = rotationOrigins[sticker.id] ?? layout.rotation
+                                if rotationOrigins[sticker.id] == nil {
+                                    rotationOrigins[sticker.id] = origin
+                                }
+                                update(sticker) { current in
+                                    current.rotation = origin + value.degrees
+                                }
                             }
-                        }
+                            .onEnded { value in
+                                let origin = rotationOrigins[sticker.id] ?? layout.rotation
+                                update(sticker) { current in
+                                    current.rotation = normalizedAngle(origin + value.degrees)
+                                }
+                                rotationOrigins.removeValue(forKey: sticker.id)
+                            }
                     )
                     .onTapGesture {
                         selectedStickerId = sticker.id
-                        update(sticker.id) { current in
+                        update(sticker) { current in
                             current.zIndex = Int(Date().timeIntervalSince1970)
                         }
                     }
@@ -222,9 +253,17 @@ struct EditableDiaryCanvas: View {
         }
     }
 
-    private func update(_ stickerId: String, mutate: (inout StickerLayout) -> Void) {
-        var layout = layouts[stickerId] ?? StickerLayout(stickerId: stickerId)
+    private func update(_ sticker: StickerPost, mutate: (inout StickerLayout) -> Void) {
+        var layout = layouts[sticker.id] ?? sticker.layout
         mutate(&layout)
-        layouts[stickerId] = layout
+        layouts[sticker.id] = layout
+    }
+
+    private func normalizedAngle(_ angle: Double) -> Double {
+        guard angle.isFinite else { return 0 }
+        var result = angle.truncatingRemainder(dividingBy: 360)
+        if result > 180 { result -= 360 }
+        if result < -180 { result += 360 }
+        return result
     }
 }
