@@ -1,19 +1,56 @@
 import CoreGraphics
 import SwiftUI
+import UIKit
 
 enum AppColors {
-    static let backgroundTop = Color(red: 0.949, green: 0.953, blue: 0.957)
-    static let backgroundBottom = Color(red: 0.898, green: 0.906, blue: 0.914)
-    static let pureWhite = Color(red: 0.98, green: 0.98, blue: 0.98)
-    static let mainText = Color(red: 0.067, green: 0.071, blue: 0.078)
-    static let secondaryText = Color(red: 0.439, green: 0.455, blue: 0.478)
-    static let border = Color(red: 0.078, green: 0.078, blue: 0.078).opacity(0.10)
-    static let silver = Color(red: 0.749, green: 0.765, blue: 0.78)
-    static let darkSilver = Color(red: 0.557, green: 0.576, blue: 0.6)
-    static let chromeHighlight = Color(red: 0.969, green: 0.973, blue: 0.973)
-    static let surface = Color(red: 0.956, green: 0.96, blue: 0.964)
-    static let elevatedSurface = Color(red: 0.985, green: 0.985, blue: 0.985)
-    static let charcoal = Color(red: 0.075, green: 0.079, blue: 0.087)
+    static let appBackground = adaptive(
+        light: UIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1),
+        dark: UIColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1)
+    )
+    static let backgroundTop = appBackground
+    static let backgroundBottom = appBackground
+    static let pureWhite = adaptive(
+        light: UIColor(red: 0.995, green: 0.988, blue: 0.968, alpha: 1),
+        dark: UIColor(red: 0.12, green: 0.105, blue: 0.095, alpha: 1)
+    )
+    static let mainText = adaptive(
+        light: UIColor(red: 0.12, green: 0.105, blue: 0.095, alpha: 1),
+        dark: UIColor(red: 0.965, green: 0.94, blue: 0.9, alpha: 1)
+    )
+    static let secondaryText = adaptive(
+        light: UIColor(red: 0.46, green: 0.41, blue: 0.37, alpha: 1),
+        dark: UIColor(red: 0.72, green: 0.66, blue: 0.60, alpha: 1)
+    )
+    static let border = adaptive(
+        light: UIColor(red: 0.23, green: 0.19, blue: 0.16, alpha: 0.13),
+        dark: UIColor(red: 1.0, green: 0.92, blue: 0.82, alpha: 0.16)
+    )
+    static let dustyPink = Color(red: 0.86, green: 0.68, blue: 0.66)
+    static let mutedLavender = Color(red: 0.70, green: 0.64, blue: 0.72)
+    static let kraftBeige = Color(red: 0.73, green: 0.62, blue: 0.49)
+    static let paperCream = Color(red: 0.974, green: 0.946, blue: 0.889)
+    static let tape = Color(red: 0.88, green: 0.81, blue: 0.68)
+    static let silver = dustyPink
+    static let darkSilver = mutedLavender
+    static let chromeHighlight = pureWhite
+    static let surface = adaptive(
+        light: UIColor(red: 0.992, green: 0.976, blue: 0.936, alpha: 1),
+        dark: UIColor(red: 0.13, green: 0.115, blue: 0.10, alpha: 1)
+    )
+    static let elevatedSurface = adaptive(
+        light: UIColor(red: 1.0, green: 0.992, blue: 0.972, alpha: 1),
+        dark: UIColor(red: 0.18, green: 0.16, blue: 0.14, alpha: 1)
+    )
+    static let charcoal = adaptive(
+        light: UIColor(red: 0.12, green: 0.105, blue: 0.095, alpha: 1),
+        dark: UIColor(red: 0.965, green: 0.94, blue: 0.9, alpha: 1)
+    )
+
+    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
+        Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? dark : light
+        })
+    }
 }
 
 enum AppSpacing {
@@ -35,21 +72,21 @@ enum AppRadius {
 
 enum PetalogTheme {
     static let primary = AppColors.mainText
-    static let accent = AppColors.silver
+    static let accent = AppColors.dustyPink
     static let glassPink = AppColors.surface
     static let glassMint = AppColors.chromeHighlight
-    static let glassLavender = AppColors.darkSilver
+    static let glassLavender = AppColors.mutedLavender
     static let text = AppColors.mainText
     static let secondaryText = AppColors.secondaryText
     static let border = AppColors.border
-    static let background = AppColors.backgroundTop
+    static let background = AppColors.appBackground
     static let readableSurface = AppColors.surface.opacity(0.92)
     static let glassBackground = LinearGradient(
         colors: [AppColors.backgroundTop, AppColors.backgroundBottom],
         startPoint: .top,
         endPoint: .bottom
     )
-    static let craft = Color(red: 0.77, green: 0.62, blue: 0.42)
-    static let sky = Color(red: 0.78, green: 0.91, blue: 1.0)
-    static let pinkPaper = AppColors.surface
+    static let craft = AppColors.kraftBeige
+    static let sky = AppColors.mutedLavender.opacity(0.72)
+    static let pinkPaper = AppColors.dustyPink.opacity(0.34)
 }

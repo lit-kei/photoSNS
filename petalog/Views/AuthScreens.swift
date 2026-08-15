@@ -60,7 +60,7 @@ struct AuthScreen: View {
                                 } label: {
                                     if appState.isAuthenticating {
                                         ProgressView()
-                                            .tint(.white)
+                                            .tint(AppColors.mainText)
                                     } else {
                                         Label(mode.primaryActionTitle, systemImage: mode.systemImage)
                                     }
@@ -152,7 +152,7 @@ struct UsernameSetupScreen: View {
                                 Circle()
                                     .fill(
                                         LinearGradient(
-                                            colors: [AppColors.chromeHighlight, AppColors.silver.opacity(0.54), AppColors.elevatedSurface],
+                                            colors: [AppColors.elevatedSurface, AppColors.dustyPink.opacity(0.24), AppColors.paperCream],
                                             startPoint: .topLeading,
                                             endPoint: .bottomTrailing
                                         )
@@ -171,7 +171,7 @@ struct UsernameSetupScreen: View {
                                     .textFieldStyle(.plain)
                                     .padding(.vertical, 12)
                                     .padding(.horizontal, 14)
-                                    .background(AppColors.chromeHighlight.opacity(0.72))
+                                    .background(AppColors.elevatedSurface.opacity(0.92))
                                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                                     .overlay {
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -185,7 +185,7 @@ struct UsernameSetupScreen: View {
                         } label: {
                             if appState.isAuthenticating {
                                 ProgressView()
-                                    .tint(.white)
+                                    .tint(AppColors.mainText)
                             } else {
                                 Label("petalogを始める", systemImage: "sparkles")
                             }

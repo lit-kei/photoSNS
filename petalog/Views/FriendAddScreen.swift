@@ -69,7 +69,7 @@ struct FriendAddScreen: View {
                 } label: {
                     if isSearching {
                         ProgressView()
-                            .tint(.white)
+                            .tint(AppColors.mainText)
                     } else {
                         Label("プロフィールを見る", systemImage: "person.text.rectangle")
                     }
@@ -270,7 +270,7 @@ private struct FriendProfileScreen: View {
             } label: {
                 if isSending {
                     ProgressView()
-                        .tint(.white)
+                        .tint(AppColors.mainText)
                 } else {
                     Label("フレンド申請を送る", systemImage: "person.badge.plus")
                 }

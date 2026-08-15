@@ -267,7 +267,7 @@ struct GroupEditScreen: View {
                 } label: {
                     if isSaving {
                         ProgressView()
-                            .tint(.white)
+                            .tint(AppColors.mainText)
                     } else {
                         Label("保存する", systemImage: "checkmark.circle")
                     }

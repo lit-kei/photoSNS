@@ -2,51 +2,7 @@ import SwiftUI
 
 struct PetalogMetalBackground: View {
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    AppColors.backgroundTop,
-                    Color(red: 0.93, green: 0.936, blue: 0.942),
-                    AppColors.backgroundBottom
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            RadialGradient(
-                colors: [
-                    AppColors.chromeHighlight.opacity(0.9),
-                    AppColors.silver.opacity(0.18),
-                    .clear
-                ],
-                center: UnitPoint(x: 0.52, y: 0.08),
-                startRadius: 24,
-                endRadius: 360
-            )
-            .blendMode(.screen)
-
-            RadialGradient(
-                colors: [
-                    AppColors.darkSilver.opacity(0.12),
-                    .clear
-                ],
-                center: UnitPoint(x: 0.92, y: 0.78),
-                startRadius: 30,
-                endRadius: 340
-            )
-
-            Canvas { context, size in
-                for index in 0..<180 {
-                    let x = CGFloat((index * 37) % 100) / 100 * size.width
-                    let y = CGFloat((index * 71) % 100) / 100 * size.height
-                    let opacity = index.isMultiple(of: 2) ? 0.055 : 0.032
-                    var dot = Path()
-                    dot.addEllipse(in: CGRect(x: x, y: y, width: 0.7, height: 0.7))
-                    context.fill(dot, with: .color(AppColors.mainText.opacity(opacity)))
-                }
-            }
-            .allowsHitTesting(false)
-        }
+        AppColors.appBackground
         .ignoresSafeArea()
     }
 }
@@ -54,9 +10,9 @@ struct PetalogMetalBackground: View {
 struct BrandWordmark: View {
     var body: some View {
         Text("petalog")
-            .font(.system(size: 38, weight: .bold, design: .rounded))
+            .font(.system(size: 39, weight: .heavy, design: .rounded))
             .foregroundStyle(AppColors.mainText)
-            .tracking(0.2)
+            .tracking(0.4)
     }
 }
 
@@ -96,26 +52,46 @@ struct MetalCard<Content: View>: View {
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(AppColors.surface.opacity(0.94))
-                    .overlay {
-                        LinearGradient(
-                            colors: [
-                                AppColors.chromeHighlight.opacity(0.9),
-                                AppColors.silver.opacity(0.18),
-                                AppColors.elevatedSurface.opacity(0.72)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-                    }
+                ZStack {
+                    RoundedRectangle(cornerRadius: radius + 3, style: .continuous)
+                        .fill(AppColors.mutedLavender.opacity(0.20))
+                        .rotationEffect(.degrees(-1.8))
+                        .offset(x: -4, y: 5)
+
+                    RoundedRectangle(cornerRadius: radius + 2, style: .continuous)
+                        .fill(AppColors.dustyPink.opacity(0.24))
+                        .rotationEffect(.degrees(1.5))
+                        .offset(x: 5, y: -4)
+
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .fill(AppColors.surface.opacity(0.98))
+                        .overlay {
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.58),
+                                    AppColors.dustyPink.opacity(0.10),
+                                    AppColors.kraftBeige.opacity(0.12)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+                        }
+                        .overlay {
+                            PaperGrain(opacity: 0.07)
+                                .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+                        }
+                }
             }
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(0.045), radius: 12, y: 5)
+            .overlay(alignment: .topLeading) {
+                PaperTape(width: 58)
+                    .offset(x: 18, y: -9)
+            }
+            .shadow(color: AppColors.kraftBeige.opacity(0.22), radius: 12, y: 6)
     }
 }
 
@@ -157,7 +133,7 @@ struct PrimaryActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(AppColors.mainText)
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .padding(.horizontal, 18)
@@ -168,18 +144,36 @@ struct PrimaryActionButtonStyle: ButtonStyle {
                     .fill(
                         LinearGradient(
                             colors: [
-                                AppColors.charcoal,
-                                Color(red: 0.20, green: 0.21, blue: 0.23),
-                                AppColors.darkSilver.opacity(0.86)
+                                AppColors.dustyPink,
+                                AppColors.mutedLavender.opacity(0.92),
+                                AppColors.kraftBeige.opacity(0.86)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
+                    .overlay(alignment: .topLeading) {
+                        CollageGrid()
+                            .stroke(.white.opacity(0.18), lineWidth: 0.7)
+                            .frame(width: 82, height: 54)
+                            .rotationEffect(.degrees(-8))
+                            .offset(x: 16, y: -7)
+                    }
                     .overlay(alignment: .top) {
                         RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
-                            .stroke(.white.opacity(configuration.isPressed ? 0.18 : 0.28), lineWidth: 0.8)
+                            .stroke(.white.opacity(configuration.isPressed ? 0.16 : 0.30), lineWidth: 0.8)
                     }
+                    .overlay(alignment: .trailing) {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.08))
+                            .padding(.trailing, 18)
+                    }
+            }
+            .overlay(alignment: .topLeading) {
+                PaperTape(width: 44, height: 12)
+                    .rotationEffect(.degrees(-7))
+                    .offset(x: 16, y: -6)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.88 : 1)
@@ -198,20 +192,31 @@ struct SecondaryActionButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .frame(height: 52)
             .background {
-                RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
-                    .fill(AppColors.surface.opacity(configuration.isPressed ? 0.82 : 0.96))
-                    .overlay {
-                        LinearGradient(
-                            colors: [.white.opacity(0.86), AppColors.silver.opacity(0.22)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous))
-                    }
+                ZStack {
+                    RoundedRectangle(cornerRadius: AppRadius.button + 2, style: .continuous)
+                        .fill(AppColors.dustyPink.opacity(0.22))
+                        .rotationEffect(.degrees(-1.4))
+                        .offset(x: -3, y: 3)
+                    RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
+                        .fill(AppColors.elevatedSurface.opacity(configuration.isPressed ? 0.88 : 0.98))
+                        .overlay {
+                            LinearGradient(
+                                colors: [.white.opacity(0.62), AppColors.dustyPink.opacity(0.16), AppColors.kraftBeige.opacity(0.12)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous))
+                        }
+                }
             }
             .overlay {
                 RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
+            }
+            .overlay(alignment: .topTrailing) {
+                PaperTape(width: 34, height: 10)
+                    .rotationEffect(.degrees(8))
+                    .offset(x: -14, y: -5)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.86 : 1)
@@ -226,7 +231,7 @@ struct ListRowButtonStyle: ButtonStyle {
             .padding(16)
             .background {
                 RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                    .fill(AppColors.surface.opacity(configuration.isPressed ? 0.84 : 0.95))
+                    .fill(AppColors.surface.opacity(configuration.isPressed ? 0.88 : 0.98))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
@@ -267,10 +272,10 @@ struct IconButtonLabel: View {
             .frame(width: size, height: size)
             .background {
                 Circle()
-                    .fill(AppColors.surface.opacity(0.92))
+                    .fill(AppColors.elevatedSurface.opacity(0.96))
                     .overlay {
                         LinearGradient(
-                            colors: [.white.opacity(0.92), AppColors.silver.opacity(0.18)],
+                            colors: [.white.opacity(0.76), AppColors.dustyPink.opacity(0.18), AppColors.kraftBeige.opacity(0.08)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -305,10 +310,10 @@ private struct MetalTextFieldModifier: ViewModifier {
             .frame(minHeight: 54)
             .background {
                 RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
-                    .fill(AppColors.elevatedSurface.opacity(0.94))
+                    .fill(AppColors.elevatedSurface.opacity(0.98))
                     .overlay {
                         LinearGradient(
-                            colors: [AppColors.chromeHighlight.opacity(0.86), AppColors.silver.opacity(0.14)],
+                            colors: [AppColors.chromeHighlight.opacity(0.72), AppColors.dustyPink.opacity(0.10)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -360,14 +365,14 @@ private struct OptionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(isSelected ? .white : AppColors.mainText)
+            .foregroundStyle(isSelected ? AppColors.mainText : AppColors.mainText)
             .background {
                 if isSelected {
                     LinearGradient(
                         colors: [
-                            AppColors.charcoal,
-                            Color(red: 0.28, green: 0.29, blue: 0.31),
-                            AppColors.darkSilver.opacity(0.88)
+                            AppColors.dustyPink.opacity(0.38),
+                            AppColors.mutedLavender.opacity(0.22),
+                            AppColors.elevatedSurface.opacity(0.86)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -379,7 +384,7 @@ private struct OptionButtonStyle: ButtonStyle {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isSelected ? .white.opacity(0.24) : AppColors.border, lineWidth: 0.8)
+                    .stroke(isSelected ? AppColors.dustyPink.opacity(0.42) : AppColors.border, lineWidth: 0.8)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : (isSelected ? 1.02 : 1))
             .opacity(configuration.isPressed ? 0.84 : 1)
@@ -405,7 +410,7 @@ struct MemberAvatarStack: View {
                     }
                 }
                     .frame(width: 34, height: 34)
-                    .background(AppColors.surface.opacity(0.94))
+                    .background(AppColors.surface.opacity(0.98))
                     .clipShape(Circle())
                     .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
             }
@@ -437,6 +442,10 @@ struct EmptyStateView: View {
         .background {
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                 .fill(AppColors.surface.opacity(0.94))
+                .overlay {
+                    PaperGrain(opacity: 0.045)
+                        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                }
         }
         .overlay {
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
@@ -460,7 +469,7 @@ struct FloatingTabBar: View {
                         Text(tab.title)
                             .font(.system(size: 10, weight: .medium))
                     }
-                    .foregroundStyle(selection == tab ? AppColors.mainText : AppColors.darkSilver)
+                    .foregroundStyle(selection == tab ? AppColors.mainText : AppColors.secondaryText)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
                     .background {
@@ -469,16 +478,22 @@ struct FloatingTabBar: View {
                                 .fill(
                                     LinearGradient(
                                         colors: [
-                                            AppColors.chromeHighlight,
-                                            AppColors.silver.opacity(0.42),
-                                            AppColors.elevatedSurface
+                                            AppColors.dustyPink.opacity(0.32),
+                                            AppColors.mutedLavender.opacity(0.20),
+                                            AppColors.elevatedSurface.opacity(0.92)
                                         ],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
                                 .overlay {
-                                    Capsule().stroke(.white.opacity(0.82), lineWidth: 0.7)
+                                    Capsule().stroke(AppColors.dustyPink.opacity(0.35), lineWidth: 0.8)
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    Image(systemName: "heart.fill")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(AppColors.dustyPink.opacity(0.72))
+                                        .offset(x: -10, y: 8)
                                 }
                                 .transition(.opacity.combined(with: .scale(scale: 0.94)))
                         }
@@ -491,13 +506,13 @@ struct FloatingTabBar: View {
         .frame(height: 68)
         .background {
             RoundedRectangle(cornerRadius: AppRadius.tabBar, style: .continuous)
-                .fill(AppColors.surface.opacity(0.92))
+                .fill(AppColors.elevatedSurface.opacity(0.96))
                 .overlay {
                     LinearGradient(
                         colors: [
-                            .white.opacity(0.9),
-                            AppColors.silver.opacity(0.22),
-                            AppColors.chromeHighlight.opacity(0.68)
+                            .white.opacity(0.72),
+                            AppColors.paperCream.opacity(0.9),
+                            AppColors.kraftBeige.opacity(0.08)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -509,8 +524,83 @@ struct FloatingTabBar: View {
             RoundedRectangle(cornerRadius: AppRadius.tabBar, style: .continuous)
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
-        .shadow(color: .black.opacity(0.08), radius: 16, y: 8)
+        .shadow(color: AppColors.kraftBeige.opacity(0.24), radius: 16, y: 8)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: selection)
+    }
+}
+
+private struct PaperGrain: View {
+    var opacity: Double
+
+    var body: some View {
+        Canvas { context, size in
+            for index in 0..<90 {
+                let x = CGFloat((index * 29) % 100) / 100 * size.width
+                let y = CGFloat((index * 47) % 100) / 100 * size.height
+                let diameter = CGFloat(index % 3 + 1) * 0.55
+                var speck = Path()
+                speck.addEllipse(in: CGRect(x: x, y: y, width: diameter, height: diameter))
+                context.fill(speck, with: .color(AppColors.mainText.opacity(opacity)))
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+private struct PaperTape: View {
+    var width: CGFloat
+    var height: CGFloat = 14
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(AppColors.tape.opacity(0.62))
+            .frame(width: width, height: height)
+            .overlay {
+                PaperGrain(opacity: 0.08)
+                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .stroke(.white.opacity(0.18), lineWidth: 0.5)
+            }
+            .shadow(color: AppColors.kraftBeige.opacity(0.18), radius: 3, y: 1)
+    }
+}
+
+private struct CollageGrid: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let step: CGFloat = 18
+        var x = rect.minX
+        while x <= rect.maxX {
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
+            x += step
+        }
+        var y = rect.minY
+        while y <= rect.maxY {
+            path.move(to: CGPoint(x: rect.minX, y: y))
+            path.addLine(to: CGPoint(x: rect.maxX, y: y))
+            y += step
+        }
+        return path
+    }
+}
+
+private struct CollageDots: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let step: CGFloat = 26
+        var y = rect.minY + 10
+        while y < rect.maxY {
+            var x = rect.minX + 10
+            while x < rect.maxX {
+                path.addEllipse(in: CGRect(x: x, y: y, width: 8, height: 8))
+                x += step
+            }
+            y += step
+        }
+        return path
     }
 }
 
