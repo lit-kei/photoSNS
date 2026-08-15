@@ -145,12 +145,14 @@ final class AppState: ObservableObject {
         }
     }
 
-    func sendFriendRequest(to targetUser: AppUser) async {
-        guard let currentUser else { return }
+    func sendFriendRequest(to targetUser: AppUser) async -> Bool {
+        guard let currentUser else { return false }
         do {
             try await services.friends.sendRequest(to: targetUser, currentUser: currentUser)
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 

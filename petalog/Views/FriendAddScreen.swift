@@ -6,10 +6,8 @@ import UIKit
 struct FriendAddScreen: View {
     @EnvironmentObject private var appState: AppState
     @State private var email = ""
-    @State private var foundUser: AppUser?
-    @State private var qrUser: AppUser?
+    @State private var selectedProfile: AppUser?
     @State private var isSearching = false
-    @State private var isSending = false
     @State private var isShowingScanner = false
 
     var body: some View {
@@ -29,6 +27,9 @@ struct FriendAddScreen: View {
             PetalogMetalBackground()
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $selectedProfile) { user in
+            FriendProfileScreen(user: user)
+        }
         .sheet(isPresented: $isShowingScanner) {
             QRScannerSheet { userId in
                 isShowingScanner = false
@@ -77,11 +78,6 @@ struct FriendAddScreen: View {
                 .disabled(email.trimmedForPetalog.isEmpty || isSearching)
                 .opacity(email.trimmedForPetalog.isEmpty ? 0.48 : 1)
 
-                if let foundUser {
-                    PublicProfileCard(user: foundUser, actionTitle: "フレンド申請を送る", isLoading: isSending) {
-                        Task { await sendRequest(to: foundUser) }
-                    }
-                }
             }
         }
     }
@@ -109,11 +105,6 @@ struct FriendAddScreen: View {
                 }
                 .buttonStyle(SecondaryActionButtonStyle())
 
-                if let qrUser {
-                    PublicProfileCard(user: qrUser, actionTitle: "フレンド申請を送る", isLoading: isSending) {
-                        Task { await sendRequest(to: qrUser) }
-                    }
-                }
             }
         }
     }
@@ -153,7 +144,18 @@ struct FriendAddScreen: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(appState.friends) { friend in
-                        FriendRow(friend: friend)
+                        Button {
+                            selectedProfile = AppUser(
+                                id: friend.friendId,
+                                email: friend.friendEmail,
+                                displayName: friend.friendName,
+                                avatar: friend.friendAvatar,
+                                avatarURL: friend.friendAvatarURL
+                            )
+                        } label: {
+                            FriendRow(friend: friend)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -162,66 +164,136 @@ struct FriendAddScreen: View {
 
     private func searchUser() async {
         isSearching = true
-        foundUser = await appState.findUser(email: email)
-        if foundUser == nil {
+        let user = await appState.findUser(email: email)
+        isSearching = false
+        if let user {
+            selectedProfile = user
+        } else if appState.errorMessage == nil {
             appState.errorMessage = "このメールアドレスのユーザーが見つかりません。"
         }
-        isSearching = false
     }
 
     private func loadQRUser(userId: String) async {
-        qrUser = await appState.fetchUser(userId: userId)
-        if qrUser == nil {
+        let user = await appState.fetchUser(userId: userId)
+        if let user {
+            selectedProfile = user
+        } else if appState.errorMessage == nil {
             appState.errorMessage = "QRコードのユーザーが見つかりません。"
         }
     }
-
-    private func sendRequest(to user: AppUser) async {
-        isSending = true
-        await appState.sendFriendRequest(to: user)
-        isSending = false
-    }
 }
 
-private struct PublicProfileCard: View {
+private struct FriendProfileScreen: View {
+    @EnvironmentObject private var appState: AppState
     let user: AppUser
-    let actionTitle: String
-    let isLoading: Bool
-    let action: () -> Void
+    @State private var isSending = false
+    @State private var didSend = false
+
+    private var isCurrentUser: Bool {
+        appState.currentUser?.id == user.id
+    }
+
+    private var isFriend: Bool {
+        appState.friends.contains { $0.friendId == user.id }
+    }
+
+    private var hasOutgoingRequest: Bool {
+        didSend || appState.outgoingFriendRequests.contains {
+            $0.toUserId == user.id && $0.status == "pending"
+        }
+    }
+
+    private var incomingRequest: FriendRequest? {
+        appState.incomingFriendRequests.first {
+            $0.fromUserId == user.id && $0.status == "pending"
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                PublicUserAvatar(user: user, size: 54)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(user.displayName)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(AppColors.mainText)
-                    Text("petalog profile")
-                        .font(.system(size: 12))
-                        .foregroundStyle(AppColors.secondaryText)
-                }
-                Spacer()
-            }
+        ScrollView {
+            VStack(spacing: 22) {
+                PublicUserAvatar(user: user, size: 124)
+                    .padding(.top, 42)
 
-            Button(action: action) {
-                if isLoading {
+                VStack(spacing: 7) {
+                    Text(user.displayName)
+                        .font(.system(size: 27, weight: .bold))
+                        .foregroundStyle(AppColors.mainText)
+
+                    if !user.email.isEmpty {
+                        Text(user.email)
+                            .font(.system(size: 14))
+                            .foregroundStyle(AppColors.secondaryText)
+                    }
+                }
+
+                profileAction
+                    .frame(maxWidth: 420)
+
+                Spacer(minLength: 30)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+        }
+        .background {
+            PetalogMetalBackground()
+        }
+        .navigationTitle("プロフィール")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private var profileAction: some View {
+        if isCurrentUser {
+            Label("自分のプロフィール", systemImage: "person.crop.circle")
+                .profileStatusStyle()
+        } else if isFriend {
+            Label("友達です", systemImage: "person.2.fill")
+                .profileStatusStyle()
+        } else if hasOutgoingRequest {
+            Label("申請済み", systemImage: "checkmark.circle.fill")
+                .profileStatusStyle()
+        } else if let incomingRequest {
+            Button {
+                Task { await appState.acceptFriendRequest(incomingRequest) }
+            } label: {
+                Label("届いた申請を承認する", systemImage: "person.badge.checkmark")
+            }
+            .buttonStyle(PrimaryActionButtonStyle())
+        } else {
+            Button {
+                Task {
+                    isSending = true
+                    didSend = await appState.sendFriendRequest(to: user)
+                    isSending = false
+                }
+            } label: {
+                if isSending {
                     ProgressView()
                         .tint(.white)
                 } else {
-                    Label(actionTitle, systemImage: "person.badge.plus")
+                    Label("フレンド申請を送る", systemImage: "person.badge.plus")
                 }
             }
             .buttonStyle(PrimaryActionButtonStyle())
-            .disabled(isLoading)
+            .disabled(isSending)
         }
-        .padding(12)
-        .background(AppColors.surface.opacity(0.94))
-        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                .stroke(AppColors.border, lineWidth: 0.8)
-        }
+    }
+}
+
+private extension View {
+    func profileStatusStyle() -> some View {
+        self
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(AppColors.secondaryText)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(AppColors.surface.opacity(0.94))
+            .clipShape(RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
+                    .stroke(AppColors.border, lineWidth: 0.8)
+            }
     }
 }
 

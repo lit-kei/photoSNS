@@ -18,7 +18,7 @@ service cloud.firestore {
     }
 
     match /groups/{groupId} {
-      allow read: if isGroupMember(groupId);
+      allow read: if signedIn();
       allow create: if signedIn() && request.auth.uid in request.resource.data.memberIds;
       allow update: if isGroupMember(groupId);
     }
@@ -29,7 +29,10 @@ service cloud.firestore {
     }
 
     match /diaries/{diaryId} {
-      allow read, create, update: if isGroupMember(request.resource.data.groupId) || isGroupMember(resource.data.groupId);
+      allow read: if isGroupMember(resource.data.groupId);
+      allow create: if isGroupMember(request.resource.data.groupId);
+      allow update: if isGroupMember(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId;
     }
 
     match /stickers/{stickerId} {
@@ -51,6 +54,44 @@ service cloud.firestore {
         && request.resource.data.ownerId == resource.data.ownerId
         && request.resource.data.referenceCount > 0;
       allow delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+
+    // The app checks deterministic IDs before creating these documents.
+    // Authenticated reads must therefore also work when a document is absent.
+    match /friendships/{friendshipId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && (request.auth.uid == request.resource.data.userId
+          || request.auth.uid == request.resource.data.friendId);
+      allow delete: if signedIn()
+        && (request.auth.uid == resource.data.userId
+          || request.auth.uid == resource.data.friendId);
+      allow update: if false;
+    }
+
+    match /friendRequests/{requestId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.fromUserId
+        && request.resource.data.status == "pending";
+      allow update: if signedIn()
+        && request.resource.data.fromUserId == resource.data.fromUserId
+        && request.resource.data.toUserId == resource.data.toUserId
+        && (
+          (request.auth.uid == resource.data.toUserId
+            && request.resource.data.status in ["accepted", "rejected"])
+          || (request.auth.uid == resource.data.fromUserId
+            && request.resource.data.status == "pending")
+        );
+      allow delete: if signedIn()
+        && (request.auth.uid == resource.data.fromUserId
+          || request.auth.uid == resource.data.toUserId);
+    }
+
+    match /notifications/{notificationId} {
+      allow read, update, delete: if signedIn()
+        && request.auth.uid == resource.data.userId;
+      allow create: if signedIn();
     }
 
     match /editLocks/{diaryId} {
