@@ -196,11 +196,6 @@ private struct StickerDetailSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label(sticker.authorName, systemImage: "person.crop.circle.fill")
                 Label(sticker.comment.isEmpty ? "コメントなし" : sticker.comment, systemImage: "bubble.left.fill")
-                if let url = URL(string: sticker.originalPhotoURL) {
-                    Link(destination: url) {
-                        Label("元の写真を開く", systemImage: "photo.fill")
-                    }
-                }
             }
             .font(.headline)
             .foregroundStyle(AppColors.mainText)

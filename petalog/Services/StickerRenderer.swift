@@ -7,9 +7,9 @@ import SwiftUI
 import UIKit
 
 enum StickerRenderer {
-    static func renderPNG(originalImage: UIImage, draft: StickerDraft, canvasSize: CGSize = CGSize(width: 720, height: 720)) throws -> Data {
+    static func renderPNG(originalImage: UIImage, draft: StickerDraft, canvasSize: CGSize = CGSize(width: 512, height: 512)) throws -> Data {
         let format = UIGraphicsImageRendererFormat()
-        format.scale = 2
+        format.scale = 1
         format.opaque = false
         let stickerSource = originalImage
 

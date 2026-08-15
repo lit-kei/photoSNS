@@ -37,7 +37,20 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.auth.uid == request.resource.data.authorId
         && isGroupMember(request.resource.data.groupId);
-      allow update, delete: if false;
+      allow delete: if signedIn() && request.auth.uid == resource.data.authorId;
+      allow update: if false;
+    }
+
+    match /stickerAssets/{assetId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.ownerId
+        && request.resource.data.referenceCount > 0;
+      allow update: if signedIn()
+        && request.auth.uid == resource.data.ownerId
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.referenceCount > 0;
+      allow delete: if signedIn() && request.auth.uid == resource.data.ownerId;
     }
 
     match /editLocks/{diaryId} {

@@ -6,7 +6,6 @@ struct StickerPostScreen: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = StickerPostViewModel()
 
-    let originalImage: UIImage
     let stickerPNG: Data
     let draft: StickerDraft
     @State private var selectedGroupIDs: Set<String> = []
@@ -119,7 +118,6 @@ struct StickerPostScreen: View {
         guard let user = appState.currentUser else { return }
         let selectedGroups = appState.groups.filter { selectedGroupIDs.contains($0.id) }
         let posts = await viewModel.upload(
-            originalImage: originalImage,
             stickerPNG: stickerPNG,
             draft: draft,
             groups: selectedGroups,

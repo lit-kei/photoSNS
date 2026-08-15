@@ -26,13 +26,25 @@ struct StickerCreationScreen: View {
                         HStack(spacing: 12) {
                             Image(systemName: "crop")
                                 .foregroundStyle(AppColors.secondaryText)
-                            Slider(value: $draft.cropScale, in: 1...2.8)
+                            Slider(
+                                value: Binding(
+                                    get: { draft.cropScale },
+                                    set: { draft.updateCrop(scale: $0) }
+                                ),
+                                in: 1...2.8
+                            )
                         }
 
                         HStack(spacing: 12) {
                             Image(systemName: "rotate.right")
                                 .foregroundStyle(AppColors.secondaryText)
-                            Slider(value: $draft.cropRotation, in: -180...180)
+                            Slider(
+                                value: Binding(
+                                    get: { draft.cropRotation },
+                                    set: { draft.updateCrop(rotation: $0) }
+                                ),
+                                in: -180...180
+                            )
                         }
                     }
                 }
@@ -80,7 +92,7 @@ struct StickerCreationScreen: View {
         .navigationTitle("ステッカー作成")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isShowingPostScreen) {
-            StickerPostScreen(originalImage: originalImage, stickerPNG: generatedPNG ?? Data(), draft: draft)
+            StickerPostScreen(stickerPNG: generatedPNG ?? Data(), draft: draft)
         }
     }
 }
@@ -152,9 +164,7 @@ private struct StickerComposerPreview: View {
                 .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
                 .overlay(alignment: .bottomTrailing) {
                     Button {
-                        draft.cropScale = 1
-                        draft.cropRotation = 0
-                        draft.cropOffset = .zero
+                        draft.resetCrop()
                     } label: {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.headline)
@@ -174,26 +184,22 @@ private struct StickerComposerPreview: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .onChange(of: draft.cropScale) { _, _ in
-            clampCropOffset()
-        }
-        .onChange(of: draft.cropRotation) { _, _ in
-            clampCropOffset()
-        }
     }
 
     private func cropDragGesture(maskSide: CGFloat) -> some Gesture {
         DragGesture()
             .onChanged { value in
+                guard maskSide.isFinite, maskSide > 1 else { return }
                 isDragging = true
                 updateInteractionState()
                 let start = cropDragStart ?? draft.cropOffset
                 cropDragStart = start
                 let scale = CGFloat(max(1, draft.cropScale))
-                let limit = cropOffsetLimit(scale: scale)
-                draft.cropOffset = CGSize(
-                    width: (start.width - value.translation.width * scale / maskSide).clamped(to: -limit...limit),
-                    height: (start.height - value.translation.height * scale / maskSide).clamped(to: -limit...limit)
+                draft.updateCrop(
+                    offset: CGSize(
+                        width: start.width - value.translation.width * scale / maskSide,
+                        height: start.height - value.translation.height * scale / maskSide
+                    )
                 )
             }
             .onEnded { _ in
@@ -210,8 +216,7 @@ private struct StickerComposerPreview: View {
                 updateInteractionState()
                 let start = cropScaleStart ?? draft.cropScale
                 cropScaleStart = start
-                draft.cropScale = (start / Double(value)).clamped(to: 1...2.8)
-                clampCropOffset()
+                draft.updateCrop(scale: start / Double(value))
             }
             .onEnded { _ in
                 cropScaleStart = nil
@@ -227,7 +232,7 @@ private struct StickerComposerPreview: View {
                 updateInteractionState()
                 let start = cropRotationStart ?? draft.cropRotation
                 cropRotationStart = start
-                draft.cropRotation = (start - value.degrees).clamped(to: -180...180)
+                draft.updateCrop(rotation: start - value.degrees)
             }
             .onEnded { _ in
                 cropRotationStart = nil
@@ -237,29 +242,42 @@ private struct StickerComposerPreview: View {
     }
 
     private func displayedFrameOffset(maskSide: CGFloat, cropScale: CGFloat) -> CGSize {
-        CGSize(
+        guard maskSide.isFinite, cropScale.isFinite, cropScale > 0 else { return .zero }
+        return CGSize(
             width: -maskSide * draft.cropOffset.width / cropScale,
             height: -maskSide * draft.cropOffset.height / cropScale
         )
     }
 
-    private func clampCropOffset() {
-        let scale = CGFloat(max(1, draft.cropScale))
-        let limit = cropOffsetLimit(scale: scale)
-        draft.cropOffset = CGSize(
-            width: draft.cropOffset.width.clamped(to: -limit...limit),
-            height: draft.cropOffset.height.clamped(to: -limit...limit)
+    private func updateInteractionState() {
+        isInteracting = isDragging || isMagnifying || isRotating
+    }
+}
+
+private extension StickerDraft {
+    mutating func updateCrop(scale: Double? = nil, rotation: Double? = nil, offset: CGSize? = nil) {
+        let proposedScale = scale ?? cropScale
+        let proposedRotation = rotation ?? cropRotation
+
+        cropScale = (proposedScale.isFinite ? proposedScale : 1).clamped(to: 1...2.8)
+        cropRotation = (proposedRotation.isFinite ? proposedRotation : 0).clamped(to: -180...180)
+
+        let proposedOffset = offset ?? cropOffset
+        let limit = cropOffsetLimit
+        cropOffset = CGSize(
+            width: proposedOffset.width.finiteOrZero.clamped(to: -limit...limit),
+            height: proposedOffset.height.finiteOrZero.clamped(to: -limit...limit)
         )
     }
 
-    private func cropOffsetLimit(scale: CGFloat) -> CGFloat {
-        let radians = CGFloat(draft.cropRotation) * .pi / 180
-        let rotatedExtent = abs(cos(radians)) + abs(sin(radians))
-        return max(0, (scale - rotatedExtent) / 2)
+    mutating func resetCrop() {
+        updateCrop(scale: 1, rotation: 0, offset: .zero)
     }
 
-    private func updateInteractionState() {
-        isInteracting = isDragging || isMagnifying || isRotating
+    private var cropOffsetLimit: CGFloat {
+        let radians = CGFloat(cropRotation) * .pi / 180
+        let rotatedExtent = abs(cos(radians)) + abs(sin(radians))
+        return max(0, (CGFloat(cropScale) - rotatedExtent) / 2)
     }
 }
 
@@ -287,6 +305,10 @@ private struct TransparentStickerPreviewBackground: View {
 }
 
 private extension CGFloat {
+    var finiteOrZero: CGFloat {
+        isFinite ? self : 0
+    }
+
     func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }

@@ -4,6 +4,7 @@ import SwiftUI
 
 struct StickerPost: Identifiable, Hashable {
     let id: String
+    var assetId: String
     var groupId: String
     var diaryId: String
     var dateKey: String
@@ -13,13 +14,13 @@ struct StickerPost: Identifiable, Hashable {
     var comment: String
     var shape: StickerShapeOption
     var decoration: StickerDecoration
-    var originalPhotoURL: String
     var stickerImageURL: String
     var layout: StickerLayout
     var createdAt: Date
 
     init(
         id: String = UUID().uuidString,
+        assetId: String,
         groupId: String,
         diaryId: String,
         dateKey: String,
@@ -29,12 +30,12 @@ struct StickerPost: Identifiable, Hashable {
         comment: String,
         shape: StickerShapeOption,
         decoration: StickerDecoration,
-        originalPhotoURL: String = "",
         stickerImageURL: String = "",
         layout: StickerLayout,
         createdAt: Date = Date()
     ) {
         self.id = id
+        self.assetId = assetId
         self.groupId = groupId
         self.diaryId = diaryId
         self.dateKey = dateKey
@@ -44,7 +45,6 @@ struct StickerPost: Identifiable, Hashable {
         self.comment = comment
         self.shape = shape
         self.decoration = decoration
-        self.originalPhotoURL = originalPhotoURL
         self.stickerImageURL = stickerImageURL
         self.layout = layout
         self.createdAt = createdAt
@@ -52,6 +52,7 @@ struct StickerPost: Identifiable, Hashable {
 
     init(id: String, data: [String: Any]) {
         self.id = id
+        self.assetId = data["assetId"] as? String ?? ""
         self.groupId = data["groupId"] as? String ?? ""
         self.diaryId = data["diaryId"] as? String ?? ""
         self.dateKey = data["dateKey"] as? String ?? Date().petalogDateKey
@@ -61,7 +62,6 @@ struct StickerPost: Identifiable, Hashable {
         self.comment = data["comment"] as? String ?? ""
         self.shape = StickerShapeOption(rawValue: data["shape"] as? String ?? "") ?? .circle
         self.decoration = StickerDecoration(rawValue: data["decoration"] as? String ?? "") ?? .none
-        self.originalPhotoURL = data["originalPhotoURL"] as? String ?? ""
         self.stickerImageURL = data["stickerImageURL"] as? String ?? ""
         self.layout = StickerLayout(data["layout"] as? [String: Any] ?? ["stickerId": id])
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
@@ -69,6 +69,7 @@ struct StickerPost: Identifiable, Hashable {
 
     var dictionary: [String: Any] {
         [
+            "assetId": assetId,
             "groupId": groupId,
             "diaryId": diaryId,
             "dateKey": dateKey,
@@ -78,7 +79,6 @@ struct StickerPost: Identifiable, Hashable {
             "comment": comment,
             "shape": shape.rawValue,
             "decoration": decoration.rawValue,
-            "originalPhotoURL": originalPhotoURL,
             "stickerImageURL": stickerImageURL,
             "layout": layout.dictionary,
             "createdAt": Timestamp(date: createdAt)

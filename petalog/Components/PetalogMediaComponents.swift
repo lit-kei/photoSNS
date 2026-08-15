@@ -30,25 +30,24 @@ final class PreviewView: UIView {
 struct AsyncStickerImage: View {
     let urlString: String
     let fallbackSystemImage: String
+    @State private var cachedImage: CachedStickerImage?
+    @State private var loadedURLString: String?
+    @State private var isLoading = false
 
     var body: some View {
-        if let url = URL(string: urlString), !urlString.isEmpty {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFit()
-                case .failure:
-                    fallback
-                case .empty:
-                    ProgressView()
-                @unknown default:
-                    fallback
-                }
+        Group {
+            if let cachedImage {
+                Image(uiImage: cachedImage.image)
+                    .resizable()
+                    .scaledToFit()
+            } else if isLoading {
+                ProgressView()
+            } else {
+                fallback
             }
-        } else {
-            fallback
+        }
+        .task(id: urlString) {
+            await loadImage()
         }
     }
 
@@ -58,6 +57,34 @@ struct AsyncStickerImage: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppColors.charcoal.opacity(0.82))
+    }
+
+    @MainActor
+    private func loadImage() async {
+        guard let url = URL(string: urlString), !urlString.isEmpty else {
+            cachedImage = nil
+            loadedURLString = nil
+            isLoading = false
+            return
+        }
+
+        if loadedURLString != urlString {
+            cachedImage = nil
+        }
+        guard cachedImage == nil else { return }
+
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let loadedImage = try await StickerImageCache.shared.image(for: url)
+            guard !Task.isCancelled else { return }
+            cachedImage = loadedImage
+            loadedURLString = urlString
+        } catch {
+            guard !Task.isCancelled else { return }
+            cachedImage = nil
+            loadedURLString = urlString
+        }
     }
 }
 
