@@ -284,7 +284,6 @@ private struct MemoryListCard: View {
 
 struct ProfileScreen: View {
     @EnvironmentObject private var appState: AppState
-    @Environment(\.dismiss) private var dismiss
     @State private var displayName = ""
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedPhotoData: Data?
@@ -292,140 +291,124 @@ struct ProfileScreen: View {
     @State private var currentAvatarURL: String?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 30) {
-                    HStack {
-                        Text("プロフィール")
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(AppColors.mainText)
+        ScrollView {
+            VStack(spacing: 30) {
+                HStack {
+                    Text("プロフィール")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(AppColors.mainText)
 
-                        Spacer()
+                    Spacer()
+                }
 
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(AppColors.mainText)
-                                .frame(width: 42, height: 42)
-                                .background(AppColors.surface.opacity(0.94))
-                                .clipShape(Circle())
-                                .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("閉じる")
+                VStack(spacing: 18) {
+                    PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                        ProfilePhotoPickerLabel(
+                            imageData: selectedPhotoData,
+                            imageURLString: currentAvatarURL
+                        )
                     }
+                    .buttonStyle(.plain)
 
-                    VStack(spacing: 18) {
-                        PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
-                            ProfilePhotoPickerLabel(
-                                imageData: selectedPhotoData,
-                                imageURLString: currentAvatarURL
-                            )
-                        }
-                        .buttonStyle(.plain)
-
-                        Text("写真を変更")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(AppColors.secondaryText)
-
-                        MetalCard(padding: 16) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Label("ユーザー名を編集", systemImage: "pencil")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(AppColors.secondaryText)
-
-                                TextField("ユーザー名", text: $displayName)
-                                    .font(.system(size: 22, weight: .semibold))
-                                    .foregroundStyle(AppColors.mainText)
-                                    .textFieldStyle(.plain)
-                                    .padding(.vertical, 13)
-                                    .padding(.horizontal, 14)
-                                    .background(AppColors.chromeHighlight.opacity(0.72))
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .stroke(AppColors.border, lineWidth: 0.8)
-                                    }
-                            }
-                        }
-                    }
-                    .onChange(of: selectedPhotoItem) { _, item in
-                        Task {
-                            guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
-                            selectedPhotoData = data
-                        }
-                    }
-
-                    Button {
-                        Task {
-                            isSavingProfile = true
-                            await appState.updateProfile(displayName: displayName, avatarImageData: selectedPhotoData)
-                            currentAvatarURL = appState.currentUser?.avatarURL
-                            selectedPhotoData = nil
-                            selectedPhotoItem = nil
-                            isSavingProfile = false
-                        }
-                    } label: {
-                        if isSavingProfile {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Label("プロフィールを保存", systemImage: "checkmark.circle")
-                        }
-                    }
-                    .buttonStyle(PrimaryActionButtonStyle())
-                    .disabled(isSavingProfile)
-
-                    StatsStrip(
-                        groups: appState.groups.count,
-                        members: appState.groups.reduce(0) { $0 + $1.memberIds.count },
-                        diaries: appState.groups.reduce(0) { $0 + $1.diaryCount }
-                    )
+                    Text("写真を変更")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AppColors.secondaryText)
 
                     MetalCard(padding: 16) {
-                        HStack(spacing: 14) {
-                            Image(systemName: "scissors")
-                                .font(.system(size: 18, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("ユーザー名を編集", systemImage: "pencil")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(AppColors.secondaryText)
+
+                            TextField("ユーザー名", text: $displayName)
+                                .font(.system(size: 22, weight: .semibold))
                                 .foregroundStyle(AppColors.mainText)
-                                .frame(width: 42, height: 42)
-                                .background(AppColors.chromeHighlight.opacity(0.78))
-                                .clipShape(Circle())
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("作ったステッカー")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(AppColors.mainText)
-                                Text("ギャラリーは今後ここに表示されます")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(AppColors.secondaryText)
-                            }
-
-                            Spacer()
+                                .textFieldStyle(.plain)
+                                .padding(.vertical, 13)
+                                .padding(.horizontal, 14)
+                                .background(AppColors.chromeHighlight.opacity(0.72))
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(AppColors.border, lineWidth: 0.8)
+                                }
                         }
                     }
-
-                    Button("ログアウト") {
-                        appState.signOut()
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppColors.secondaryText)
-                    .buttonStyle(.plain)
-                    .padding(.top, 4)
                 }
-                .padding(.horizontal, AppSpacing.screenHorizontal)
-                .padding(.top, AppSpacing.screenTop + 18)
-                .padding(.bottom, AppSpacing.floatingTabClearance)
+                .onChange(of: selectedPhotoItem) { _, item in
+                    Task {
+                        guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
+                        selectedPhotoData = data
+                    }
+                }
+
+                Button {
+                    Task {
+                        isSavingProfile = true
+                        await appState.updateProfile(displayName: displayName, avatarImageData: selectedPhotoData)
+                        currentAvatarURL = appState.currentUser?.avatarURL
+                        selectedPhotoData = nil
+                        selectedPhotoItem = nil
+                        isSavingProfile = false
+                    }
+                } label: {
+                    if isSavingProfile {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Label("プロフィールを保存", systemImage: "checkmark.circle")
+                    }
+                }
+                .buttonStyle(PrimaryActionButtonStyle())
+                .disabled(isSavingProfile)
+
+                StatsStrip(
+                    groups: appState.groups.count,
+                    members: appState.groups.reduce(0) { $0 + $1.memberIds.count },
+                    diaries: appState.groups.reduce(0) { $0 + $1.diaryCount }
+                )
+
+                MetalCard(padding: 16) {
+                    HStack(spacing: 14) {
+                        Image(systemName: "scissors")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(AppColors.mainText)
+                            .frame(width: 42, height: 42)
+                            .background(AppColors.chromeHighlight.opacity(0.78))
+                            .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("作ったステッカー")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(AppColors.mainText)
+                            Text("ギャラリーは今後ここに表示されます")
+                                .font(.system(size: 12))
+                                .foregroundStyle(AppColors.secondaryText)
+                        }
+
+                        Spacer()
+                    }
+                }
+
+                Button("ログアウト") {
+                    appState.signOut()
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText)
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             }
-            .background {
-                PetalogMetalBackground()
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .onAppear {
-                displayName = appState.currentUser?.displayName ?? ""
-                currentAvatarURL = appState.currentUser?.avatarURL
-            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.screenTop + 18)
+            .padding(.bottom, AppSpacing.floatingTabClearance)
+        }
+        .background {
+            PetalogMetalBackground()
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            displayName = appState.currentUser?.displayName ?? ""
+            currentAvatarURL = appState.currentUser?.avatarURL
         }
     }
 }
