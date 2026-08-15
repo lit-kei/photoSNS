@@ -14,7 +14,7 @@ struct DiaryScreen: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
                     DateNavigator(
@@ -48,7 +48,7 @@ struct DiaryScreen: View {
                         .frame(height: 520)
                         .id(viewModel.dateKey)
                         .offset(x: dragOffset)
-                        .opacity(1 - min(abs(dragOffset) / 360, 0.18))
+                        .opacity(1.0 - min(Double(abs(dragOffset)) / 360.0, 0.18))
                         .animation(.spring(response: 0.28, dampingFraction: 0.88), value: dragOffset)
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing).combined(with: .opacity),
