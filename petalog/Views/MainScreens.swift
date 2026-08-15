@@ -37,13 +37,20 @@ struct HomeScreen: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    BrandWordmark()
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("ホーム")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
                     Text(Date().petalogDisplayDate)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(AppColors.secondaryText)
+                    if let user = appState.currentUser {
+                        Text(user.displayName)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(AppColors.secondaryText)
+                    }
                 }
 
                 Spacer()
@@ -66,20 +73,6 @@ struct HomeScreen: View {
                     .accessibilityLabel("友達追加")
                 }
             }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("今日の思い出をつくろう")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(AppColors.mainText)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let user = appState.currentUser {
-                    Text(user.displayName)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(AppColors.secondaryText)
-                }
-            }
         }
     }
 
@@ -87,17 +80,20 @@ struct HomeScreen: View {
         Button {
             appState.selectedTab = .camera
         } label: {
-            HStack(spacing: 18) {
+            HStack(spacing: 14) {
                 Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 24, weight: .semibold))
-                    .frame(width: 54, height: 54)
+                    .font(.system(size: 20, weight: .semibold))
+                    .frame(width: 36, height: 36)
                     .background(AppColors.elevatedSurface.opacity(0.72))
-                    .clipShape(Circle())
-                    .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(AppColors.border, lineWidth: 0.8)
+                    }
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("写真を撮る")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                     Text("ステッカーにする1枚を残す")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(AppColors.secondaryText)
@@ -106,39 +102,20 @@ struct HomeScreen: View {
                 Spacer()
 
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 36, height: 36)
-                    .background(AppColors.elevatedSurface.opacity(0.66))
-                    .clipShape(Circle())
-                    .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppColors.secondaryText)
             }
             .foregroundStyle(AppColors.mainText)
-            .padding(20)
+            .padding(16)
             .background {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                AppColors.dustyPink.opacity(0.44),
-                                AppColors.mutedLavender.opacity(0.25),
-                                AppColors.paperCream
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(AppColors.surface.opacity(0.98))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(AppColors.border, lineWidth: 0.8)
                     }
-                    .overlay(alignment: .bottomTrailing) {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 44, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.24))
-                            .padding(18)
-                    }
             }
-            .shadow(color: AppColors.kraftBeige.opacity(0.20), radius: 14, y: 7)
+            .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
         }
         .buttonStyle(.plain)
     }
@@ -441,13 +418,7 @@ private struct AvatarToken: View {
             .frame(width: size, height: size)
             .background {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [AppColors.elevatedSurface, AppColors.dustyPink.opacity(0.18), AppColors.paperCream],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(AppColors.elevatedSurface)
             }
             .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
     }
@@ -463,18 +434,7 @@ private struct ProfilePhotoPickerLabel: View {
                 .frame(width: 132, height: 132)
                 .background {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    AppColors.elevatedSurface,
-                                    AppColors.dustyPink.opacity(0.28),
-                                    AppColors.elevatedSurface,
-                                    AppColors.mutedLavender.opacity(0.18)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(AppColors.elevatedSurface)
                 }
                 .clipShape(Circle())
                 .overlay {
