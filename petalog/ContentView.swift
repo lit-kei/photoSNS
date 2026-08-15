@@ -51,14 +51,9 @@ struct ContentView: View {
     }
 
     private var signedInTabs: some View {
-        TabView(selection: $appState.selectedTab) {
-            ForEach(AppTab.allCases) { tab in
-                tabContent(for: tab)
-                    .tag(tab)
-            }
+        Group {
+            tabContent(for: appState.selectedTab)
         }
-        .tint(AppColors.accentPink)
-        .toolbar(.hidden, for: .tabBar)
         .overlay(alignment: .top) {
             StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
                 .padding(.horizontal, 16)

@@ -20,18 +20,6 @@ struct DiaryScreen: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            DateNavigator(
-                selectedDate: $selectedDate,
-                canMoveForward: !Calendar.current.isDateInToday(selectedDate),
-                movePrevious: { changeDate(to: selectedDate.addingTimeInterval(-24 * 60 * 60)) },
-                moveNext: { changeDate(to: selectedDate.addingTimeInterval(24 * 60 * 60)) },
-                moveToday: { changeDate(to: Date()) }
-            )
-            .disabled(viewModel.isLoading)
-            .onChange(of: selectedDate) { oldDate, newDate in
-                changeDate(to: newDate, relativeTo: oldDate)
-            }
-
             diaryPageViewport
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -43,6 +31,18 @@ struct DiaryScreen: View {
                     .foregroundStyle(.red)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            DateNavigator(
+                selectedDate: $selectedDate,
+                canMoveForward: !Calendar.current.isDateInToday(selectedDate),
+                movePrevious: { changeDate(to: selectedDate.addingTimeInterval(-24 * 60 * 60)) },
+                moveNext: { changeDate(to: selectedDate.addingTimeInterval(24 * 60 * 60)) },
+                moveToday: { changeDate(to: Date()) }
+            )
+            .disabled(viewModel.isLoading)
+            .onChange(of: selectedDate) { oldDate, newDate in
+                changeDate(to: newDate, relativeTo: oldDate)
             }
         }
         .padding(.horizontal, 12)
