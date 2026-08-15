@@ -136,7 +136,6 @@ struct SectionHeader: View {
 }
 
 struct MetalCard<Content: View>: View {
-    @Environment(\.colorScheme) private var colorScheme
     var padding: CGFloat = AppSpacing.card
     var radius: CGFloat = AppRadius.card
     let content: Content
@@ -153,13 +152,13 @@ struct MetalCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(AppColors.surface.opacity(colorScheme == .dark ? 0.98 : 0.96))
+                    .fill(AppColors.surface.opacity(0.98))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.18 : 0.05), radius: 8, y: 3)
+            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
     }
 }
 
@@ -198,31 +197,24 @@ struct SecondaryButton<Label: View>: View {
 }
 
 struct PrimaryActionButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) private var colorScheme
-
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(colorScheme == .dark ? AppColors.ink : AppColors.mainText)
+            .foregroundStyle(AppColors.ink)
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
             .frame(height: 54)
             .background {
-                if colorScheme == .dark {
-                    RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
-                        .fill(AppColors.neonLime)
-                } else {
-                    RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
-                        .fill(AppColors.dustyPink.opacity(0.72))
-                }
+                RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
+                    .fill(AppColors.accentPink)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0.14 : 0.04), radius: 6, y: 2)
+            .shadow(color: .black.opacity(0.14), radius: 6, y: 2)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.88 : 1)
             .animation(.spring(response: 0.24, dampingFraction: 0.86), value: configuration.isPressed)
@@ -230,8 +222,6 @@ struct PrimaryActionButtonStyle: ButtonStyle {
 }
 
 struct SecondaryActionButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) private var colorScheme
-
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 15, weight: .semibold))
@@ -377,7 +367,6 @@ struct HorizontalOptionPicker<Option: PetalogOption>: View {
 }
 
 private struct OptionButtonStyle: ButtonStyle {
-    @Environment(\.colorScheme) private var colorScheme
     let isSelected: Bool
 
     func makeBody(configuration: Configuration) -> some View {
@@ -387,7 +376,7 @@ private struct OptionButtonStyle: ButtonStyle {
             .background {
                 if isSelected {
                     Rectangle()
-                        .fill(colorScheme == .dark ? AppColors.neonLime.opacity(0.90) : AppColors.dustyPink.opacity(0.30))
+                        .fill(AppColors.accentPink.opacity(0.90))
                 } else {
                     Rectangle().fill(AppColors.surface.opacity(0.92))
                 }
@@ -395,7 +384,7 @@ private struct OptionButtonStyle: ButtonStyle {
             .clipShape(RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
-                    .stroke(isSelected ? (colorScheme == .dark ? AppColors.neonLime.opacity(0.58) : AppColors.dustyPink.opacity(0.42)) : AppColors.border, lineWidth: 0.8)
+                    .stroke(isSelected ? AppColors.accentPink.opacity(0.58) : AppColors.border, lineWidth: 0.8)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : (isSelected ? 1.02 : 1))
             .opacity(configuration.isPressed ? 0.84 : 1)
@@ -458,55 +447,6 @@ struct EmptyStateView: View {
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
-    }
-}
-
-struct FloatingTabBar: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @Binding var selection: AppTab
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(AppTab.allCases) { tab in
-                Button {
-                    selection = tab
-                } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: tab.systemImage)
-                            .font(.system(size: 18, weight: .semibold))
-                        Text(tab.title)
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(selection == tab && colorScheme == .dark ? AppColors.ink : (selection == tab ? AppColors.mainText : AppColors.secondaryText))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background {
-                        if selection == tab {
-                            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                .fill(colorScheme == .dark ? AppColors.neonLime.opacity(0.95) : AppColors.dustyPink.opacity(0.26))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                        .stroke(colorScheme == .dark ? .white.opacity(0.18) : AppColors.dustyPink.opacity(0.35), lineWidth: 0.8)
-                                }
-                                .transition(.opacity.combined(with: .scale(scale: 0.94)))
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 9)
-        .frame(height: 68)
-        .background {
-            RoundedRectangle(cornerRadius: AppRadius.tabBar, style: .continuous)
-                .fill(AppColors.elevatedSurface.opacity(0.96))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.tabBar, style: .continuous)
-                .stroke(AppColors.border, lineWidth: 0.8)
-        }
-        .shadow(color: colorScheme == .dark ? .black.opacity(0.44) : AppColors.kraftBeige.opacity(0.24), radius: 16, y: 8)
-        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: selection)
     }
 }
 

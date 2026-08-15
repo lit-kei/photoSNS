@@ -36,6 +36,7 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newValue in
             appState.stickerUploadCoordinator.setAppActive(newValue == .active)
         }
+        .preferredColorScheme(.light)
         .alert("エラー", isPresented: Binding(
             get: { appState.errorMessage != nil },
             set: { if !$0 { appState.errorMessage = nil } }
@@ -47,25 +48,38 @@ struct ContentView: View {
     }
 
     private var signedInTabs: some View {
-        ZStack {
-            switch appState.selectedTab {
-            case .home:
-                HomeScreen()
-            case .camera:
-                CameraScreen {
-                    appState.selectedTab = .home
-                }
-            case .memories:
-                MemoriesScreen()
-            case .profile:
-                ProfileScreen()
+        TabView(selection: $appState.selectedTab) {
+            ForEach(AppTab.allCases) { tab in
+                tabContent(for: tab)
+                    .tag(tab)
+                    .tabItem {
+                        Label(tab.title, systemImage: tab.systemImage)
+                    }
             }
         }
-        .tint(AppColors.mainText)
+        .tint(AppColors.accentPink)
+        .toolbarBackground(AppColors.appBackground, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .overlay(alignment: .top) {
             StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
+        }
+    }
+
+    @ViewBuilder
+    private func tabContent(for tab: AppTab) -> some View {
+        switch tab {
+        case .home:
+                HomeScreen()
+        case .camera:
+                CameraScreen {
+                    appState.selectedTab = .home
+                }
+        case .memories:
+                MemoriesScreen()
+        case .profile:
+                ProfileScreen()
         }
     }
 }

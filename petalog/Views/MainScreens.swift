@@ -15,19 +15,12 @@ struct HomeScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
                     header
-                    cameraCTA
                     quickActions
                     groupsSection
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.screenTop)
                 .padding(.bottom, AppSpacing.floatingTabClearance)
-            }
-            .safeAreaInset(edge: .bottom) {
-                FloatingTabBar(selection: $appState.selectedTab)
-                    .padding(.horizontal, 18)
-                    .padding(.top, 8)
-                    .padding(.bottom, 10)
             }
             .background {
                 PetalogMetalBackground()
@@ -74,50 +67,6 @@ struct HomeScreen: View {
                 }
             }
         }
-    }
-
-    private var cameraCTA: some View {
-        Button {
-            appState.selectedTab = .camera
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "camera.viewfinder")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 36, height: 36)
-                    .background(AppColors.elevatedSurface.opacity(0.72))
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .stroke(AppColors.border, lineWidth: 0.8)
-                    }
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("写真を撮る")
-                        .font(.system(size: 17, weight: .semibold))
-                    Text("ステッカーにする1枚を残す")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(AppColors.secondaryText)
-                }
-
-                Spacer()
-
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppColors.secondaryText)
-            }
-            .foregroundStyle(AppColors.mainText)
-            .padding(16)
-            .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(AppColors.surface.opacity(0.98))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(AppColors.border, lineWidth: 0.8)
-                    }
-            }
-            .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
-        }
-        .buttonStyle(.plain)
     }
 
     private var quickActions: some View {
