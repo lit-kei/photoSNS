@@ -49,6 +49,15 @@ struct AppUser: Identifiable, Hashable {
             "updatedAt": FieldValue.serverTimestamp()
         ]
     }
+
+    /// Value stored in `groups.memberAvatars`. Profile photos take priority;
+    /// emoji avatars and a stable system-image marker remain as fallbacks.
+    var memberAvatarValue: String {
+        if let avatarURL, !avatarURL.isEmpty {
+            return avatarURL
+        }
+        return avatar.isEmpty ? "system:person.fill" : avatar
+    }
 }
 
 struct AuthenticatedAccount: Hashable {

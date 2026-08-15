@@ -400,7 +400,14 @@ struct MemberAvatarStack: View {
         HStack(spacing: -8) {
             ForEach(Array(avatars.prefix(4).enumerated()), id: \.offset) { _, avatar in
                 Group {
-                    if avatar.isEmpty {
+                    if avatar.hasPrefix("https://") || avatar.hasPrefix("http://") {
+                        RemoteImageView(urlString: avatar) {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(AppColors.mainText.opacity(0.72))
+                        }
+                        .scaledToFill()
+                    } else if avatar.isEmpty || avatar == "system:person.fill" {
                         Image(systemName: "person.fill")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(AppColors.mainText.opacity(0.72))

@@ -47,7 +47,7 @@ final class GroupService {
             ownerId: currentUser.id,
             memberIds: [currentUser.id],
             memberNames: [currentUser.displayName],
-            memberAvatars: [currentUser.avatar]
+            memberAvatars: [currentUser.memberAvatarValue]
         )
 
         let batch = db.batch()
@@ -58,6 +58,7 @@ final class GroupService {
                 "userId": currentUser.id,
                 "displayName": currentUser.displayName,
                 "avatar": currentUser.avatar,
+                "avatarURL": currentUser.avatarURL ?? "",
                 "role": "owner",
                 "joinedAt": FieldValue.serverTimestamp()
             ],
@@ -104,11 +105,17 @@ final class GroupService {
         }
 
         let batch = db.batch()
+        var memberNames = group.memberNames
+        var memberAvatars = group.memberAvatars
+        while memberNames.count < group.memberIds.count { memberNames.append("") }
+        while memberAvatars.count < group.memberIds.count { memberAvatars.append("system:person.fill") }
+        memberNames.append(currentUser.displayName)
+        memberAvatars.append(currentUser.memberAvatarValue)
         batch.updateData(
             [
                 "memberIds": FieldValue.arrayUnion([currentUser.id]),
-                "memberNames": FieldValue.arrayUnion([currentUser.displayName]),
-                "memberAvatars": FieldValue.arrayUnion([currentUser.avatar])
+                "memberNames": memberNames,
+                "memberAvatars": memberAvatars
             ],
             forDocument: document.reference
         )
@@ -118,6 +125,7 @@ final class GroupService {
                 "userId": currentUser.id,
                 "displayName": currentUser.displayName,
                 "avatar": currentUser.avatar,
+                "avatarURL": currentUser.avatarURL ?? "",
                 "role": "member",
                 "joinedAt": FieldValue.serverTimestamp()
             ],
@@ -140,6 +148,49 @@ final class GroupService {
                     "createdAt": FieldValue.serverTimestamp()
                 ],
                 forDocument: notificationRef
+            )
+        }
+        try await batch.commit()
+    }
+
+    /// Repairs missing avatar entries and keeps the parallel member arrays in
+    /// existing group documents aligned with `memberIds`.
+    func syncMemberProfile(_ user: AppUser) async throws {
+        let snapshot = try await db.collection("groups")
+            .whereField("memberIds", arrayContains: user.id)
+            .getDocuments()
+        guard !snapshot.documents.isEmpty else { return }
+
+        let batch = db.batch()
+        for document in snapshot.documents {
+            let data = document.data()
+            let memberIds = data["memberIds"] as? [String] ?? []
+            guard let memberIndex = memberIds.firstIndex(of: user.id) else { continue }
+
+            var memberNames = data["memberNames"] as? [String] ?? []
+            var memberAvatars = data["memberAvatars"] as? [String] ?? []
+            while memberNames.count < memberIds.count { memberNames.append("") }
+            while memberAvatars.count < memberIds.count { memberAvatars.append("system:person.fill") }
+            memberNames[memberIndex] = user.displayName
+            memberAvatars[memberIndex] = user.memberAvatarValue
+
+            batch.updateData(
+                [
+                    "memberNames": memberNames,
+                    "memberAvatars": memberAvatars
+                ],
+                forDocument: document.reference
+            )
+            batch.setData(
+                [
+                    "groupId": document.documentID,
+                    "userId": user.id,
+                    "displayName": user.displayName,
+                    "avatar": user.avatar,
+                    "avatarURL": user.avatarURL ?? ""
+                ],
+                forDocument: db.collection("groupMembers").document("\(document.documentID)_\(user.id)"),
+                merge: true
             )
         }
         try await batch.commit()

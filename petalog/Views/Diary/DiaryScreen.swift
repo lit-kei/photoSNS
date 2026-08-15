@@ -2,11 +2,15 @@ import SwiftUI
 import UIKit
 
 struct DiaryScreen: View {
+    @Environment(\.dismiss) private var dismiss
     let group: PetalogGroup
     @StateObject private var viewModel: DiaryViewModel
     @State private var selectedSticker: StickerPost?
     @State private var selectedDate = Date()
     @State private var dragOffset: CGFloat = 0
+    @State private var pageEntranceOffset: CGFloat = 0
+    @State private var isPageTransitioning = false
+    @State private var transitionID = UUID()
 
     init(group: PetalogGroup) {
         self.group = group
@@ -23,8 +27,9 @@ struct DiaryScreen: View {
                         movePrevious: { changeDate(to: selectedDate.addingTimeInterval(-24 * 60 * 60)) },
                         moveNext: { changeDate(to: selectedDate.addingTimeInterval(24 * 60 * 60)) }
                     )
-                    .onChange(of: selectedDate) { _, date in
-                        changeDate(to: date)
+                    .disabled(viewModel.isLoading)
+                    .onChange(of: selectedDate) { oldDate, newDate in
+                        changeDate(to: newDate, relativeTo: oldDate)
                     }
 
                     Text(selectedDate.petalogDisplayDate)
@@ -40,30 +45,31 @@ struct DiaryScreen: View {
                     MemberAvatarStack(avatars: group.memberAvatars)
                 }
 
-                if viewModel.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 420)
-                } else if let diary = viewModel.diary {
-                    DiaryCanvasView(diary: diary, stickers: viewModel.stickers, selectedSticker: $selectedSticker)
-                        .frame(height: 520)
-                        .id(viewModel.dateKey)
-                        .offset(x: dragOffset)
-                        .opacity(1.0 - min(Double(abs(dragOffset)) / 360.0, 0.18))
-                        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: dragOffset)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        ))
+                VStack(spacing: 18) {
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 520, maxHeight: 520)
+                        diaryEditButtonPlaceholder
+                    } else if let diary = viewModel.diary {
+                        DiaryCanvasView(diary: diary, stickers: viewModel.stickers, selectedSticker: $selectedSticker)
+                            .frame(height: 520)
+                            .id(viewModel.dateKey)
+                            .offset(x: dragOffset + pageEntranceOffset)
+                            .opacity(1.0 - min(Double(abs(dragOffset + pageEntranceOffset)) / 520.0, 0.24))
 
-                    NavigationLink {
-                        DiaryEditorScreen(group: group)
-                    } label: {
-                        Label("絵日記を編集", systemImage: "pencil.and.outline")
+                        NavigationLink {
+                            DiaryEditorScreen(group: group)
+                        } label: {
+                            Label("絵日記を編集", systemImage: "pencil.and.outline")
+                        }
+                        .buttonStyle(SecondaryActionButtonStyle())
+                    } else {
+                        EmptyStateView(systemImage: "doc.text.image.fill", title: "今日のページを準備中", message: "ステッカーを投稿すると、このキャンバスに集まります。")
+                            .frame(maxWidth: .infinity, minHeight: 520, maxHeight: 520)
+                        diaryEditButtonPlaceholder
                     }
-                    .buttonStyle(SecondaryActionButtonStyle())
-                } else {
-                    EmptyStateView(systemImage: "doc.text.image.fill", title: "今日のページを準備中", message: "ステッカーを投稿すると、このキャンバスに集まります。")
                 }
+                .frame(height: 590, alignment: .top)
 
                 NavigationLink {
                     GroupEditScreen(group: group)
@@ -82,49 +88,140 @@ struct DiaryScreen: View {
             .padding(.top, 20)
             .padding(.bottom, AppSpacing.floatingTabClearance)
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 44)
-                .onChanged { value in
-                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                    dragOffset = value.translation.width * 0.22
-                }
-                .onEnded { value in
-                    guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                    let threshold: CGFloat = 72
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                        dragOffset = 0
-                    }
-                    if value.translation.width < -threshold {
-                        changeDate(to: selectedDate.addingTimeInterval(24 * 60 * 60))
-                    } else if value.translation.width > threshold {
-                        changeDate(to: selectedDate.addingTimeInterval(-24 * 60 * 60))
-                    } else {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
-                }
-        )
+        .simultaneousGesture(dateSwipeGesture)
         .background {
             PetalogMetalBackground()
         }
         .navigationTitle("今日の絵日記")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("戻る", systemImage: "chevron.left")
+                }
+            }
+        }
         .onAppear { viewModel.start() }
-        .onDisappear { viewModel.stop() }
+        .onDisappear {
+            transitionID = UUID()
+            viewModel.stop()
+        }
+        .onChange(of: viewModel.diary?.id) { _, diaryID in
+            guard diaryID != nil else { return }
+            animateIncomingPageIfNeeded()
+        }
+        .onChange(of: viewModel.isLoading) { _, isLoading in
+            guard !isLoading, viewModel.diary == nil else { return }
+            pageEntranceOffset = 0
+            dragOffset = 0
+            isPageTransitioning = false
+        }
         .sheet(item: $selectedSticker) { sticker in
             StickerDetailSheet(sticker: sticker)
                 .presentationDetents([.medium])
         }
     }
 
-    private func changeDate(to date: Date) {
+    private var diaryEditButtonPlaceholder: some View {
+        Color.clear
+            .frame(height: 52)
+            .accessibilityHidden(true)
+    }
+
+    private var pageTravelDistance: CGFloat {
+        max(UIScreen.main.bounds.width, 320) + 40
+    }
+
+    private func animateIncomingPageIfNeeded() {
+        guard pageEntranceOffset != 0 else {
+            isPageTransitioning = false
+            return
+        }
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(.easeOut(duration: 0.24)) {
+                pageEntranceOffset = 0
+            }
+            try? await Task.sleep(for: .seconds(0.24))
+            isPageTransitioning = false
+        }
+    }
+
+    private var dateSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onChanged { value in
+                guard !viewModel.isLoading, !isPageTransitioning else { return }
+                guard abs(value.translation.width) > abs(value.translation.height) else {
+                    dragOffset = 0
+                    return
+                }
+                dragOffset = min(max(value.translation.width, -pageTravelDistance), pageTravelDistance)
+            }
+            .onEnded { value in
+                guard !viewModel.isLoading, !isPageTransitioning else { return }
+                guard abs(value.translation.width) > abs(value.translation.height) else {
+                    dragOffset = 0
+                    return
+                }
+                let threshold: CGFloat = 72
+                if value.translation.width < -threshold {
+                    requestDateChange(to: selectedDate.addingTimeInterval(24 * 60 * 60))
+                } else if value.translation.width > threshold {
+                    requestDateChange(to: selectedDate.addingTimeInterval(-24 * 60 * 60))
+                } else {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        dragOffset = 0
+                    }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+            }
+    }
+
+    private func changeDate(to date: Date, relativeTo referenceDate: Date? = nil) {
+        requestDateChange(to: date, relativeTo: referenceDate)
+    }
+
+    private func requestDateChange(to date: Date, relativeTo referenceDate: Date? = nil) {
+        guard !viewModel.isLoading, !isPageTransitioning else { return }
         let clampedDate = min(date, Date())
         let nextDateKey = clampedDate.petalogDateKey
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
+        guard nextDateKey != viewModel.dateKey else {
             selectedDate = clampedDate
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                dragOffset = 0
+            }
+            return
         }
-        guard nextDateKey != viewModel.dateKey else { return }
+
+        let calendar = Calendar.current
+        let previousDay = calendar.startOfDay(for: referenceDate ?? selectedDate)
+        let nextDay = calendar.startOfDay(for: clampedDate)
+        let outgoingOffset = nextDay > previousDay ? -pageTravelDistance : pageTravelDistance
+        let incomingOffset = -outgoingOffset
+        let currentTransitionID = UUID()
+        transitionID = currentTransitionID
+        isPageTransitioning = true
+
+        withAnimation(.easeOut(duration: 0.16)) {
+            dragOffset = outgoingOffset
+        }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        viewModel.changeDate(to: nextDateKey)
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.16))
+            guard transitionID == currentTransitionID else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                pageEntranceOffset = incomingOffset
+                dragOffset = 0
+                selectedDate = clampedDate
+                viewModel.changeDate(to: nextDateKey)
+            }
+        }
     }
 }
 

@@ -194,6 +194,7 @@ final class AppState: ObservableObject {
         user.displayName = displayName.trimmedForPetalog
         let previousAvatarURL = user.avatarURL
         var uploadedAvatarURL: URL?
+        var didPersistProfile = false
         do {
             if let avatarImageData {
                 let imageURL = try await services.auth.uploadProfileImage(userId: user.id, imageData: avatarImageData)
@@ -201,14 +202,16 @@ final class AppState: ObservableObject {
                 user.avatarURL = imageURL.absoluteString
             }
             try await services.auth.updateProfile(user: user)
+            didPersistProfile = true
             currentUser = user
+            try await services.groups.syncMemberProfile(user)
             if let previousAvatarURL,
                previousAvatarURL != uploadedAvatarURL?.absoluteString,
                uploadedAvatarURL != nil {
                 await services.auth.deleteProfileImage(at: previousAvatarURL)
             }
         } catch {
-            if let uploadedAvatarURL {
+            if let uploadedAvatarURL, !didPersistProfile {
                 await services.auth.deleteProfileImage(at: uploadedAvatarURL.absoluteString)
             }
             errorMessage = error.localizedDescription
@@ -274,6 +277,16 @@ final class AppState: ObservableObject {
         observeGroups(for: userId)
         observeFriends(for: userId)
         observeFriendRequests(for: userId)
+        if let currentUser, currentUser.id == userId {
+            Task {
+                do {
+                    try await services.groups.syncMemberProfile(currentUser)
+                } catch {
+                    guard !error.isPetalogOfflineFirestoreError else { return }
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
 
     private func authenticate(_ operation: () async throws -> AuthenticatedAccount) async {

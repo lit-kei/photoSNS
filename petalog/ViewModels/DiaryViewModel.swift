@@ -15,6 +15,7 @@ final class DiaryViewModel: ObservableObject {
     private(set) var dateKey: String
     private var diaryListener: ListenerRegistration?
     private var stickerListener: ListenerRegistration?
+    private var observationGeneration = UUID()
 
     init(group: PetalogGroup) {
         self.group = group
@@ -29,11 +30,16 @@ final class DiaryViewModel: ObservableObject {
     }
 
     func start() {
+        let requestedDateKey = dateKey
+        let generation = UUID()
+        observationGeneration = generation
         Task {
             do {
-                _ = try await services.diaries.ensureTodayDiary(group: group, dateKey: dateKey)
-                observe()
+                _ = try await services.diaries.ensureTodayDiary(group: group, dateKey: requestedDateKey)
+                guard observationGeneration == generation, dateKey == requestedDateKey else { return }
+                observe(dateKey: requestedDateKey, generation: generation)
             } catch {
+                guard observationGeneration == generation, dateKey == requestedDateKey else { return }
                 errorMessage = error.localizedDescription
                 isLoading = false
             }
@@ -41,6 +47,7 @@ final class DiaryViewModel: ObservableObject {
     }
 
     func stop() {
+        observationGeneration = UUID()
         diaryListener?.remove()
         stickerListener?.remove()
         diaryListener = nil
@@ -91,24 +98,30 @@ final class DiaryViewModel: ObservableObject {
         }
     }
 
-    private func observe() {
-        diaryListener = services.diaries.observeDiary(groupId: group.id, dateKey: dateKey) { [weak self] diary, error in
+    private func observe(dateKey observedDateKey: String, generation: UUID) {
+        diaryListener = services.diaries.observeDiary(groupId: group.id, dateKey: observedDateKey) { [weak self] diary, error in
             Task { @MainActor in
+                guard let self,
+                      self.observationGeneration == generation,
+                      self.dateKey == observedDateKey else { return }
                 if let error {
-                    self?.errorMessage = error.localizedDescription
+                    self.errorMessage = error.localizedDescription
                 } else {
-                    self?.diary = diary
+                    self.diary = diary
                 }
-                self?.isLoading = false
+                self.isLoading = false
             }
         }
 
-        stickerListener = services.stickers.observeStickers(groupId: group.id, dateKey: dateKey) { [weak self] stickers, error in
+        stickerListener = services.stickers.observeStickers(groupId: group.id, dateKey: observedDateKey) { [weak self] stickers, error in
             Task { @MainActor in
+                guard let self,
+                      self.observationGeneration == generation,
+                      self.dateKey == observedDateKey else { return }
                 if let error {
-                    self?.errorMessage = error.localizedDescription
+                    self.errorMessage = error.localizedDescription
                 } else {
-                    self?.stickers = stickers
+                    self.stickers = stickers
                 }
             }
         }
