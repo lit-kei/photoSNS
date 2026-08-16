@@ -30,7 +30,7 @@ struct FriendTodayFeedSection: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("今日のタイムラインn")
+            Text("今日のタイムライン")
                 .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(AppColors.mainText)
         }
