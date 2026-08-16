@@ -27,13 +27,10 @@ struct FriendFeedScreen: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("今日の友達")
+            Text("友達の投稿")
                 .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(AppColors.mainText)
-            Text("友達が今日撮った写真だけをまとめて見られます。")
-                .font(.system(size: 14))
-                .foregroundStyle(AppColors.secondaryText)
-                .lineSpacing(3)
+           
         }
     }
 

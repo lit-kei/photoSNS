@@ -37,57 +37,57 @@ struct HomeScreen: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("ホーム")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(AppColors.mainText)
-                    Text(Date().petalogDisplayDate)
-                        .font(.system(size: 12, weight: .medium))
+        ZStack(alignment: .top) {
+            VStack(spacing: 5) {
+                Text("petalog")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText)
+                Text(Date().petalogDisplayDate)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(AppColors.secondaryText)
+                if let user = appState.currentUser {
+                    Text(user.displayName)
+                        .font(.system(size: 12, weight: .regular))
                         .foregroundStyle(AppColors.secondaryText)
-                    if let user = appState.currentUser {
-                        Text(user.displayName)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundStyle(AppColors.secondaryText)
-                    }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.84)
                 }
+            }
+            .frame(width: 156)
 
+            HStack(spacing: 10) {
+
+                NavigationLink {
+                    ProfileScreen()
+                } label: {
+                    IconButtonLabel(systemName: "person.crop.circle")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("プロフィール")
+
+                NavigationLink {
+                    FriendAddScreen()
+                } label: {
+                    IconButtonLabel(systemName: "person.badge.plus")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("友達追加")
                 Spacer()
-
-                HStack(spacing: 10) {
-                    NavigationLink {
-                        ProfileScreen()
-                    } label: {
-                        IconButtonLabel(systemName: "person.crop.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("プロフィール")
-
-                    NavigationLink {
-                        FriendAddScreen()
-                    } label: {
-                        IconButtonLabel(systemName: "person.badge.plus")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("友達追加")
-
-                    NavigationLink {
-                        HomeNotificationScreen()
-                    } label: {
-                        ZStack(alignment: .topTrailing) {
-                            IconButtonLabel(systemName: "bell")
-                            if !appState.incomingFriendRequests.isEmpty {
-                                Circle()
-                                    .fill(AppColors.accentPink)
-                                    .frame(width: 9, height: 9)
-                                    .offset(x: -2, y: 2)
-                            }
+                NavigationLink {
+                    HomeNotificationScreen()
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        IconButtonLabel(systemName: "bell")
+                        if !appState.incomingFriendRequests.isEmpty {
+                            Circle()
+                                .fill(AppColors.accentPink)
+                                .frame(width: 9, height: 9)
+                                .offset(x: -2, y: 2)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("通知")
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("通知")
             }
         }
     }
@@ -114,17 +114,17 @@ struct HomeScreen: View {
 
     private var groupsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(title: "グループ", subtitle: appState.groups.isEmpty ? nil : "絵日記に集まる今日の投稿")
+            SectionHeader(title: "グループ")
 
             if appState.groups.isEmpty {
                 EmptyStateView(systemImage: "person.3", title: "まだグループがありません", message: "グループを作るか、招待コードで参加すると今日の絵日記を始められます。")
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: 0) {
                     ForEach(appState.groups) { group in
                         NavigationLink {
                             DiaryScreen(group: group)
                         } label: {
-                            GroupActivityCard(group: group)
+                            GroupActivityRow(group: group)
                         }
                         .buttonStyle(.plain)
                     }
@@ -248,38 +248,42 @@ struct HomeNotificationScreen: View {
     }
 }
 
-private struct GroupActivityCard: View {
+private struct GroupActivityRow: View {
     let group: PetalogGroup
 
     var body: some View {
-        MetalCard(padding: 16) {
-            HStack(spacing: 14) {
-                GroupIconView(icon: group.icon, iconURL: group.iconURL, imageData: nil, size: 48, fontSize: 24)
+        HStack(spacing: 14) {
+            GroupIconView(icon: group.icon, iconURL: group.iconURL, imageData: nil, size: 46, fontSize: 23)
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(group.name)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(AppColors.mainText)
-                    Text("招待 \(group.inviteCode)")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(AppColors.secondaryText)
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(group.diaryCount)")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(AppColors.mainText)
-                    Text("posts")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(AppColors.secondaryText)
-                }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppColors.darkSilver)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(group.name)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText)
+                Text("招待 \(group.inviteCode)")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(AppColors.secondaryText)
             }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("\(group.diaryCount)")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText)
+                Text("posts")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppColors.darkSilver)
+        }
+        .padding(.vertical, 14)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppColors.border)
+                .frame(height: 0.8)
         }
     }
 }

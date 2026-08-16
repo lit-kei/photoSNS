@@ -105,30 +105,30 @@ struct AttachedBottomTabBar: View {
 
             Circle()
                 .fill(AppColors.pureWhite)
-                .frame(width: 66, height: 66)
+                .frame(width: 62, height: 62)
                 .overlay {
                     Circle()
                         .stroke(AppColors.border, lineWidth: 0.8)
                 }
-                .offset(y: -20)
+                .offset(y: -18)
 
             Button {
                 selection = .camera
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
-                    .frame(width: 52, height: 52)
+                    .frame(width: 48, height: 48)
                     .background(AppColors.accentBlue, in: Circle())
                     .overlay {
-                        Circle().stroke(Color.white.opacity(0.86), lineWidth: 3)
+                        Circle().stroke(Color.white.opacity(0.86), lineWidth: 2.5)
                     }
             }
             .buttonStyle(.plain)
-            .offset(y: -13)
+            .offset(y: -11)
             .accessibilityLabel("カメラ")
         }
-        .frame(maxWidth: .infinity)
+        .frame(width: 286)
         .background(AppColors.pureWhite)
     }
 
@@ -141,14 +141,14 @@ struct AttachedBottomTabBar: View {
             HStack {
                 tabButton(.home)
 
-                Spacer(minLength: 84)
+                Spacer(minLength: 72)
 
                 tabButton(.friends)
             }
-            .padding(.horizontal, 46)
+            .padding(.horizontal, 36)
             .padding(.top, 6)
             .padding(.bottom, 4)
-            .frame(height: 60)
+            .frame(width: 286, height: 56)
             .background(AppColors.pureWhite)
         }
     }
@@ -159,12 +159,12 @@ struct AttachedBottomTabBar: View {
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: tab.systemImage)
-                    .font(.system(size: 19, weight: selection == tab ? .semibold : .regular))
+                    .font(.system(size: 17, weight: selection == tab ? .semibold : .regular))
                 Text(tab.title)
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 8.5, weight: .medium))
             }
             .foregroundStyle(selection == tab ? AppColors.accentPink : AppColors.secondaryText)
-            .frame(width: 64, height: 46)
+            .frame(width: 58, height: 42)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
