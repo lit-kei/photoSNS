@@ -213,7 +213,7 @@ struct DiaryEditorScreen: View {
                         }
                     } label: {
                         Text(tab.rawValue)
-                            .font(.title3.weight(.bold))
+                            .font(.headline.weight(.bold))
                             .foregroundStyle(selectedEditorTab == tab ? AppColors.accentPink : AppColors.mainText)
                             .padding(.horizontal, selectedEditorTab == tab ? 20 : 2)
                             .padding(.vertical, 10)
@@ -239,9 +239,6 @@ struct DiaryEditorScreen: View {
         switch selectedEditorTab {
         case .autoArrange:
             VStack(alignment: .leading, spacing: 8) {
-                Text("写真・文字・スタンプをまとめて、見やすい位置へ並べ直します。")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.secondaryText)
 
                 Button {
                     autoArrangeDiary()
@@ -262,27 +259,21 @@ struct DiaryEditorScreen: View {
                 if case .text(let textID) = selectedElement {
                     textEditingControls(textID: textID)
                 } else {
-                    Text("文字を追加すると、キャンバス上で移動・拡大縮小・回転できます。")
-                        .font(.caption)
-                        .foregroundStyle(AppColors.secondaryText)
-
                     Button {
                         addText()
                     } label: {
                         Text("文字を追加")
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(.black, in: RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppColors.mainText)
+                    .buttonStyle(.plain)
                 }
             }
 
         case .stamp:
             VStack(alignment: .leading, spacing: 9) {
-                Text("追加したスタンプはタップして選択し、位置やレイヤーを調整できます。")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.secondaryText)
-
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(["★", "♥", "!!", "→", "✦", "♪"], id: \.self) { stamp in
@@ -314,9 +305,6 @@ struct DiaryEditorScreen: View {
 
         case .background:
             VStack(alignment: .leading, spacing: 9) {
-                Text("絵日記の背景を選びます。")
-                    .font(.caption)
-                    .foregroundStyle(AppColors.secondaryText)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -853,10 +841,6 @@ struct EditableDiaryCanvas: View {
     @Binding var canvasSize: CGSize
 
     @State private var elementFrames: [CanvasElementID: CGRect] = [:]
-    @State private var lastTapLocation: CGPoint?
-    @State private var lastTapDate = Date.distantPast
-    @State private var tapCandidates: [CanvasElementID] = []
-    @State private var tapCandidateIndex = 0
 
     var body: some View {
         GeometryReader { proxy in
@@ -975,29 +959,12 @@ struct EditableDiaryCanvas: View {
                 }
 
                 selectedInteractionProxy
-
-                if tapCandidates.count > 1, let lastTapLocation {
-                    Text("\(tapCandidateIndex + 1)/\(tapCandidates.count)")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(AppColors.mainText.opacity(0.82), in: Capsule())
-                        .position(indicatorPosition(for: lastTapLocation, in: proxy.size))
-                        .zIndex(3_000_000_000_000)
-                        .allowsHitTesting(false)
-                }
             }
             .coordinateSpace(name: "diaryCanvas")
             .contentShape(Rectangle())
             .onPreferenceChange(DiaryElementFramePreferenceKey.self) { frames in
                 guard frames != elementFrames else { return }
                 elementFrames = frames
-            }
-            .onChange(of: selectedElement) { _, element in
-                if element == nil || element.map({ !tapCandidates.contains($0) }) == true {
-                    resetTapCycle()
-                }
             }
             .simultaneousGesture(
                 SpatialTapGesture()
@@ -1023,7 +990,7 @@ struct EditableDiaryCanvas: View {
     @ViewBuilder
     private var selectedInteractionProxy: some View {
         if let selectedElement,
-           let frame = elementFrames[selectedElement],
+           let frame = interactionFrame(for: selectedElement),
            frame.width.isFinite,
            frame.height.isFinite {
             Color.clear
@@ -1116,41 +1083,52 @@ struct EditableDiaryCanvas: View {
     }
 
     private func selectElement(at location: CGPoint) {
-        let candidates = diaryLayerEntries(diary: diary, stickers: stickers, layouts: layouts)
-            .map(\.element)
-            .filter { elementFrames[$0]?.insetBy(dx: -8, dy: -8).contains(location) == true }
+        let hitEntries = diaryLayerEntries(diary: diary, stickers: stickers, layouts: layouts)
+            .filter { entry in
+                interactionFrame(for: entry.element)?.insetBy(dx: -8, dy: -8).contains(location) == true
+            }
 
-        guard !candidates.isEmpty else {
+        guard !hitEntries.isEmpty else {
             selectedElement = nil
             activeElement = nil
-            resetTapCycle(at: location)
             return
         }
 
-        let isRepeatedTap = tapCandidates == candidates
-            && Date().timeIntervalSince(lastTapDate) < 1.2
-            && lastTapLocation.map { hypot($0.x - location.x, $0.y - location.y) <= 22 } == true
-
-        tapCandidateIndex = isRepeatedTap ? (tapCandidateIndex + 1) % candidates.count : 0
-        tapCandidates = candidates
-        lastTapLocation = location
-        lastTapDate = Date()
-        selectedElement = candidates[tapCandidateIndex]
+        selectedElement = hitEntries.first { entry in
+            if case .sticker = entry.element { return true }
+            return false
+        }?.element ?? hitEntries[0].element
         activeElement = nil
     }
 
-    private func resetTapCycle(at location: CGPoint? = nil) {
-        tapCandidates = []
-        tapCandidateIndex = 0
-        lastTapLocation = location
-        lastTapDate = .distantPast
+    private func interactionFrame(for element: CanvasElementID) -> CGRect? {
+        if case .sticker(let id) = element {
+            return stickerInteractionFrame(id: id)
+        }
+        return elementFrames[element]
     }
 
-    private func indicatorPosition(for location: CGPoint, in size: CGSize) -> CGPoint {
-        CGPoint(
-            x: min(max(location.x + 24, 30), max(size.width - 30, 30)),
-            y: min(max(location.y - 28, 18), max(size.height - 18, 18))
+    private func stickerInteractionFrame(id: String) -> CGRect? {
+        guard let sticker = stickers.first(where: { $0.id == id }) else { return nil }
+        let layout = layouts[id] ?? diary.stickerLayout.first(where: { $0.stickerId == id }) ?? sticker.layout
+        let size = rotatedSize(width: 118 * layout.scale, height: 118 * layout.scale, degrees: layout.rotation)
+        let center = CGPoint(
+            x: canvasSize.width / 2 + layout.x,
+            y: canvasSize.height / 2 + layout.y
         )
+        return CGRect(
+            x: center.x - size.width / 2,
+            y: center.y - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private func rotatedSize(width: Double, height: Double, degrees: Double) -> CGSize {
+        let radians = degrees * .pi / 180
+        let rotatedWidth = abs(width * cos(radians)) + abs(height * sin(radians))
+        let rotatedHeight = abs(width * sin(radians)) + abs(height * cos(radians))
+        return CGSize(width: rotatedWidth, height: rotatedHeight)
     }
 
     private func updateText(_ id: String, mutate: (inout DiaryTextItem) -> Void) {

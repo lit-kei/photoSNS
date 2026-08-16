@@ -54,7 +54,7 @@ struct HomeScreen: View {
         ZStack(alignment: .top) {
             VStack(spacing: 5) {
                 BrandWordmark()
-                
+
             }
             .frame(width: 156)
 
@@ -129,6 +129,8 @@ private struct HomeGroupActionRow: View {
                 .foregroundStyle(AppColors.darkSilver)
         }
         .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(AppColors.border)
@@ -174,6 +176,8 @@ private struct GroupListSection: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
     }
 }
 
@@ -183,10 +187,15 @@ struct HomeNotificationScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                SectionHeader(title: "通知", subtitle: notificationSubtitle)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("通知")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundStyle(AppColors.mainText)
+                }
 
                 if appState.incomingFriendRequests.isEmpty {
-                    EmptyStateView(systemImage: "bell", title: "新しい通知はありません", message: "友達申請などのお知らせがここに表示されます。")
+                    EmptyStateView(systemImage: "bell", title: "新しい通知はありません", message: nil)
                 } else {
                     VStack(spacing: 12) {
                         ForEach(appState.incomingFriendRequests) { request in
@@ -202,13 +211,9 @@ struct HomeNotificationScreen: View {
         .background {
             PetalogMetalBackground()
         }
-        .navigationTitle("通知")
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var notificationSubtitle: String {
-        appState.incomingFriendRequests.isEmpty ? "お知らせはありません" : "\(appState.incomingFriendRequests.count)件の友達申請"
-    }
 
     private func incomingRequestRow(_ request: FriendRequest) -> some View {
         HStack(spacing: 12) {
@@ -324,6 +329,8 @@ private struct GroupActivityRow: View {
                 .foregroundStyle(AppColors.darkSilver)
         }
         .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(AppColors.border)
@@ -421,9 +428,6 @@ struct ProfileScreen: View {
                     }
                     .buttonStyle(.plain)
 
-                    Text("写真を変更")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(AppColors.secondaryText)
 
                     if let currentUser = appState.currentUser {
                         VStack(spacing: 12) {
@@ -642,7 +646,7 @@ private struct StatsStrip: View {
                 Divider().frame(height: 34)
                 ProfileStat(title: "参加中", value: "\(members)")
                 Divider().frame(height: 34)
-                ProfileStat(title: "絵日記", value: "\(diaries)")
+                ProfileStat(title: "投稿", value: "\(diaries)")
             }
             .padding(.vertical, 16)
         }

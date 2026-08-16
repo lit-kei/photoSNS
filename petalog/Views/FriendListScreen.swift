@@ -104,9 +104,6 @@ private struct FriendListRow: View {
                         Text(displayName)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(AppColors.mainText)
-                        Text("プロフィールを見る")
-                            .font(.system(size: 12))
-                            .foregroundStyle(AppColors.secondaryText)
                     }
 
                     Spacer()
@@ -115,6 +112,8 @@ private struct FriendListRow: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(AppColors.darkSilver)
                 }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 

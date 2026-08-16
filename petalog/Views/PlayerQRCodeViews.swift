@@ -17,10 +17,6 @@ struct MyQRCodeSheet: View {
                         Text("My QRコード")
                             .font(.system(size: 30, weight: .bold))
                             .foregroundStyle(AppColors.mainText)
-                        Text("友達に読み取ってもらうと、プロフィールを見つけてもらえます。")
-                            .font(.system(size: 14))
-                            .foregroundStyle(AppColors.secondaryText)
-                            .lineSpacing(3)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 

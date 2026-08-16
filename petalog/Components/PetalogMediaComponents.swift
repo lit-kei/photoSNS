@@ -3,6 +3,7 @@ import SwiftUI
 
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    let orientation: AVCaptureVideoOrientation
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -11,11 +12,21 @@ struct CameraPreview: UIViewRepresentable {
         // photo returned by AVCapturePhotoOutput.
         view.videoPreviewLayer.videoGravity = .resizeAspect
         view.backgroundColor = .black
+        applyOrientation(to: view.videoPreviewLayer)
         return view
     }
 
     func updateUIView(_ uiView: PreviewView, context: Context) {
         uiView.videoPreviewLayer.session = session
+        applyOrientation(to: uiView.videoPreviewLayer)
+    }
+
+    private func applyOrientation(to previewLayer: AVCaptureVideoPreviewLayer) {
+        guard let connection = previewLayer.connection,
+              connection.isVideoOrientationSupported else {
+            return
+        }
+        connection.videoOrientation = orientation
     }
 }
 

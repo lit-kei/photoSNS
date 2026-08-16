@@ -31,7 +31,7 @@ struct FriendTodayFeedSection: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("今日のタイムライン")
-                .font(.system(size: 32, weight: .bold))
+                .font(.system(size: 25, weight: .bold))
                 .foregroundStyle(AppColors.mainText)
         }
     }
@@ -42,7 +42,7 @@ struct FriendTodayFeedSection: View {
             EmptyStateView(
                 systemImage: "text.bubble",
                 title: "今日のブログ投稿はまだありません",
-                message: "自分や友達のブログ投稿がここに新しい順で表示されます。"
+                message: nil
             )
         } else {
             LazyVStack(spacing: 16) {

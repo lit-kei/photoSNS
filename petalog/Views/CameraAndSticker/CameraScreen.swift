@@ -24,8 +24,18 @@ struct CameraScreen: View {
             .background(Color.black)
             .toolbar(.hidden, for: .navigationBar)
             .toolbar(.hidden, for: .tabBar)
-            .onAppear { camera.requestPermissionAndStart() }
-            .onDisappear { camera.stop() }
+            .onAppear {
+                UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+                camera.updateDeviceOrientation(UIDevice.current.orientation)
+                camera.requestPermissionAndStart()
+            }
+            .onDisappear {
+                UIDevice.current.endGeneratingDeviceOrientationNotifications()
+                camera.stop()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                camera.updateDeviceOrientation(UIDevice.current.orientation)
+            }
         }
     }
 
@@ -38,7 +48,7 @@ struct CameraScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
         } else if camera.permissionState == .authorized {
-            CameraPreview(session: camera.session)
+            CameraPreview(session: camera.session, orientation: camera.captureOrientation)
         } else {
             cameraPermissionView
         }

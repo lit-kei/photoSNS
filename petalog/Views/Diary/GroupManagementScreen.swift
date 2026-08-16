@@ -156,7 +156,7 @@ struct GroupManagementScreen: View {
                                 if isJoining {
                                     ProgressView()
                                 } else {
-                                    Label("参加する", systemImage: "qrcode")
+                                    Label("参加する", systemImage: "person.badge.plus")
                                 }
                             }
                             .buttonStyle(SecondaryActionButtonStyle())

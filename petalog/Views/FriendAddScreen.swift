@@ -6,6 +6,7 @@ struct FriendAddScreen: View {
     @State private var selectedProfile: AppUser?
     @State private var isSearching = false
     @State private var friendToDelete: AppFriend?
+    @State private var isShowingMyQR = false
 
     var body: some View {
         ScrollView {
@@ -25,6 +26,14 @@ struct FriendAddScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $selectedProfile) { user in
             FriendProfileScreen(user: user)
+        }
+        .sheet(isPresented: $isShowingMyQR) {
+            if let currentUser = appState.currentUser {
+                MyQRCodeSheet(playerId: currentUser.playerId) { scannedId in
+                    Task { await loadScannedProfile(scannedId) }
+                }
+                .environmentObject(appState)
+            }
         }
         .confirmationDialog(
             "友達を削除しますか？",
@@ -50,10 +59,6 @@ struct FriendAddScreen: View {
             Text("友達追加")
                 .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(AppColors.mainText)
-            Text("プロフィールを確認してからフレンド申請を送れます。")
-                .font(.system(size: 14))
-                .foregroundStyle(AppColors.secondaryText)
-                .lineSpacing(3)
         }
     }
 
@@ -85,6 +90,23 @@ struct FriendAddScreen: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(AppColors.secondaryText)
 
+                Button {
+                    isShowingMyQR = true
+                } label: {
+                    Label("My QRコードを表示", systemImage: "qrcode")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(AppColors.elevatedSurface.opacity(0.96), in: RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                                .stroke(AppColors.border, lineWidth: 0.8)
+                        }
+                }
+                .buttonStyle(.plain)
+                .disabled(appState.currentUser == nil)
+
                 TextField("ユーザーIDを入力", text: $playerId)
                     .keyboardType(.asciiCapable)
                     .textInputAutocapitalization(.never)
@@ -114,7 +136,7 @@ struct FriendAddScreen: View {
         VStack(spacing: 18) {
             ControlSection(title: "届いた申請") {
                 if appState.incomingFriendRequests.isEmpty {
-                    EmptyStateView(systemImage: "tray", title: "申請はありません", message: "友達から申請が届くとここに表示されます。")
+                    EmptyStateView(systemImage: "tray", title: "申請はありません", message: nil)
                 } else {
                     VStack(spacing: 10) {
                         ForEach(appState.incomingFriendRequests) { request in
@@ -126,7 +148,7 @@ struct FriendAddScreen: View {
 
             ControlSection(title: "送信中") {
                 if appState.outgoingFriendRequests.isEmpty {
-                    EmptyStateView(systemImage: "paperplane", title: "送信中の申請はありません", message: "申請を送ると承認待ちとして表示されます。")
+                    EmptyStateView(systemImage: "paperplane", title: "送信中の申請はありません", message: nil)
                 } else {
                     VStack(spacing: 10) {
                         ForEach(appState.outgoingFriendRequests) { request in
@@ -141,7 +163,7 @@ struct FriendAddScreen: View {
     private var friendsSection: some View {
         ControlSection(title: "友達") {
             if appState.friends.isEmpty {
-                EmptyStateView(systemImage: "person.2", title: "まだ友達がいません", message: "承認された友達がここに表示されます。")
+                EmptyStateView(systemImage: "person.2", title: "まだ友達がいません", message: nil)
             } else {
                 VStack(spacing: 10) {
                     ForEach(appState.friends) { friend in
@@ -192,6 +214,15 @@ struct FriendAddScreen: View {
         Task {
             await appState.removeFriend(friend)
             friendToDelete = nil
+        }
+    }
+
+    private func loadScannedProfile(_ playerId: String) async {
+        let user = await appState.findUser(playerId: playerId)
+        if let user {
+            selectedProfile = user
+        } else if appState.errorMessage == nil {
+            appState.errorMessage = "QRコードのユーザーが見つかりません。"
         }
     }
 

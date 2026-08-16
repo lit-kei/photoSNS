@@ -499,7 +499,7 @@ struct MemberAvatarStack: View {
 struct EmptyStateView: View {
     let systemImage: String
     let title: String
-    let message: String
+    let message: String?
 
     var body: some View {
         VStack(spacing: 10) {
@@ -509,11 +509,13 @@ struct EmptyStateView: View {
             Text(title)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(AppColors.mainText)
-            Text(message)
-                .font(.system(size: 14))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(AppColors.secondaryText)
-                .lineSpacing(3)
+            if let message {
+                Text(message)
+                    .font(.system(size: 14))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(AppColors.secondaryText)
+                    .lineSpacing(3)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(24)

@@ -20,6 +20,7 @@ final class CameraService: NSObject, ObservableObject {
     @Published var errorMessage: String?
     @Published var isCapturing = false
     @Published private(set) var cameraPosition: AVCaptureDevice.Position = .back
+    @Published private(set) var captureOrientation: AVCaptureVideoOrientation = .portrait
 
     let session = AVCaptureSession()
     private let output = AVCapturePhotoOutput()
@@ -53,9 +54,13 @@ final class CameraService: NSObject, ObservableObject {
         guard !isCapturing else { return }
         isCapturing = true
         errorMessage = nil
+        let orientation = captureOrientation
 
         sessionQueue.async { [weak self] in
             guard let self else { return }
+            if let connection = self.output.connection(with: .video) {
+                Self.apply(orientation, to: connection)
+            }
             self.output.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
         }
     }
@@ -88,6 +93,22 @@ final class CameraService: NSObject, ObservableObject {
         }
     }
 
+    func updateDeviceOrientation(_ deviceOrientation: UIDeviceOrientation) {
+        guard let nextOrientation = AVCaptureVideoOrientation(deviceOrientation: deviceOrientation),
+              nextOrientation != captureOrientation else {
+            return
+        }
+
+        captureOrientation = nextOrientation
+        sessionQueue.async { [weak self] in
+            guard let self,
+                  let connection = self.output.connection(with: .video) else {
+                return
+            }
+            Self.apply(nextOrientation, to: connection)
+        }
+    }
+
     private func syncPermissionState() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
@@ -101,6 +122,7 @@ final class CameraService: NSObject, ObservableObject {
 
     private func configureAndStart() {
         let position = cameraPosition
+        let orientation = captureOrientation
         sessionQueue.async { [weak self] in
             guard let self else { return }
             self.session.beginConfiguration()
@@ -125,8 +147,8 @@ final class CameraService: NSObject, ObservableObject {
             if !self.session.outputs.contains(self.output), self.session.canAddOutput(self.output) {
                 self.session.addOutput(self.output)
             }
-            if let connection = self.output.connection(with: .video), connection.isVideoOrientationSupported {
-                connection.videoOrientation = .portrait
+            if let connection = self.output.connection(with: .video) {
+                Self.apply(orientation, to: connection)
             }
             self.session.commitConfiguration()
 
@@ -138,6 +160,12 @@ final class CameraService: NSObject, ObservableObject {
 
     private var hasFrontCamera: Bool {
         AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) != nil
+    }
+
+    private static func apply(_ orientation: AVCaptureVideoOrientation, to connection: AVCaptureConnection) {
+        if connection.isVideoOrientationSupported {
+            connection.videoOrientation = orientation
+        }
     }
 }
 
@@ -166,6 +194,21 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
             self.capturedImage = image.fixedOrientation().petalogResized(maxDimension: 2_000)
             self.isCapturing = false
             self.stop()
+        }
+    }
+}
+
+private extension AVCaptureVideoOrientation {
+    init?(deviceOrientation: UIDeviceOrientation) {
+        switch deviceOrientation {
+        case .portrait:
+            self = .portrait
+        case .landscapeLeft:
+            self = .landscapeRight
+        case .landscapeRight:
+            self = .landscapeLeft
+        default:
+            return nil
         }
     }
 }

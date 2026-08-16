@@ -84,6 +84,8 @@ private struct CreationModeRow: View {
                 .foregroundStyle(AppColors.darkSilver)
         }
         .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(AppColors.border)
