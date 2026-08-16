@@ -91,14 +91,49 @@ struct HomeScreen: View {
         Button {
             isShowingGroupOptions = true
         } label: {
-            Label("グループ", systemImage: "person.3")
-                .frame(maxWidth: .infinity)
+            HomeGroupActionRow()
         }
-        .buttonStyle(SecondaryActionButtonStyle())
+        .buttonStyle(.plain)
     }
 
     private var friendFeedSection: some View {
         FriendTodayFeedSection()
+    }
+}
+
+private struct HomeGroupActionRow: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "person.3.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(AppColors.mainText)
+                .frame(width: 46, height: 46)
+                .background(AppColors.chromeHighlight.opacity(0.78), in: Circle())
+                .overlay {
+                    Circle().stroke(AppColors.border, lineWidth: 0.8)
+                }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("グループ")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText)
+                Text("作成・参加")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(AppColors.secondaryText)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppColors.darkSilver)
+        }
+        .padding(.vertical, 14)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppColors.border)
+                .frame(height: 0.8)
+        }
     }
 }
 
