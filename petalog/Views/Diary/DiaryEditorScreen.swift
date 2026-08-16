@@ -75,8 +75,6 @@ struct DiaryEditorScreen: View {
                     canvasSize: $canvasSize
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-
-                editorDock
             } else {
                 ProgressView("絵日記を読み込み中")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -91,12 +89,17 @@ struct DiaryEditorScreen: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.bottom, draftDiary == nil ? 8 : 0)
         .background {
             ZStack {
                 PetalogMetalBackground()
                 InteractivePopGestureDisabler()
                     .frame(width: 0, height: 0)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if draftDiary != nil {
+                editorBottomSheet
             }
         }
         .navigationTitle("絵日記編集")
@@ -163,32 +166,45 @@ struct DiaryEditorScreen: View {
     }
 
     @ViewBuilder
-    private var editorDock: some View {
-        VStack(spacing: 10) {
-            if selectedElement != nil {
-                selectedObjectSummary
-            }
+    private var editorBottomSheet: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 10) {
+                if selectedElement != nil {
+                    selectedObjectSummary
+                }
 
-            editorTabBar
+                editorTabContent
+            }
+            .controlSize(.regular)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity)
+            .background(.white)
 
             Divider()
-                .overlay(AppColors.border.opacity(0.7))
+                .overlay(AppColors.border.opacity(0.55))
 
-            editorTabContent
+            editorBottomTabBar
         }
-        .controlSize(.regular)
-        .padding(12)
         .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                .stroke(AppColors.border, lineWidth: 0.8)
-        }
+        .background(.white)
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: AppRadius.card,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: AppRadius.card,
+                style: .continuous
+            )
+        )
+        .shadow(color: .black.opacity(0.10), radius: 14, x: 0, y: -4)
+        .ignoresSafeArea(.container, edges: .bottom)
     }
 
-    private var editorTabBar: some View {
+    private var editorBottomTabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 22) {
                 ForEach(DiaryEditorTab.allCases) { tab in
                     Button {
                         withAnimation(.easeInOut(duration: 0.16)) {
@@ -196,24 +212,25 @@ struct DiaryEditorScreen: View {
                         }
                     } label: {
                         Text(tab.rawValue)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(selectedEditorTab == tab ? .white : AppColors.mainText)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 9)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(selectedEditorTab == tab ? AppColors.accentPink : AppColors.mainText)
+                            .padding(.horizontal, selectedEditorTab == tab ? 20 : 2)
+                            .padding(.vertical, 10)
+                            .frame(minWidth: 76)
                             .background {
                                 Capsule()
-                                    .fill(selectedEditorTab == tab ? AppColors.burntOrange : AppColors.surface.opacity(0.92))
-                            }
-                            .overlay {
-                                Capsule()
-                                    .stroke(AppColors.border.opacity(selectedEditorTab == tab ? 0 : 0.8), lineWidth: 0.8)
+                                    .fill(selectedEditorTab == tab ? AppColors.accentPink.opacity(0.15) : .clear)
                             }
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
         }
+        .frame(maxWidth: .infinity)
+        .background(.white)
     }
 
     @ViewBuilder
@@ -812,6 +829,7 @@ struct EditableDiaryCanvas: View {
                             scaleRange: 0.5...3,
                             selectedElement: $selectedElement,
                             activeElement: $activeElement,
+                            allowsDirectHitTesting: false,
                             updatePosition: { x, y in
                                 updateText(item.id) {
                                     $0.x = x
@@ -847,6 +865,7 @@ struct EditableDiaryCanvas: View {
                             scaleRange: 0.5...3,
                             selectedElement: $selectedElement,
                             activeElement: $activeElement,
+                            allowsDirectHitTesting: false,
                             updatePosition: { x, y in
                                 updateStamp(item.id) {
                                     $0.x = x
@@ -882,6 +901,7 @@ struct EditableDiaryCanvas: View {
                             scaleRange: 0.55...1.8,
                             selectedElement: $selectedElement,
                             activeElement: $activeElement,
+                            allowsDirectHitTesting: false,
                             updatePosition: { x, y in
                                 updateSticker(sticker) {
                                     $0.x = x
@@ -908,6 +928,7 @@ struct EditableDiaryCanvas: View {
                 }
             }
             .coordinateSpace(name: "diaryCanvas")
+            .contentShape(Rectangle())
             .onPreferenceChange(DiaryElementFramePreferenceKey.self) { frames in
                 guard frames != elementFrames else { return }
                 elementFrames = frames
@@ -968,6 +989,7 @@ struct EditableDiaryCanvas: View {
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
                 raisesWhenActive: true,
+                allowsDirectHitTesting: true,
                 updatePosition: { x, y in updateText(id) { $0.x = x; $0.y = y } },
                 updateScale: { scale in updateText(id) { $0.scale = scale } },
                 updateRotation: { rotation in updateText(id) { $0.rotation = rotation } }
@@ -985,6 +1007,7 @@ struct EditableDiaryCanvas: View {
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
                 raisesWhenActive: true,
+                allowsDirectHitTesting: true,
                 updatePosition: { x, y in updateStamp(id) { $0.x = x; $0.y = y } },
                 updateScale: { scale in updateStamp(id) { $0.scale = scale } },
                 updateRotation: { rotation in updateStamp(id) { $0.rotation = rotation } }
@@ -1003,6 +1026,7 @@ struct EditableDiaryCanvas: View {
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
                 raisesWhenActive: true,
+                allowsDirectHitTesting: true,
                 updatePosition: { x, y in
                     guard let sticker else { return }
                     updateSticker(sticker) { $0.x = x; $0.y = y }
@@ -1085,6 +1109,7 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     @Binding var selectedElement: CanvasElementID?
     @Binding var activeElement: CanvasElementID?
     var raisesWhenActive = false
+    var allowsDirectHitTesting = true
     let updatePosition: (Double, Double) -> Void
     let updateScale: (Double) -> Void
     let updateRotation: (Double) -> Void
@@ -1104,7 +1129,7 @@ private struct DiaryElementInteractionModifier: ViewModifier {
             .contentShape(Rectangle())
             .opacity(isDimmed ? 0.25 : 1)
             .zIndex(displayZIndex)
-            .allowsHitTesting(!isDimmed)
+            .allowsHitTesting(allowsDirectHitTesting && !isDimmed)
             .animation(.easeOut(duration: 0.15), value: isDimmed)
             .highPriorityGesture(dragGesture)
             .simultaneousGesture(scaleGesture)

@@ -22,9 +22,11 @@ struct FriendListScreen: View {
                 } else {
                     VStack(spacing: 0) {
                         ForEach(appState.friends) { friend in
+                            let latestProfile = appState.observedUserProfiles[friend.friendId]
                             FriendListRow(
                                 friend: friend,
-                                onOpen: { selectedProfile = friend.profileUser },
+                                latestProfile: latestProfile,
+                                onOpen: { selectedProfile = friend.profileUser(latestProfile: latestProfile) },
                                 onDelete: { friendToDelete = friend }
                             )
                         }
@@ -68,6 +70,7 @@ struct FriendListScreen: View {
 
 private struct FriendListRow: View {
     let friend: AppFriend
+    let latestProfile: AppUser?
     let onOpen: () -> Void
     let onDelete: () -> Void
 
@@ -75,10 +78,10 @@ private struct FriendListRow: View {
         HStack(spacing: 12) {
             Button(action: onOpen) {
                 HStack(spacing: 12) {
-                    FriendListAvatar(friend: friend)
+                    FriendListAvatar(friend: friend, latestProfile: latestProfile)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(friend.friendName)
+                        Text(displayName)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(AppColors.mainText)
                         Text("プロフィールを見る")
@@ -103,7 +106,7 @@ private struct FriendListRow: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(friend.friendName)を削除")
+            .accessibilityLabel("\(displayName)を削除")
         }
         .padding(.vertical, 14)
         .overlay(alignment: .bottom) {
@@ -112,11 +115,18 @@ private struct FriendListRow: View {
                 .frame(height: 0.8)
         }
     }
+
+    private var displayName: String {
+        latestProfile?.displayName ?? friend.friendName
+    }
 }
 
 private extension AppFriend {
-    var profileUser: AppUser {
-        AppUser(
+    func profileUser(latestProfile: AppUser?) -> AppUser {
+        if let latestProfile {
+            return latestProfile
+        }
+        return AppUser(
             id: friendId,
             email: friendEmail,
             displayName: friendName,
@@ -128,17 +138,18 @@ private extension AppFriend {
 
 private struct FriendListAvatar: View {
     let friend: AppFriend
+    let latestProfile: AppUser?
 
     var body: some View {
         Group {
-            if let avatarURL = friend.friendAvatarURL, !avatarURL.isEmpty {
+            if let avatarURL = latestProfile?.avatarURL ?? friend.friendAvatarURL, !avatarURL.isEmpty {
                 RemoteImageView(urlString: avatarURL) {
                     placeholder
                 }
-            } else if friend.friendAvatar.isEmpty {
+            } else if avatarText.isEmpty {
                 placeholder
             } else {
-                Text(friend.friendAvatar)
+                Text(avatarText)
                     .font(.system(size: 22))
             }
         }
@@ -154,5 +165,9 @@ private struct FriendListAvatar: View {
         Image(systemName: "person.fill")
             .font(.system(size: 17, weight: .semibold))
             .foregroundStyle(AppColors.mainText.opacity(0.72))
+    }
+
+    private var avatarText: String {
+        latestProfile?.avatar ?? friend.friendAvatar
     }
 }

@@ -26,6 +26,7 @@ struct ContentView: View {
                 signedInTabs
             }
         }
+        .dismissKeyboardOnOutsideTap()
         .task {
             appState.stickerUploadCoordinator.setAppActive(scenePhase == .active)
             appState.stickerUploadCoordinator.prepareNotifications()

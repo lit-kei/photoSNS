@@ -30,7 +30,7 @@ struct FriendTodayFeedSection: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("友達の投稿")
+            Text("今日のタイムラインn")
                 .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(AppColors.mainText)
         }
@@ -38,22 +38,19 @@ struct FriendTodayFeedSection: View {
 
     @ViewBuilder
     private var feedContent: some View {
-        if appState.friends.isEmpty {
+        if appState.friendTodayStickers.isEmpty {
             EmptyStateView(
-                systemImage: "person.2",
-                title: "まだ友達がいません",
-                message: "友達ができると、ここに今日の投稿が表示されます。"
-            )
-        } else if appState.friendTodayStickers.isEmpty {
-            EmptyStateView(
-                systemImage: "photo.on.rectangle",
-                title: "今日の投稿はまだありません",
-                message: "友達が写真を撮ると、ここに新しい順で表示されます。"
+                systemImage: "text.bubble",
+                title: "今日のブログ投稿はまだありません",
+                message: "自分や友達のブログ投稿がここに新しい順で表示されます。"
             )
         } else {
             LazyVStack(spacing: 16) {
                 ForEach(appState.friendTodayStickers) { sticker in
-                    FriendFeedCard(sticker: sticker)
+                    FriendFeedCard(
+                        sticker: sticker,
+                        latestProfile: appState.observedUserProfiles[sticker.authorId]
+                    )
                 }
             }
         }
@@ -62,6 +59,7 @@ struct FriendTodayFeedSection: View {
 
 private struct FriendFeedCard: View {
     let sticker: StickerPost
+    let latestProfile: AppUser?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -79,7 +77,9 @@ private struct FriendFeedCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(sticker.authorName)
+                    BlogAuthorAvatar(sticker: sticker, latestProfile: latestProfile)
+
+                    Text(displayName)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(AppColors.mainText)
                     Spacer()
@@ -104,6 +104,46 @@ private struct FriendFeedCard: View {
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
+    }
+
+    private var displayName: String {
+        latestProfile?.displayName ?? sticker.authorName
+    }
+}
+
+private struct BlogAuthorAvatar: View {
+    let sticker: StickerPost
+    let latestProfile: AppUser?
+
+    var body: some View {
+        Group {
+            if let avatarURL = latestProfile?.avatarURL, !avatarURL.isEmpty {
+                RemoteImageView(urlString: avatarURL) {
+                    placeholder
+                }
+            } else if avatarText.isEmpty {
+                placeholder
+            } else {
+                Text(avatarText)
+                    .font(.system(size: 14))
+            }
+        }
+        .frame(width: 28, height: 28)
+        .background(AppColors.chromeHighlight.opacity(0.78))
+        .clipShape(Circle())
+        .overlay {
+            Circle().stroke(AppColors.border, lineWidth: 0.7)
+        }
+    }
+
+    private var avatarText: String {
+        latestProfile?.avatar ?? sticker.authorAvatar
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "person.fill")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(AppColors.mainText.opacity(0.72))
     }
 }
 

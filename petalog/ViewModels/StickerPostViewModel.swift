@@ -18,8 +18,8 @@ final class StickerPostViewModel: ObservableObject {
         self.services = services
     }
 
-    func upload(stickerPNG: Data, draft: StickerDraft, groups: [PetalogGroup], user: AppUser) async -> [StickerPost] {
-        guard !groups.isEmpty else { return [] }
+    func upload(stickerPNG: Data, draft: StickerDraft, groups: [PetalogGroup], publishToBlog: Bool = false, user: AppUser) async -> [StickerPost] {
+        guard publishToBlog || !groups.isEmpty else { return [] }
         isUploading = true
         uploadProgress = 0
         uploadStage = .uploading(0)
@@ -31,6 +31,7 @@ final class StickerPostViewModel: ObservableObject {
                 stickerPNG: stickerPNG,
                 draft: draft,
                 groups: groups,
+                publishToBlog: publishToBlog,
                 user: user,
                 onStageChange: { [weak self] stage in
                     Task { @MainActor in

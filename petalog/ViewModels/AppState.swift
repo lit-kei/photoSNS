@@ -14,6 +14,7 @@ final class AppState: ObservableObject {
     @Published var groups: [PetalogGroup] = []
     @Published var friends: [AppFriend] = []
     @Published var friendTodayStickers: [StickerPost] = []
+    @Published private(set) var observedUserProfiles: [String: AppUser] = [:]
     @Published var incomingFriendRequests: [FriendRequest] = []
     @Published var outgoingFriendRequests: [FriendRequest] = []
     @Published private(set) var unreadPostCounts: [String: Int] = [:]
@@ -34,6 +35,7 @@ final class AppState: ObservableObject {
     private var initializingReadStateGroupIds: Set<String> = []
     private var friendListener: ListenerRegistration?
     private var friendTodayStickerListeners: [ListenerRegistration] = []
+    private var userProfileListeners: [String: ListenerRegistration] = [:]
     private var incomingFriendRequestListener: ListenerRegistration?
     private var outgoingFriendRequestListener: ListenerRegistration?
     private var pendingAccount: AuthenticatedAccount?
@@ -276,6 +278,8 @@ final class AppState: ObservableObject {
             try await services.auth.updateProfile(user: user)
             didPersistProfile = true
             currentUser = user
+            observedUserProfiles[user.id] = user
+            reconcileObservedUserProfiles()
             try await services.groups.syncMemberProfile(user)
             if let previousAvatarURL,
                previousAvatarURL != uploadedAvatarURL?.absoluteString,
@@ -397,27 +401,29 @@ final class AppState: ObservableObject {
                     self?.errorMessage = error.localizedDescription
                 } else {
                     self?.friends = friends
-                    self?.observeTodayFriendStickers(for: friends)
+                    self?.observeTodayBlogStickers(for: friends)
+                    self?.reconcileObservedUserProfiles()
                 }
             }
         }
     }
 
-    private func observeTodayFriendStickers(for friends: [AppFriend]) {
+    private func observeTodayBlogStickers(for friends: [AppFriend]) {
         removeFriendTodayStickerListeners()
-        let friendIds = friends.map(\.friendId)
-        guard !friendIds.isEmpty else {
+        guard let currentUser else {
             friendTodayStickers = []
             return
         }
+        let authorIds = friends.map(\.friendId) + [currentUser.id]
 
-        friendTodayStickerListeners = services.stickers.observeTodayFriendStickers(friendIds: friendIds) { [weak self] stickers, error in
+        friendTodayStickerListeners = services.stickers.observeTodayBlogStickers(authorIds: authorIds) { [weak self] stickers, error in
             Task { @MainActor in
                 if let error {
                     guard !error.isPetalogOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
                 } else {
                     self?.friendTodayStickers = stickers
+                    self?.reconcileObservedUserProfiles()
                 }
             }
         }
@@ -455,6 +461,7 @@ final class AppState: ObservableObject {
         observeGroupReadStates(for: userId)
         observeFriends(for: userId)
         observeFriendRequests(for: userId)
+        reconcileObservedUserProfiles()
         if let currentUser, currentUser.id == userId {
             Task {
                 do {
@@ -520,11 +527,13 @@ final class AppState: ObservableObject {
         friendListener?.remove()
         friendListener = nil
         removeFriendTodayStickerListeners()
+        removeUserProfileListeners()
         incomingFriendRequestListener?.remove()
         incomingFriendRequestListener = nil
         outgoingFriendRequestListener?.remove()
         outgoingFriendRequestListener = nil
         currentUser = nil
+        observedUserProfiles = [:]
         groups = []
         friends = []
         friendTodayStickers = []
@@ -540,6 +549,44 @@ final class AppState: ObservableObject {
     private func removeFriendTodayStickerListeners() {
         friendTodayStickerListeners.forEach { $0.remove() }
         friendTodayStickerListeners = []
+    }
+
+    private func reconcileObservedUserProfiles() {
+        var activeUserIds = Set<String>()
+        if let currentUser {
+            activeUserIds.insert(currentUser.id)
+            observedUserProfiles[currentUser.id] = currentUser
+        }
+        activeUserIds.formUnion(friends.map(\.friendId).filter { !$0.isEmpty })
+        activeUserIds.formUnion(friendTodayStickers.map(\.authorId).filter { !$0.isEmpty })
+
+        for userId in Set(userProfileListeners.keys).subtracting(activeUserIds) {
+            userProfileListeners.removeValue(forKey: userId)?.remove()
+            observedUserProfiles.removeValue(forKey: userId)
+        }
+
+        for userId in activeUserIds where userProfileListeners[userId] == nil {
+            userProfileListeners[userId] = services.friends.observeUserProfile(userId: userId) { [weak self] profile, error in
+                Task { @MainActor in
+                    guard let self,
+                          self.userProfileListeners[userId] != nil else { return }
+                    if let error {
+                        guard !error.isPetalogOfflineFirestoreError else { return }
+                        self.errorMessage = error.localizedDescription
+                    } else if let profile {
+                        self.observedUserProfiles[userId] = profile
+                        if self.currentUser?.id == userId {
+                            self.currentUser = profile
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func removeUserProfileListeners() {
+        userProfileListeners.values.forEach { $0.remove() }
+        userProfileListeners = [:]
     }
 
     private func applyIncomingFriendRequests(_ requests: [FriendRequest]) {

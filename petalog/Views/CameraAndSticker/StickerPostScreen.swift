@@ -7,6 +7,7 @@ struct StickerPostScreen: View {
     let stickerPNG: Data
     let draft: StickerDraft
     @State private var selectedGroupIDs: Set<String> = []
+    @State private var publishToBlog = true
     @State private var submissionError: String?
 
     var body: some View {
@@ -29,16 +30,34 @@ struct StickerPostScreen: View {
                     EmptyStateView(systemImage: "exclamationmark.triangle.fill", title: "ステッカー生成待ち", message: "戻ってもう一度「完成」を押してください。")
                 }
 
-                ControlSection(title: "投稿するグループ") {
-                    if appState.groups.isEmpty {
-                        EmptyStateView(systemImage: "person.3.fill", title: "投稿先がありません", message: "先にグループを作るか参加してください。")
-                    } else {
-                        VStack(spacing: 10) {
+                ControlSection(title: "投稿先") {
+                    VStack(spacing: 10) {
+                        Button {
+                            publishToBlog.toggle()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "text.bubble.fill")
+                                    .foregroundStyle(AppColors.burntOrange)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("タイムライン")
+                                        .font(.headline)
+                                        .foregroundStyle(AppColors.mainText)
+                                }
+                                Spacer()
+                                Image(systemName: publishToBlog ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(publishToBlog ? AppColors.mainText : AppColors.secondaryText)
+                            }
+                        }
+                        .buttonStyle(ListRowButtonStyle())
+
+                        if appState.groups.isEmpty {
+                            EmptyStateView(systemImage: "person.3.fill", title: "グループ投稿先がありません", message: "ブログだけでも投稿できます。")
+                        } else {
                             Button {
                                 toggleAllGroups()
                             } label: {
                                 HStack {
-                                    Text(areAllGroupsSelected ? "すべて解除" : "すべて選択")
+                                    Text(areAllGroupsSelected ? "グループをすべて解除" : "グループをすべて選択")
                                         .font(.subheadline.weight(.semibold))
                                     Spacer()
                                     Image(systemName: areAllGroupsSelected ? "checkmark.circle.fill" : "circle")
@@ -74,7 +93,7 @@ struct StickerPostScreen: View {
                 StickerSubmissionControl(
                     networkMonitor: appState.networkMonitor,
                     coordinator: appState.stickerUploadCoordinator,
-                    isSelectionValid: !selectedGroupIDs.isEmpty && !stickerPNG.isEmpty,
+                    isSelectionValid: (publishToBlog || !selectedGroupIDs.isEmpty) && !stickerPNG.isEmpty,
                     title: uploadButtonTitle,
                     onSubmit: submit
                 )
@@ -88,11 +107,6 @@ struct StickerPostScreen: View {
         }
         .navigationTitle("投稿")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            if selectedGroupIDs.isEmpty, let firstGroup = appState.groups.first {
-                selectedGroupIDs.insert(firstGroup.id)
-            }
-        }
         .alert("投稿を開始できません", isPresented: Binding(
             get: { submissionError != nil },
             set: { if !$0 { submissionError = nil } }
@@ -113,6 +127,7 @@ struct StickerPostScreen: View {
             stickerPNG: stickerPNG,
             draft: draft,
             groups: selectedGroups,
+            publishToBlog: publishToBlog,
             user: user
         )
         if let error {
@@ -123,9 +138,12 @@ struct StickerPostScreen: View {
     }
 
     private var uploadButtonTitle: String {
-        selectedGroupIDs.count <= 1
-            ? "絵日記に追加する"
-            : "\(selectedGroupIDs.count)個のグループに追加する"
+        switch (publishToBlog, selectedGroupIDs.count) {
+        case (false, 0):
+            return "投稿先を選択してください"
+        default:
+            return "投稿"
+        }
     }
 
     private var areAllGroupsSelected: Bool {
@@ -163,6 +181,7 @@ private struct StickerSubmissionControl: View {
             }
             .buttonStyle(PrimaryActionButtonStyle())
             .disabled(!isSelectionValid || networkMonitor.status != .online || coordinator.state.isRunning)
+            .opacity(isSelectionValid ? 1.0 : 0.5)
 
             if let message = statusMessage {
                 Text(message)

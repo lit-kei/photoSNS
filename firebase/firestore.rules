@@ -12,6 +12,18 @@ service cloud.firestore {
         && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
     }
 
+    function stickerTarget(stickerData) {
+      return stickerData.keys().hasAny(['target']) ? stickerData.target : 'group';
+    }
+
+    function isBlogVisible(authorId) {
+      return signedIn()
+        && (
+          request.auth.uid == authorId
+          || exists(/databases/$(database)/documents/friendships/$(request.auth.uid + "_" + authorId))
+        );
+    }
+
     match /users/{userId} {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == userId;
@@ -36,10 +48,18 @@ service cloud.firestore {
     }
 
     match /stickers/{stickerId} {
-      allow read: if isGroupMember(resource.data.groupId);
+      allow read: if (stickerTarget(resource.data) == 'group' && isGroupMember(resource.data.groupId))
+        || (stickerTarget(resource.data) == 'blog' && isBlogVisible(resource.data.authorId));
       allow create: if signedIn()
         && request.auth.uid == request.resource.data.authorId
-        && isGroupMember(request.resource.data.groupId);
+        && (
+          (stickerTarget(request.resource.data) == 'group' && isGroupMember(request.resource.data.groupId))
+          || (
+            stickerTarget(request.resource.data) == 'blog'
+            && request.resource.data.groupId == ''
+            && request.resource.data.diaryId == ''
+          )
+        );
       allow delete: if signedIn() && request.auth.uid == resource.data.authorId;
       allow update: if false;
     }

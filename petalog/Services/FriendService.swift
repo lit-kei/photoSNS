@@ -24,6 +24,25 @@ final class FriendService {
             }
     }
 
+    func observeUserProfile(userId: String, onChange: @escaping (AppUser?, Error?) -> Void) -> ListenerRegistration {
+        db.collection("users").document(userId)
+            .addSnapshotListener { snapshot, error in
+                if let error {
+                    onChange(nil, error)
+                    return
+                }
+
+                guard let snapshot,
+                      snapshot.exists,
+                      let data = snapshot.data() else {
+                    onChange(nil, nil)
+                    return
+                }
+
+                onChange(AppUser(id: snapshot.documentID, data: data), nil)
+            }
+    }
+
     func observeIncomingRequests(userId: String, onChange: @escaping ([FriendRequest], Error?) -> Void) -> ListenerRegistration {
         observeRequests(field: "toUserId", userId: userId, onChange: onChange)
     }

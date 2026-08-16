@@ -2,8 +2,14 @@ import FirebaseFirestore
 import Foundation
 import SwiftUI
 
+enum StickerPostTarget: String, Hashable {
+    case group
+    case blog
+}
+
 struct StickerPost: Identifiable, Hashable {
     let id: String
+    var target: StickerPostTarget
     var assetId: String
     var groupId: String
     var diaryId: String
@@ -22,6 +28,7 @@ struct StickerPost: Identifiable, Hashable {
 
     init(
         id: String = UUID().uuidString,
+        target: StickerPostTarget = .group,
         assetId: String,
         groupId: String,
         diaryId: String,
@@ -39,6 +46,7 @@ struct StickerPost: Identifiable, Hashable {
         createdAt: Date = Date()
     ) {
         self.id = id
+        self.target = target
         self.assetId = assetId
         self.groupId = groupId
         self.diaryId = diaryId
@@ -58,6 +66,7 @@ struct StickerPost: Identifiable, Hashable {
 
     init(id: String, data: [String: Any]) {
         self.id = id
+        self.target = StickerPostTarget(rawValue: data["target"] as? String ?? "") ?? .group
         self.assetId = data["assetId"] as? String ?? ""
         self.groupId = data["groupId"] as? String ?? ""
         self.diaryId = data["diaryId"] as? String ?? ""
@@ -77,6 +86,7 @@ struct StickerPost: Identifiable, Hashable {
 
     var dictionary: [String: Any] {
         [
+            "target": target.rawValue,
             "assetId": assetId,
             "groupId": groupId,
             "diaryId": diaryId,

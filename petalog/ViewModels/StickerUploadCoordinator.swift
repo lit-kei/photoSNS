@@ -25,6 +25,7 @@ private struct PendingStickerUpload {
     let stickerPNG: Data
     let draft: StickerDraft
     let groups: [PetalogGroup]
+    let publishToBlog: Bool
     let user: AppUser
 }
 
@@ -45,7 +46,7 @@ final class StickerUploadCoordinator: ObservableObject {
         self.networkMonitor = networkMonitor
     }
 
-    func submit(stickerPNG: Data, draft: StickerDraft, groups: [PetalogGroup], user: AppUser) -> String? {
+    func submit(stickerPNG: Data, draft: StickerDraft, groups: [PetalogGroup], publishToBlog: Bool, user: AppUser) -> String? {
         guard networkMonitor.status == .online else {
             return networkMonitor.status == .checking
                 ? "通信状態を確認しています。少し待ってからもう一度お試しください。"
@@ -54,9 +55,9 @@ final class StickerUploadCoordinator: ObservableObject {
         guard !state.isRunning else {
             return "別の投稿を保存しています。完了してからもう一度お試しください。"
         }
-        guard !groups.isEmpty else { return "投稿先のグループを選択してください。" }
+        guard publishToBlog || !groups.isEmpty else { return "ブログまたは投稿先のグループを選択してください。" }
 
-        let upload = PendingStickerUpload(stickerPNG: stickerPNG, draft: draft, groups: groups, user: user)
+        let upload = PendingStickerUpload(stickerPNG: stickerPNG, draft: draft, groups: groups, publishToBlog: publishToBlog, user: user)
         failedUpload = nil
         start(upload)
         return nil
@@ -112,6 +113,7 @@ final class StickerUploadCoordinator: ObservableObject {
                     stickerPNG: upload.stickerPNG,
                     draft: upload.draft,
                     groups: upload.groups,
+                    publishToBlog: upload.publishToBlog,
                     user: upload.user,
                     onStageChange: { [weak self] stage in
                         Task { @MainActor in self?.apply(stage) }
@@ -122,7 +124,7 @@ final class StickerUploadCoordinator: ObservableObject {
                 failedUpload = nil
                 await sendCompletionNotificationIfNeeded(
                     title: "投稿しました",
-                    body: "写真を絵日記に追加しました。"
+                    body: "写真の投稿を保存しました。"
                 )
                 scheduleSuccessDismissal()
             } catch {

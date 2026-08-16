@@ -62,20 +62,21 @@ final class StickerService {
             }
     }
 
-    func observeTodayFriendStickers(friendIds: [String], onChange: @escaping ([StickerPost], Error?) -> Void) -> [ListenerRegistration] {
-        let uniqueFriendIds = Array(Set(friendIds)).sorted()
-        guard !uniqueFriendIds.isEmpty else {
+    func observeTodayBlogStickers(authorIds: [String], onChange: @escaping ([StickerPost], Error?) -> Void) -> [ListenerRegistration] {
+        let uniqueAuthorIds = Array(Set(authorIds).filter { !$0.isEmpty }).sorted()
+        guard !uniqueAuthorIds.isEmpty else {
             onChange([], nil)
             return []
         }
 
         let todayKey = Date().petalogDateKey
-        let chunks = uniqueFriendIds.chunked(into: 10)
+        let chunks = uniqueAuthorIds.chunked(into: 10)
         let lock = NSLock()
         var postsByChunk: [Int: [String: StickerPost]] = [:]
 
         return chunks.enumerated().map { index, ids in
             db.collection("stickers")
+                .whereField("target", isEqualTo: StickerPostTarget.blog.rawValue)
                 .whereField("dateKey", isEqualTo: todayKey)
                 .whereField("authorId", in: ids)
                 .addSnapshotListener { snapshot, error in
@@ -103,10 +104,11 @@ final class StickerService {
         stickerPNG: Data,
         draft: StickerDraft,
         groups: [PetalogGroup],
+        publishToBlog: Bool,
         user: AppUser,
         onStageChange: @escaping (StickerUploadStage) -> Void = { _ in }
     ) async throws -> [StickerPost] {
-        guard !groups.isEmpty else { return [] }
+        guard publishToBlog || !groups.isEmpty else { return [] }
         guard !stickerPNG.isEmpty, stickerPNG.count <= Self.maximumStickerBytes else {
             throw PetalogError.message("ステッカー画像が大きすぎます。もう一度作成してください。")
         }
@@ -123,7 +125,42 @@ final class StickerService {
         let stickerURL = try await upload(data: stickerPNG, path: storagePath, onStageChange: onStageChange)
         onStageChange(.savingPost)
         let createdAt = Date()
-        let posts = groups.enumerated().map { index, group in
+        var posts: [StickerPost] = []
+
+        if publishToBlog {
+            let postId = UUID().uuidString
+            let layout = StickerLayout(
+                stickerId: postId,
+                x: Double.random(in: -80...80),
+                y: Double.random(in: -140...140),
+                scale: Double.random(in: 0.86...1.12),
+                rotation: Double.random(in: -13...13),
+                zIndex: Int(createdAt.timeIntervalSince1970)
+            )
+            posts.append(
+                StickerPost(
+                    id: postId,
+                    target: .blog,
+                    assetId: assetId,
+                    groupId: "",
+                    diaryId: "",
+                    dateKey: dateKey,
+                    authorId: user.id,
+                    authorName: user.displayName,
+                    authorAvatar: user.avatar,
+                    comment: draft.comment.trimmedForPetalog,
+                    shape: draft.shape,
+                    decoration: draft.decoration,
+                    creationMode: draft.creationMode,
+                    effect: draft.effect,
+                    stickerImageURL: stickerURL.absoluteString,
+                    layout: layout,
+                    createdAt: createdAt
+                )
+            )
+        }
+
+        let groupPosts = groups.enumerated().map { index, group in
             let postId = UUID().uuidString
             let diaryId = "\(group.id)_\(dateKey)"
             let layout = StickerLayout(
@@ -136,6 +173,7 @@ final class StickerService {
             )
             return StickerPost(
                 id: postId,
+                target: .group,
                 assetId: assetId,
                 groupId: group.id,
                 diaryId: diaryId,
@@ -153,6 +191,7 @@ final class StickerService {
                 createdAt: createdAt
             )
         }
+        posts.append(contentsOf: groupPosts)
 
         let batch = db.batch()
         batch.setData(
@@ -165,7 +204,10 @@ final class StickerService {
             ],
             forDocument: db.collection("stickerAssets").document(assetId)
         )
-        for (group, post) in zip(groups, posts) {
+        if publishToBlog, let blogPost = posts.first(where: { $0.target == .blog }) {
+            batch.setData(blogPost.dictionary, forDocument: db.collection("stickers").document(blogPost.id))
+        }
+        for (group, post) in zip(groups, groupPosts) {
             batch.setData(
                 [
                     "groupId": group.id,
@@ -201,23 +243,25 @@ final class StickerService {
         }
 
         let stickerRef = db.collection("stickers").document(sticker.id)
-        let diaryRef = db.collection("diaries").document(sticker.diaryId)
         let assetRef = db.collection("stickerAssets").document(sticker.assetId)
-        let groupRef = db.collection("groups").document(sticker.groupId)
 
         let result = try await db.runTransaction { transaction, errorPointer -> Any? in
             do {
                 let assetSnapshot = try transaction.getDocument(assetRef)
-                let diarySnapshot = try transaction.getDocument(diaryRef)
                 let referenceCount = (assetSnapshot.data()?["referenceCount"] as? NSNumber)?.intValue ?? 1
-                var diaryData = diarySnapshot.data() ?? [:]
-                let layouts = diaryData["stickerLayout"] as? [[String: Any]] ?? []
-                diaryData["stickerLayout"] = layouts.filter { $0["stickerId"] as? String != sticker.id }
-                diaryData["updatedAt"] = FieldValue.serverTimestamp()
 
                 transaction.deleteDocument(stickerRef)
-                transaction.setData(diaryData, forDocument: diaryRef, merge: true)
-                transaction.updateData(["diaryCount": FieldValue.increment(Int64(-1))], forDocument: groupRef)
+                if sticker.target == .group {
+                    let diaryRef = self.db.collection("diaries").document(sticker.diaryId)
+                    let groupRef = self.db.collection("groups").document(sticker.groupId)
+                    let diarySnapshot = try transaction.getDocument(diaryRef)
+                    var diaryData = diarySnapshot.data() ?? [:]
+                    let layouts = diaryData["stickerLayout"] as? [[String: Any]] ?? []
+                    diaryData["stickerLayout"] = layouts.filter { $0["stickerId"] as? String != sticker.id }
+                    diaryData["updatedAt"] = FieldValue.serverTimestamp()
+                    transaction.setData(diaryData, forDocument: diaryRef, merge: true)
+                    transaction.updateData(["diaryCount": FieldValue.increment(Int64(-1))], forDocument: groupRef)
+                }
 
                 if assetSnapshot.exists {
                     if referenceCount <= 1 {
