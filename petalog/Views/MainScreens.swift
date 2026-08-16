@@ -28,12 +28,7 @@ struct HomeScreen: View {
             .background {
                 PetalogMetalBackground()
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if showsRootTabBar {
-                    AttachedBottomTabBar(selection: $appState.selectedTab)
-                        .ignoresSafeArea(.keyboard, edges: .bottom)
-                }
-            }
+            .rootTabBar(shows: showsRootTabBar, selection: $appState.selectedTab)
             .toolbar(.hidden, for: .navigationBar)
             .confirmationDialog("グループ", isPresented: $isShowingGroupOptions, titleVisibility: .visible) {
                 Button("グループを作る") {
@@ -58,9 +53,7 @@ struct HomeScreen: View {
     private var header: some View {
         ZStack(alignment: .top) {
             VStack(spacing: 5) {
-                Text("petalog")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(AppColors.accentPink)
+                BrandWordmark()
                 
             }
             .frame(width: 156)
@@ -316,7 +309,6 @@ struct MemoriesScreen: View {
                         Text("絵日記")
                             .font(.system(size: 34, weight: .bold))
                             .foregroundStyle(AppColors.mainText)
-                        Text("グループの今日のページ")
                             .font(.system(size: 15))
                             .foregroundStyle(AppColors.secondaryText)
                     }
@@ -330,12 +322,7 @@ struct MemoriesScreen: View {
             .background {
                 PetalogMetalBackground()
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if showsRootTabBar {
-                    AttachedBottomTabBar(selection: $appState.selectedTab)
-                        .ignoresSafeArea(.keyboard, edges: .bottom)
-                }
-            }
+            .rootTabBar(shows: showsRootTabBar, selection: $appState.selectedTab)
             .toolbar(.hidden, for: .navigationBar)
         }
     }
@@ -406,7 +393,7 @@ struct ProfileScreen: View {
                     if let currentUser = appState.currentUser {
                         VStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("プレイヤーID")
+                                Text("ユーザーID")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(AppColors.secondaryText)
                                 Text(currentUser.playerId)
@@ -503,12 +490,7 @@ struct ProfileScreen: View {
         .background {
             PetalogMetalBackground()
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if showsRootTabBar {
-                AttachedBottomTabBar(selection: $appState.selectedTab)
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
-            }
-        }
+        .rootTabBar(shows: showsRootTabBar, selection: $appState.selectedTab)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             displayName = appState.currentUser?.displayName ?? ""

@@ -14,12 +14,7 @@ struct FriendFeedScreen: View {
         .background {
             PetalogMetalBackground()
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if showsRootTabBar {
-                AttachedBottomTabBar(selection: $appState.selectedTab)
-                    .ignoresSafeArea(.keyboard, edges: .bottom)
-            }
-        }
+        .rootTabBar(shows: showsRootTabBar, selection: $appState.selectedTab)
     }
 }
 

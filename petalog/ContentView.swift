@@ -187,3 +187,25 @@ struct AttachedBottomTabBar: View {
         .accessibilityLabel(tab.title)
     }
 }
+
+private struct RootTabBarModifier: ViewModifier {
+    let shows: Bool
+    @Binding var selection: AppTab
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaPadding(.bottom, shows ? 72 : 0)
+            .overlay(alignment: .bottom) {
+                if shows {
+                    AttachedBottomTabBar(selection: $selection)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)
+                }
+            }
+    }
+}
+
+extension View {
+    func rootTabBar(shows: Bool, selection: Binding<AppTab>) -> some View {
+        modifier(RootTabBarModifier(shows: shows, selection: selection))
+    }
+}

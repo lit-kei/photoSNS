@@ -169,7 +169,7 @@ struct BrandWordmark: View {
     var body: some View {
         Text("petalog")
             .font(.system(size: 39, weight: .heavy, design: .rounded))
-            .foregroundStyle(AppColors.mainText)
+            .foregroundStyle(AppColors.accentPink)
             .tracking(0.4)
     }
 }

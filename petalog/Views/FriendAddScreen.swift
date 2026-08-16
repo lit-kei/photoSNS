@@ -5,6 +5,7 @@ struct FriendAddScreen: View {
     @State private var playerId = ""
     @State private var selectedProfile: AppUser?
     @State private var isSearching = false
+    @State private var friendToDelete: AppFriend?
 
     var body: some View {
         ScrollView {
@@ -25,6 +26,23 @@ struct FriendAddScreen: View {
         .navigationDestination(item: $selectedProfile) { user in
             FriendProfileScreen(user: user)
         }
+        .confirmationDialog(
+            "友達を削除しますか？",
+            isPresented: Binding(
+                get: { friendToDelete != nil },
+                set: { if !$0 { friendToDelete = nil } }
+            ),
+            presenting: friendToDelete
+        ) { friend in
+            Button("削除", role: .destructive) {
+                deleteFriend(friend)
+            }
+            Button("キャンセル", role: .cancel) {
+                friendToDelete = nil
+            }
+        } message: { friend in
+            Text("\(friend.friendName)を友達一覧から削除します。")
+        }
     }
 
     private var header: some View {
@@ -44,7 +62,7 @@ struct FriendAddScreen: View {
             VStack(alignment: .leading, spacing: 12) {
                 if let currentUser = appState.currentUser {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("あなたのプレイヤーID")
+                        Text("あなたのユーザーID")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(AppColors.secondaryText)
                         Text(currentUser.playerId)
@@ -63,11 +81,11 @@ struct FriendAddScreen: View {
                     }
                 }
 
-                Label("プレイヤーIDで探す", systemImage: "number")
+                Label("ユーザーIDで探す", systemImage: "number")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(AppColors.secondaryText)
 
-                TextField("プレイヤーIDを入力", text: $playerId)
+                TextField("ユーザーIDを入力", text: $playerId)
                     .keyboardType(.asciiCapable)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -139,6 +157,20 @@ struct FriendAddScreen: View {
                             FriendRow(friend: friend)
                         }
                         .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                friendToDelete = friend
+                            } label: {
+                                Label("削除", systemImage: "trash")
+                            }
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                friendToDelete = friend
+                            } label: {
+                                Label("友達を削除", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -152,7 +184,14 @@ struct FriendAddScreen: View {
         if let user {
             selectedProfile = user
         } else if appState.errorMessage == nil {
-            appState.errorMessage = "このプレイヤーIDのユーザーが見つかりません。"
+            appState.errorMessage = "このユーザーIDのユーザーが見つかりません。"
+        }
+    }
+
+    private func deleteFriend(_ friend: AppFriend) {
+        Task {
+            await appState.removeFriend(friend)
+            friendToDelete = nil
         }
     }
 
@@ -199,7 +238,7 @@ struct FriendProfileScreen: View {
                         .font(.system(size: 27, weight: .bold))
                         .foregroundStyle(AppColors.mainText)
 
-                    Text("player ID \(user.playerId)")
+                    Text("ユーザーID \(user.playerId)")
                         .font(.system(size: 12, weight: .medium, design: .monospaced))
                         .foregroundStyle(AppColors.secondaryText)
                         .multilineTextAlignment(.center)

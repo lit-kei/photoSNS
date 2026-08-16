@@ -211,6 +211,15 @@ final class AppState: ObservableObject {
         }
     }
 
+    func removeFriend(_ friend: AppFriend) async {
+        guard let currentUser else { return }
+        do {
+            try await services.friends.removeFriend(friend, currentUser: currentUser)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func openNotifications() {
         selectedTab = .home
         isShowingNotifications = true

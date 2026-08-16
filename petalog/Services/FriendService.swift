@@ -152,6 +152,17 @@ final class FriendService {
         )
     }
 
+    func removeFriend(_ friend: AppFriend, currentUser: AppUser) async throws {
+        guard friend.userId == currentUser.id else { return }
+        let currentFriendId = "\(currentUser.id)_\(friend.friendId)"
+        let reverseFriendId = "\(friend.friendId)_\(currentUser.id)"
+
+        let batch = db.batch()
+        batch.deleteDocument(db.collection("friendships").document(currentFriendId))
+        batch.deleteDocument(db.collection("friendships").document(reverseFriendId))
+        try await batch.commit()
+    }
+
     private func observeRequests(field: String, userId: String, onChange: @escaping ([FriendRequest], Error?) -> Void) -> ListenerRegistration {
         db.collection("friendRequests")
             .whereField(field, isEqualTo: userId)

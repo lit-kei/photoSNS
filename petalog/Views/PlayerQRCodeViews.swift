@@ -37,7 +37,7 @@ struct MyQRCodeSheet: View {
                                 }
 
                             VStack(spacing: 6) {
-                                Text("プレイヤーID")
+                                Text("ユーザーID")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(AppColors.secondaryText)
                                 Text(playerId)
