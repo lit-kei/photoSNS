@@ -473,28 +473,6 @@ struct ProfileScreen: View {
                     diaries: appState.groups.reduce(0) { $0 + $1.diaryCount }
                 )
 
-                MetalCard(padding: 16) {
-                    HStack(spacing: 14) {
-                        Image(systemName: "scissors")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(AppColors.mainText)
-                            .frame(width: 42, height: 42)
-                            .background(AppColors.dustyPink.opacity(0.18))
-                            .clipShape(Circle())
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("作ったステッカー")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(AppColors.mainText)
-                            Text("ギャラリーは今後ここに表示されます")
-                                .font(.system(size: 12))
-                                .foregroundStyle(AppColors.secondaryText)
-                        }
-
-                        Spacer()
-                    }
-                }
-
                 Button("ログアウト") {
                     appState.signOut()
                 }

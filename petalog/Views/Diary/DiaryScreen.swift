@@ -20,10 +20,18 @@ struct DiaryScreen: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            diaryPageViewport
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 0) {
+                HStack {
+                    Text(selectedDate.petalogDisplayDate)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppColors.secondaryText)
+                    Spacer()
+                }
+                diaryPageViewport
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            diaryEditArea
+                diaryEditArea
+            }
 
             if let error = viewModel.errorMessage {
                 Text(error)
@@ -146,7 +154,7 @@ struct DiaryScreen: View {
             } label: {
                 Label("絵日記を編集", systemImage: "pencil.and.outline")
             }
-            .buttonStyle(SecondaryActionButtonStyle())
+            .buttonStyle(PrimaryActionButtonStyle())
         } else {
             pastDiaryEditButton
         }
@@ -154,14 +162,14 @@ struct DiaryScreen: View {
 
     private var pastDiaryEditButton: some View {
         Button {
-            isShowingPastEditExplanation = true
+            changeDate(to: Date())
         } label: {
-            Label("絵日記を編集", systemImage: "lock.fill")
+            Label("今日の絵日記へ", systemImage: "calendar.badge.clock")
         }
         .buttonStyle(SecondaryActionButtonStyle())
         .opacity(0.48)
-        .accessibilityLabel("過去の絵日記は編集できません")
-        .accessibilityHint("タップすると編集できない理由を表示します")
+        .background(AppColors.accentBlue.opacity(0.72))
+        .accessibilityLabel("今日の絵日記へ移動します")
     }
 
     private var diaryEditButtonPlaceholder: some View {
@@ -334,7 +342,7 @@ private struct DateNavigator: View {
                     .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
                     .disabled(!canMoveForward)
                 }
-
+/*
                 Group {
                     if canMoveForward {
                         Button(action: moveToday) {
@@ -346,18 +354,10 @@ private struct DateNavigator: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(AppColors.mainText)
-                    } else {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.left.and.right")
-                                .font(.system(size: 11, weight: .semibold))
-                            Text("左右にスワイプして日付を移動")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .foregroundStyle(AppColors.secondaryText)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 30)
+                .frame(height: 30)*/
             }
         }
     }
