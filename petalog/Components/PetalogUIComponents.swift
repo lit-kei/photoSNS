@@ -11,21 +11,38 @@ struct StickerUploadBanner: View {
 
     var body: some View {
         if coordinator.state != .idle {
-            HStack(spacing: 12) {
-                statusIcon
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(AppColors.mainText)
-                    if let detailText {
-                        Text(detailText)
-                            .font(.caption)
-                            .foregroundStyle(AppColors.secondaryText)
-                            .lineLimit(2)
+            VStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    statusIcon
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppColors.mainText)
+                        if let detailText {
+                            Text(detailText)
+                                .font(.caption)
+                                .foregroundStyle(AppColors.secondaryText)
+                                .lineLimit(2)
+                        }
                     }
+                    Spacer(minLength: 4)
+                    actions
                 }
-                Spacer(minLength: 4)
-                actions
+
+                if showsProgressBar {
+                    ProgressView(value: progressValue)
+                        .progressViewStyle(.linear)
+                        .tint(progressTint)
+                        .scaleEffect(x: 1, y: 0.78, anchor: .center)
+                        .accessibilityLabel(progressAccessibilityLabel)
+                        .accessibilityValue(progressAccessibilityValue)
+                } else if coordinator.state == .resolvingURL || coordinator.state == .savingPost {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .tint(AppColors.accentBlue)
+                        .scaleEffect(x: 1, y: 0.78, anchor: .center)
+                        .accessibilityLabel("投稿処理中")
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
@@ -35,9 +52,52 @@ struct StickerUploadBanner: View {
                 RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: coordinator.state)
+            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 5)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .animation(.spring(response: 0.3, dampingFraction: 0.86), value: coordinator.state != .idle)
         }
+    }
+
+    private var showsProgressBar: Bool {
+        switch coordinator.state {
+        case .uploading, .success:
+            true
+        default:
+            false
+        }
+    }
+
+    private var progressValue: Double {
+        switch coordinator.state {
+        case .uploading(let progress):
+            min(max(progress, 0), 1)
+        case .success:
+            1
+        default:
+            0
+        }
+    }
+
+    private var progressTint: Color {
+        switch coordinator.state {
+        case .success:
+            .green
+        default:
+            AppColors.accentBlue
+        }
+    }
+
+    private var progressAccessibilityLabel: String {
+        switch coordinator.state {
+        case .success:
+            "投稿完了"
+        default:
+            "アップロード進捗"
+        }
+    }
+
+    private var progressAccessibilityValue: String {
+        "\(Int((progressValue * 100).rounded()))パーセント"
     }
 
     @ViewBuilder

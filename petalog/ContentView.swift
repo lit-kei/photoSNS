@@ -54,10 +54,10 @@ struct ContentView: View {
         Group {
             tabContent(for: appState.selectedTab)
         }
-        .overlay(alignment: .top) {
+        .overlay(alignment: .bottom) {
             StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.bottom, uploadBannerBottomPadding)
         }
         .sheet(isPresented: $appState.isShowingNotifications) {
             NavigationStack {
@@ -65,6 +65,15 @@ struct ContentView: View {
                     .environmentObject(appState)
             }
             .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var uploadBannerBottomPadding: CGFloat {
+        switch appState.selectedTab {
+        case .home, .friends:
+            72
+        default:
+            18
         }
     }
 

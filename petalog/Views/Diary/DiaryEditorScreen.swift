@@ -189,6 +189,13 @@ struct DiaryEditorScreen: View {
 
                     HStack(spacing: 8) {
                         Button {
+                            autoArrangeDiary()
+                        } label: {
+                            Label("自動配置", systemImage: "sparkles")
+                        }
+                        .disabled(!canAutoArrange)
+
+                        Button {
                             addText()
                         } label: {
                             Label("文字", systemImage: "text.badge.plus")
@@ -433,6 +440,35 @@ struct DiaryEditorScreen: View {
         let width = canvasSize.width > 0 ? canvasSize.width : max(UIScreen.main.bounds.width - 40, 320)
         let height = canvasSize.height > 0 ? canvasSize.height : 480
         return CGPoint(x: width / 2, y: height / 2)
+    }
+
+    private var canAutoArrange: Bool {
+        guard let draftDiary else { return false }
+        return !draftDiary.textItems.isEmpty || !draftDiary.stampItems.isEmpty || !viewModel.stickers.isEmpty
+    }
+
+    private func autoArrangeDiary() {
+        guard var page = draftDiary, canAutoArrange else { return }
+        inputBuffer.apply(to: &page)
+        let size = normalizedCanvasSize
+        let result = DiaryAutoArranger.arrange(
+            diary: page,
+            stickers: viewModel.stickers,
+            layouts: localLayouts,
+            canvasSize: size
+        )
+        activeElement = nil
+        selectedElement = nil
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            draftDiary = result.diary
+            localLayouts = result.layouts
+        }
+    }
+
+    private var normalizedCanvasSize: CGSize {
+        let width = canvasSize.width > 0 ? canvasSize.width : max(UIScreen.main.bounds.width - 40, 320)
+        let height = canvasSize.height > 0 ? canvasSize.height : 480
+        return CGSize(width: max(width, 240), height: max(height, 320))
     }
 
     private func addText() {
@@ -1175,6 +1211,464 @@ private func applyDiaryLayerOrder(
             layout.zIndex = zIndex
             layouts[id] = layout
         }
+    }
+}
+
+private struct DiaryAutoArrangeResult {
+    var diary: DiaryPage
+    var layouts: [String: StickerLayout]
+}
+
+private struct AutoArrangeElement: Identifiable {
+    enum Kind {
+        case sticker
+        case text
+        case stamp
+    }
+
+    let id: CanvasElementID
+    let kind: Kind
+    let baseSize: CGSize
+    var center: CGPoint
+    var rotation: Double
+    var zIndex: Int
+    var scale: Double
+
+    var frame: CGRect {
+        let radians = rotation * .pi / 180
+        let width = baseSize.width * scale
+        let height = baseSize.height * scale
+        let rotatedWidth = abs(width * cos(radians)) + abs(height * sin(radians))
+        let rotatedHeight = abs(width * sin(radians)) + abs(height * cos(radians))
+        return CGRect(
+            x: center.x - rotatedWidth / 2,
+            y: center.y - rotatedHeight / 2,
+            width: rotatedWidth,
+            height: rotatedHeight
+        )
+    }
+}
+
+private enum DiaryAutoArranger {
+    private static let safeInset: CGFloat = 14
+    private static let randomTrialCount = 8
+    private static let movementSteps: [CGFloat] = [32, 16, 8]
+    private static let maximumPassesPerStep = 3
+    private static let candidateDirections: [CGVector] = [
+        CGVector(dx: 1, dy: 0),
+        CGVector(dx: -1, dy: 0),
+        CGVector(dx: 0, dy: 1),
+        CGVector(dx: 0, dy: -1),
+        CGVector(dx: 1, dy: 1),
+        CGVector(dx: 1, dy: -1),
+        CGVector(dx: -1, dy: 1),
+        CGVector(dx: -1, dy: -1)
+    ]
+
+    static func arrange(
+        diary: DiaryPage,
+        stickers: [StickerPost],
+        layouts: [String: StickerLayout],
+        canvasSize: CGSize
+    ) -> DiaryAutoArrangeResult {
+        let size = CGSize(width: max(canvasSize.width, 240), height: max(canvasSize.height, 320))
+        let originalElements = makeElements(diary: diary, stickers: stickers, layouts: layouts, canvasSize: size)
+        guard !originalElements.isEmpty else {
+            return DiaryAutoArrangeResult(diary: diary, layouts: layouts)
+        }
+
+        var bestElements = originalElements
+        var bestScore = -Double.infinity
+        for _ in 0..<randomTrialCount {
+            var candidate = randomized(originalElements, canvasSize: size)
+            candidate = greedilyImprove(candidate, canvasSize: size)
+            let score = evaluate(candidate, canvasSize: size)
+            if score > bestScore {
+                bestScore = score
+                bestElements = candidate
+            }
+        }
+
+        return apply(elements: bestElements, to: diary, stickers: stickers, layouts: layouts, canvasSize: size)
+    }
+
+    private static func makeElements(
+        diary: DiaryPage,
+        stickers: [StickerPost],
+        layouts: [String: StickerLayout],
+        canvasSize: CGSize
+    ) -> [AutoArrangeElement] {
+        var elements: [AutoArrangeElement] = []
+
+        for item in diary.textItems {
+            elements.append(AutoArrangeElement(
+                id: .text(item.id),
+                kind: .text,
+                baseSize: estimatedTextSize(item.text),
+                center: CGPoint(x: item.x, y: item.y),
+                rotation: item.rotation,
+                zIndex: item.zIndex,
+                scale: item.scale
+            ))
+        }
+
+        for item in diary.stampItems {
+            elements.append(AutoArrangeElement(
+                id: .stamp(item.id),
+                kind: .stamp,
+                baseSize: CGSize(width: 48, height: 48),
+                center: CGPoint(x: item.x, y: item.y),
+                rotation: item.rotation,
+                zIndex: item.zIndex,
+                scale: item.scale
+            ))
+        }
+
+        for sticker in stickers {
+            let layout = layouts[sticker.id]
+                ?? diary.stickerLayout.first(where: { $0.stickerId == sticker.id })
+                ?? sticker.layout
+            elements.append(AutoArrangeElement(
+                id: .sticker(sticker.id),
+                kind: .sticker,
+                baseSize: CGSize(width: 118, height: 118),
+                center: CGPoint(
+                    x: canvasSize.width / 2 + layout.x,
+                    y: canvasSize.height / 2 + layout.y
+                ),
+                rotation: layout.rotation,
+                zIndex: layout.zIndex,
+                scale: layout.scale
+            ))
+        }
+
+        return elements
+    }
+
+    private static func randomized(_ elements: [AutoArrangeElement], canvasSize: CGSize) -> [AutoArrangeElement] {
+        let zOrder = elements.indices.shuffled()
+        var zIndexes = Array(repeating: 0, count: elements.count)
+        for (zIndex, elementIndex) in zOrder.enumerated() {
+            zIndexes[elementIndex] = zIndex
+        }
+
+        return elements.enumerated().map { index, element in
+            var next = element
+            next.rotation = Double.random(in: -30...30)
+            next.zIndex = zIndexes[index]
+            next.center = randomCenter(for: next, canvasSize: canvasSize)
+            return next
+        }
+    }
+
+    private static func greedilyImprove(
+        _ elements: [AutoArrangeElement],
+        canvasSize: CGSize
+    ) -> [AutoArrangeElement] {
+        var current = elements
+        var currentScore = evaluate(current, canvasSize: canvasSize)
+
+        for step in movementSteps {
+            for _ in 0..<maximumPassesPerStep {
+                var improvedThisPass = false
+                for index in current.indices {
+                    var bestCandidate = current
+                    var bestScore = currentScore
+
+                    for direction in candidateDirections.shuffled() {
+                        var candidate = current
+                        candidate[index].center.x += direction.dx * step
+                        candidate[index].center.y += direction.dy * step
+                        candidate[index].center = clampedCenter(for: candidate[index], canvasSize: canvasSize)
+                        let score = evaluate(candidate, canvasSize: canvasSize)
+                        if score > bestScore {
+                            bestScore = score
+                            bestCandidate = candidate
+                        }
+                    }
+
+                    if bestScore > currentScore + 0.001 {
+                        current = bestCandidate
+                        currentScore = bestScore
+                        improvedThisPass = true
+                    }
+                }
+                if !improvedThisPass { break }
+            }
+        }
+
+        return current
+    }
+    private static func evaluate(
+        _ elements: [AutoArrangeElement],
+        canvasSize: CGSize
+    ) -> Double {
+        guard !elements.isEmpty else { return 0 }
+
+        let frames = elements.map(\.frame)
+        let canvasRect = CGRect(origin: .zero, size: canvasSize)
+
+        var score = 0.0
+
+        // =========================================================
+        // 1. 文字 × 画像の重なりを最優先で排除する
+        // =========================================================
+
+        var textStickerViolation = 0.0
+
+        for i in elements.indices {
+            for j in elements.indices where j > i {
+                guard isTextPhotoPair(elements[i], elements[j]) else {
+                    continue
+                }
+
+                let overlap = frames[i].intersection(frames[j]).area
+
+                if overlap > 0 {
+                    // 重なっている面積そのものを違反量にする
+                    textStickerViolation += Double(overlap)
+                }
+            }
+        }
+
+        // 通常の評価値より圧倒的に大きい係数を使う。
+        //
+        // これにより、
+        // 「文字と画像が重なっているが、全体として綺麗」
+        // よりも
+        // 「多少レイアウトが悪くても、文字と画像が重なっていない」
+        // 方が必ず優先される。
+        let textStickerPenalty = textStickerViolation * 10000.0
+        score -= textStickerPenalty
+
+        // =========================================================
+        // 2. キャンバス外へのはみ出し
+        // =========================================================
+
+        for frame in frames {
+            let outsideArea = frame.area - frame.intersection(canvasRect).area
+            score -= Double(outsideArea) * 2.4
+        }
+
+        // =========================================================
+        // 3. その他の要素同士の重なり
+        // =========================================================
+
+        for i in elements.indices {
+            for j in elements.indices where j > i {
+                let overlap = frames[i].intersection(frames[j]).area
+
+                guard overlap > 0 else {
+                    continue
+                }
+
+                let first = elements[i]
+                let second = elements[j]
+
+                // 文字 × 画像については、
+                // すでに上で特別扱いしているのでここでは除外
+                if isTextPhotoPair(first, second) {
+                    continue
+                }
+
+                let smallerArea = max(
+                    min(frames[i].area, frames[j].area),
+                    1
+                )
+
+                let ratio = Double(overlap / smallerArea)
+
+                let penalty = overlapPenalty(
+                    first,
+                    second,
+                    overlapRatio: ratio
+                )
+
+                let frontCoverageMultiplier =
+                    frontCoverageMultiplier(first, second)
+
+                score -= Double(overlap)
+                    * penalty
+                    * frontCoverageMultiplier
+            }
+        }
+
+        // =========================================================
+        // 4. 使用領域
+        // =========================================================
+
+        let unionFrame = frames.reduce(frames[0]) {
+            $0.union($1)
+        }
+
+        let usedRatio = min(
+            max(
+                unionFrame.area
+                    / max(
+                        canvasSize.width * canvasSize.height,
+                        1
+                    ),
+                0
+            ),
+            1
+        )
+
+        let targetRatio = min(
+            0.62,
+            max(
+                0.24,
+                CGFloat(elements.count) * 0.11
+            )
+        )
+
+        if usedRatio < targetRatio {
+            score -= Double(
+                (targetRatio - usedRatio)
+                    * canvasSize.width
+                    * canvasSize.height
+            ) * 0.18
+        }
+
+        // =========================================================
+        // 5. 中央への偏り
+        // =========================================================
+
+        let canvasCenter = CGPoint(
+            x: canvasSize.width / 2,
+            y: canvasSize.height / 2
+        )
+
+        let averageDistance = elements.reduce(0.0) {
+            $0 + hypot(
+                $1.center.x - canvasCenter.x,
+                $1.center.y - canvasCenter.y
+            )
+        } / Double(elements.count)
+
+        if averageDistance < 48, elements.count > 2 {
+            score -= (48 - averageDistance) * 8
+        }
+
+        // =========================================================
+        // 6. 外側の余白
+        // =========================================================
+
+        let outerMargin = min(
+            unionFrame.minX,
+            unionFrame.minY,
+            canvasSize.width - unionFrame.maxX,
+            canvasSize.height - unionFrame.maxY
+        )
+
+        if outerMargin < safeInset {
+            score -= Double(safeInset - outerMargin) * 18
+        }
+
+        return score
+    }
+    private static func overlapPenalty(
+        _ first: AutoArrangeElement,
+        _ second: AutoArrangeElement,
+        overlapRatio: Double
+    ) -> Double {
+
+        switch (first.kind, second.kind) {
+        case (.sticker, .sticker):
+            return 1.4
+
+        case (.stamp, .stamp):
+            return 1.15
+
+        case (.text, .text):
+            return 1.25
+
+        default:
+            return 0.85
+        }
+    }
+
+    private static func frontCoverageMultiplier(_ first: AutoArrangeElement, _ second: AutoArrangeElement) -> Double {
+        first.zIndex == second.zIndex ? 1 : 1 + Double(abs(first.zIndex - second.zIndex)) * 0.035
+    }
+
+    private static func isTextPhotoPair(_ first: AutoArrangeElement, _ second: AutoArrangeElement) -> Bool {
+        (first.kind == .text && second.kind == .sticker) || (first.kind == .sticker && second.kind == .text)
+    }
+
+    private static func apply(
+        elements: [AutoArrangeElement],
+        to diary: DiaryPage,
+        stickers: [StickerPost],
+        layouts: [String: StickerLayout],
+        canvasSize: CGSize
+    ) -> DiaryAutoArrangeResult {
+        var page = diary
+        var nextLayouts = layouts
+
+        for element in elements {
+            switch element.id {
+            case .text(let id):
+                guard let index = page.textItems.firstIndex(where: { $0.id == id }) else { continue }
+                page.textItems[index].x = element.center.x
+                page.textItems[index].y = element.center.y
+                page.textItems[index].rotation = element.rotation
+                page.textItems[index].zIndex = element.zIndex
+            case .stamp(let id):
+                guard let index = page.stampItems.firstIndex(where: { $0.id == id }) else { continue }
+                page.stampItems[index].x = element.center.x
+                page.stampItems[index].y = element.center.y
+                page.stampItems[index].rotation = element.rotation
+                page.stampItems[index].zIndex = element.zIndex
+            case .sticker(let id):
+                guard let sticker = stickers.first(where: { $0.id == id }) else { continue }
+                var layout = nextLayouts[id]
+                    ?? page.stickerLayout.first(where: { $0.stickerId == id })
+                    ?? sticker.layout
+                layout.x = element.center.x - canvasSize.width / 2
+                layout.y = element.center.y - canvasSize.height / 2
+                layout.rotation = element.rotation
+                layout.zIndex = element.zIndex
+                nextLayouts[id] = layout
+            }
+        }
+
+        return DiaryAutoArrangeResult(diary: page, layouts: nextLayouts)
+    }
+
+    private static func estimatedTextSize(_ text: String) -> CGSize {
+        let lines = max(text.split(separator: "\n", omittingEmptySubsequences: false).count, 1)
+        let longestLine = text.split(separator: "\n", omittingEmptySubsequences: false)
+            .map(\.count)
+            .max() ?? text.count
+        let width = min(max(CGFloat(longestLine) * 14 + 20, 58), 240)
+        let height = CGFloat(lines) * 30 + 12
+        return CGSize(width: width, height: max(height, 42))
+    }
+
+    private static func randomCenter(for element: AutoArrangeElement, canvasSize: CGSize) -> CGPoint {
+        let frame = element.frame
+        let halfWidth = min(frame.width / 2, max(canvasSize.width / 2 - safeInset, safeInset))
+        let halfHeight = min(frame.height / 2, max(canvasSize.height / 2 - safeInset, safeInset))
+        let xRange = (safeInset + halfWidth)...max(safeInset + halfWidth, canvasSize.width - safeInset - halfWidth)
+        let yRange = (safeInset + halfHeight)...max(safeInset + halfHeight, canvasSize.height - safeInset - halfHeight)
+        return CGPoint(x: CGFloat.random(in: xRange), y: CGFloat.random(in: yRange))
+    }
+
+    private static func clampedCenter(for element: AutoArrangeElement, canvasSize: CGSize) -> CGPoint {
+        let frame = element.frame
+        let halfWidth = min(frame.width / 2, max(canvasSize.width / 2 - safeInset, safeInset))
+        let halfHeight = min(frame.height / 2, max(canvasSize.height / 2 - safeInset, safeInset))
+        return CGPoint(
+            x: min(max(element.center.x, safeInset + halfWidth), max(safeInset + halfWidth, canvasSize.width - safeInset - halfWidth)),
+            y: min(max(element.center.y, safeInset + halfHeight), max(safeInset + halfHeight, canvasSize.height - safeInset - halfHeight))
+        )
+    }
+}
+
+private extension CGRect {
+    var area: CGFloat {
+        guard !isNull, width > 0, height > 0 else { return 0 }
+        return width * height
     }
 }
 

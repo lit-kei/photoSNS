@@ -193,18 +193,12 @@ struct CameraScreen: View {
         NavigationLink {
             StickerCreationModeScreen(originalImage: image)
         } label: {
-            Image(systemName: "scissors")
+            Image(systemName: "chevron.right")
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 42, height: 42)
         }
         .foregroundStyle(.white)
-        .background(
-            LinearGradient(
-                colors: [AppColors.charcoal, AppColors.darkSilver],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(AppColors.accentPink)
         .clipShape(Circle())
         .overlay { Circle().stroke(Color.white.opacity(0.28), lineWidth: 0.8) }
         .accessibilityLabel("ステッカーを作る")
