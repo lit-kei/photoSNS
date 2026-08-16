@@ -115,7 +115,10 @@ struct HomeScreen: View {
                         NavigationLink {
                             DiaryScreen(group: group)
                         } label: {
-                            GroupActivityRow(group: group)
+                            GroupActivityRow(
+                                group: group,
+                                unreadCount: appState.unreadPostCounts[group.id, default: 0]
+                            )
                         }
                         .buttonStyle(.plain)
                     }
@@ -241,6 +244,7 @@ struct HomeNotificationScreen: View {
 
 private struct GroupActivityRow: View {
     let group: PetalogGroup
+    let unreadCount: Int
 
     var body: some View {
         HStack(spacing: 14) {
@@ -257,13 +261,13 @@ private struct GroupActivityRow: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("\(group.diaryCount)")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(AppColors.mainText)
-                Text("posts")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(AppColors.secondaryText)
+            if unreadCount > 0 {
+                Text(unreadCount > 99 ? "99+" : "\(unreadCount)")
+                    .font(.system(size: unreadCount > 99 ? 10 : 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(AppColors.burntOrange, in: Circle())
+                    .accessibilityLabel("\(unreadCount)件の未読投稿")
             }
 
             Image(systemName: "chevron.right")

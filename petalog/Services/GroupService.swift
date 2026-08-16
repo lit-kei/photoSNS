@@ -28,6 +28,36 @@ final class GroupService {
             }
     }
 
+    func observeMyGroupReadStates(
+        userId: String,
+        onChange: @escaping ([String: Date], Error?) -> Void
+    ) -> ListenerRegistration {
+        db.collection("groupMembers")
+            .whereField("userId", isEqualTo: userId)
+            .addSnapshotListener { snapshot, error in
+                if let error {
+                    onChange([:], error)
+                    return
+                }
+
+                let states = snapshot?.documents.reduce(into: [String: Date]()) { result, document in
+                    let data = document.data()
+                    guard let groupId = data["groupId"] as? String,
+                          let lastReadAt = data["lastReadAt"] as? Timestamp else { return }
+                    result[groupId] = lastReadAt.dateValue()
+                } ?? [:]
+                onChange(states, nil)
+            }
+    }
+
+    func initializeGroupReadState(groupId: String, userId: String) async throws {
+        try await saveGroupReadState(groupId: groupId, userId: userId, at: Date())
+    }
+
+    func markGroupAsRead(groupId: String, userId: String, at date: Date) async throws {
+        try await saveGroupReadState(groupId: groupId, userId: userId, at: date)
+    }
+
     func createGroup(name: String, icon: String, iconImageData: Data? = nil, currentUser: AppUser) async throws -> PetalogGroup {
         let groupRef = db.collection("groups").document()
         let inviteCode = Self.makeInviteCode()
@@ -60,6 +90,7 @@ final class GroupService {
                 "avatar": currentUser.avatar,
                 "avatarURL": currentUser.avatarURL ?? "",
                 "role": "owner",
+                "lastReadAt": Timestamp(date: Date()),
                 "joinedAt": FieldValue.serverTimestamp()
             ],
             forDocument: db.collection("groupMembers").document("\(group.id)_\(currentUser.id)")
@@ -127,6 +158,7 @@ final class GroupService {
                 "avatar": currentUser.avatar,
                 "avatarURL": currentUser.avatarURL ?? "",
                 "role": "member",
+                "lastReadAt": Timestamp(date: Date()),
                 "joinedAt": FieldValue.serverTimestamp()
             ],
             forDocument: db.collection("groupMembers").document("\(group.id)_\(currentUser.id)"),
@@ -228,6 +260,19 @@ final class GroupService {
            oldIconURL != uploadedIconURL.absoluteString {
             await deleteGroupIcon(at: oldIconURL)
         }
+    }
+
+    private func saveGroupReadState(groupId: String, userId: String, at date: Date) async throws {
+        try await db.collection("groupMembers")
+            .document("\(groupId)_\(userId)")
+            .setData(
+                [
+                    "groupId": groupId,
+                    "userId": userId,
+                    "lastReadAt": Timestamp(date: date)
+                ],
+                merge: true
+            )
     }
 
     private func uploadGroupIcon(groupId: String, imageData: Data) async throws -> URL {

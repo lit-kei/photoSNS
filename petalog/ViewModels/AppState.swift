@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
     @Published var friendTodayStickers: [StickerPost] = []
     @Published var incomingFriendRequests: [FriendRequest] = []
     @Published var outgoingFriendRequests: [FriendRequest] = []
+    @Published private(set) var unreadPostCounts: [String: Int] = [:]
     @Published var selectedTab: AppTab = .home
     @Published var authState: AuthState = .bootstrapping
     @Published var errorMessage: String?
@@ -26,6 +27,11 @@ final class AppState: ObservableObject {
     let networkMonitor: NetworkMonitor
     let stickerUploadCoordinator: StickerUploadCoordinator
     private var groupListener: ListenerRegistration?
+    private var groupReadStateListener: ListenerRegistration?
+    private var unreadStickerListeners: [String: ListenerRegistration] = [:]
+    private var unreadObservationCutoffs: [String: Date] = [:]
+    private var groupLastReadDates: [String: Date] = [:]
+    private var initializingReadStateGroupIds: Set<String> = []
     private var friendListener: ListenerRegistration?
     private var friendTodayStickerListeners: [ListenerRegistration] = []
     private var incomingFriendRequestListener: ListenerRegistration?
@@ -210,6 +216,33 @@ final class AppState: ObservableObject {
         isShowingNotifications = true
     }
 
+    func markGroupAsRead(_ groupId: String) {
+        guard let userId = currentUser?.id,
+              groups.contains(where: { $0.id == groupId }) else { return }
+
+        let previousReadDate = groupLastReadDates[groupId]
+        let readDate = Date()
+        groupLastReadDates[groupId] = readDate
+        unreadPostCounts[groupId] = 0
+        reconcileUnreadObservations(for: userId)
+
+        Task {
+            do {
+                try await services.groups.markGroupAsRead(groupId: groupId, userId: userId, at: readDate)
+            } catch {
+                guard groupLastReadDates[groupId] == readDate else { return }
+                if let previousReadDate {
+                    groupLastReadDates[groupId] = previousReadDate
+                } else {
+                    groupLastReadDates.removeValue(forKey: groupId)
+                }
+                reconcileUnreadObservations(for: userId)
+                guard !error.isPetalogOfflineFirestoreError else { return }
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
     func updateProfile(displayName: String, avatarImageData: Data? = nil) async {
         guard var user = currentUser else { return }
         user.displayName = displayName.trimmedForPetalog
@@ -248,7 +281,91 @@ final class AppState: ObservableObject {
                     self?.errorMessage = error.localizedDescription
                 } else {
                     self?.groups = groups
+                    self?.reconcileUnreadObservations(for: userId)
                 }
+            }
+        }
+    }
+
+    private func observeGroupReadStates(for userId: String) {
+        groupReadStateListener?.remove()
+        groupReadStateListener = services.groups.observeMyGroupReadStates(userId: userId) { [weak self] states, error in
+            Task { @MainActor in
+                guard let self, self.currentUser?.id == userId else { return }
+                if let error {
+                    guard !error.isPetalogOfflineFirestoreError else { return }
+                    self.errorMessage = error.localizedDescription
+                    return
+                }
+
+                for (groupId, serverReadDate) in states {
+                    if let localReadDate = self.groupLastReadDates[groupId],
+                       localReadDate >= serverReadDate {
+                        continue
+                    }
+                    self.groupLastReadDates[groupId] = serverReadDate
+                }
+                self.initializingReadStateGroupIds.subtract(states.keys)
+                self.reconcileUnreadObservations(for: userId)
+            }
+        }
+    }
+
+    private func reconcileUnreadObservations(for userId: String) {
+        guard currentUser?.id == userId else { return }
+        let activeGroupIds = Set(groups.map(\.id))
+        let trackedGroupIds = Set(unreadStickerListeners.keys)
+            .union(unreadPostCounts.keys)
+            .union(unreadObservationCutoffs.keys)
+            .union(initializingReadStateGroupIds)
+
+        for groupId in trackedGroupIds.subtracting(activeGroupIds) {
+            unreadStickerListeners.removeValue(forKey: groupId)?.remove()
+            unreadObservationCutoffs.removeValue(forKey: groupId)
+            unreadPostCounts.removeValue(forKey: groupId)
+            groupLastReadDates.removeValue(forKey: groupId)
+            initializingReadStateGroupIds.remove(groupId)
+        }
+
+        for groupId in activeGroupIds {
+            guard let lastReadAt = groupLastReadDates[groupId] else {
+                unreadPostCounts[groupId] = 0
+                initializeReadStateIfNeeded(groupId: groupId, userId: userId)
+                continue
+            }
+            guard unreadObservationCutoffs[groupId] != lastReadAt else { continue }
+
+            unreadStickerListeners.removeValue(forKey: groupId)?.remove()
+            unreadObservationCutoffs[groupId] = lastReadAt
+            unreadPostCounts[groupId] = 0
+            unreadStickerListeners[groupId] = services.stickers.observeUnreadStickerCount(
+                groupId: groupId,
+                userId: userId,
+                createdAfter: lastReadAt
+            ) { [weak self] count, error in
+                Task { @MainActor in
+                    guard let self,
+                          self.unreadObservationCutoffs[groupId] == lastReadAt else { return }
+                    if let error {
+                        guard !error.isPetalogOfflineFirestoreError else { return }
+                        self.errorMessage = error.localizedDescription
+                    } else {
+                        self.unreadPostCounts[groupId] = count
+                    }
+                }
+            }
+        }
+    }
+
+    private func initializeReadStateIfNeeded(groupId: String, userId: String) {
+        guard initializingReadStateGroupIds.insert(groupId).inserted else { return }
+        Task {
+            do {
+                try await services.groups.initializeGroupReadState(groupId: groupId, userId: userId)
+            } catch {
+                initializingReadStateGroupIds.remove(groupId)
+                guard !error.isPetalogOfflineFirestoreError else { return }
+                errorMessage = error.localizedDescription
             }
         }
     }
@@ -317,6 +434,7 @@ final class AppState: ObservableObject {
 
     private func observeSignedInData(for userId: String) {
         observeGroups(for: userId)
+        observeGroupReadStates(for: userId)
         observeFriends(for: userId)
         observeFriendRequests(for: userId)
         if let currentUser, currentUser.id == userId {
@@ -374,6 +492,13 @@ final class AppState: ObservableObject {
         stickerUploadCoordinator.cancelAndClear()
         groupListener?.remove()
         groupListener = nil
+        groupReadStateListener?.remove()
+        groupReadStateListener = nil
+        unreadStickerListeners.values.forEach { $0.remove() }
+        unreadStickerListeners = [:]
+        unreadObservationCutoffs = [:]
+        groupLastReadDates = [:]
+        initializingReadStateGroupIds = []
         friendListener?.remove()
         friendListener = nil
         removeFriendTodayStickerListeners()
@@ -387,6 +512,7 @@ final class AppState: ObservableObject {
         friendTodayStickers = []
         incomingFriendRequests = []
         outgoingFriendRequests = []
+        unreadPostCounts = [:]
         isShowingNotifications = false
         hasLoadedIncomingFriendRequests = false
         knownIncomingFriendRequestIds = []

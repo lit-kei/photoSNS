@@ -55,21 +55,7 @@ struct DiaryEditorScreen: View {
                     .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: AppRadius.chip))
             }
 
-            if let draftDiary {
-                BufferedDiaryTextField(
-                    placeholder: "タイトル",
-                    initialText: draftDiary.title,
-                    lineLimit: 1,
-                    onImmediateChange: { inputBuffer.title = $0 },
-                    onCommit: { value in
-                        guard self.draftDiary?.title != value else { return }
-                        self.draftDiary?.title = value
-                    }
-                )
-                .font(.headline.weight(.bold))
-                .textFieldStyle(.plain)
-                .metalTextField()
-
+            if draftDiary != nil {
                 AdaptiveEditableDiaryCanvas(
                     diary: draftDiaryBinding,
                     stickers: viewModel.stickers,
@@ -78,7 +64,7 @@ struct DiaryEditorScreen: View {
                     activeElement: $activeElement,
                     canvasSize: $canvasSize
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 editorDock
             } else {
@@ -195,39 +181,48 @@ struct DiaryEditorScreen: View {
 
                 selectedDockControls(for: selectedElement)
             } else {
-                HStack(spacing: 8) {
-                    Button {
-                        addText()
-                    } label: {
-                        Label("文字", systemImage: "text.badge.plus")
-                    }
+                VStack(spacing: 8) {
+                    Text("写真・文字・スタンプをタップして編集")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppColors.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Menu {
-                        ForEach(["★", "♥", "!!", "→", "✦", "☺"], id: \.self) { stamp in
-                            Button(stamp) { addStamp(stamp) }
+                    HStack(spacing: 8) {
+                        Button {
+                            addText()
+                        } label: {
+                            Label("文字", systemImage: "text.badge.plus")
                         }
-                    } label: {
-                        Label("スタンプ", systemImage: "star.fill")
-                    }
 
-                    Menu {
-                        ForEach(ScrapbookBackground.allCases) { background in
-                            Button {
-                                draftDiary?.background = background
-                            } label: {
-                                Label(background.title, systemImage: background.systemImage)
+                        Menu {
+                            ForEach(["★", "♥", "!!", "→", "✦", "☺"], id: \.self) { stamp in
+                                Button(stamp) { addStamp(stamp) }
                             }
+                        } label: {
+                            Label("スタンプ", systemImage: "star.fill")
                         }
-                    } label: {
-                        Label("背景", systemImage: "paintpalette.fill")
+
+                        Menu {
+                            ForEach(ScrapbookBackground.allCases) { background in
+                                Button {
+                                    draftDiary?.background = background
+                                } label: {
+                                    Label(background.title, systemImage: background.systemImage)
+                                }
+                            }
+                        } label: {
+                            Label("背景", systemImage: "paintpalette.fill")
+                        }
                     }
+                    .buttonStyle(.bordered)
+                    .tint(AppColors.mainText)
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
-                .tint(AppColors.mainText)
-                .frame(maxWidth: .infinity)
             }
         }
-        .padding(10)
+        .controlSize(.large)
+        .padding(12)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         .overlay {
@@ -527,13 +522,9 @@ struct DiaryEditorScreen: View {
 
 @MainActor
 private final class DiaryTextInputBuffer {
-    var title: String?
     var textValues: [String: String] = [:]
 
     func apply(to diary: inout DiaryPage) {
-        if let title {
-            diary.title = title
-        }
         for (id, text) in textValues {
             guard let index = diary.textItems.firstIndex(where: { $0.id == id }) else { continue }
             diary.textItems[index].text = text
@@ -631,8 +622,8 @@ private struct AdaptiveEditableDiaryCanvas: View {
                 canvasSize: $canvasSize
             )
             .frame(width: logicalWidth, height: logicalHeight)
-            .scaleEffect(scale)
-            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            .scaleEffect(scale, anchor: .top)
+            .position(x: proxy.size.width / 2, y: logicalHeight / 2)
         }
     }
 }
@@ -1197,7 +1188,7 @@ private struct DiaryLayerActionButton: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.caption.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 34)
+                .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.bordered)
         .tint(AppColors.mainText)

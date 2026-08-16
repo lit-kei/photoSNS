@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct DiaryScreen: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     let group: PetalogGroup
     @StateObject private var viewModel: DiaryViewModel
@@ -43,6 +44,8 @@ struct DiaryScreen: View {
 
             DateNavigator(
                 selectedDate: $selectedDate,
+                earliestDate: earliestDiaryDate,
+                canMoveBackward: canMoveBackward,
                 canMoveForward: !Calendar.current.isDateInToday(selectedDate),
                 movePrevious: { changeDate(to: selectedDate.addingTimeInterval(-24 * 60 * 60)) },
                 moveNext: { changeDate(to: selectedDate.addingTimeInterval(24 * 60 * 60)) },
@@ -80,8 +83,12 @@ struct DiaryScreen: View {
                 .accessibilityLabel("グループを編集")
             }
         }
-        .onAppear { viewModel.start() }
+        .onAppear {
+            appState.markGroupAsRead(group.id)
+            viewModel.start()
+        }
         .onDisappear {
+            appState.markGroupAsRead(group.id)
             transitionID = UUID()
             viewModel.stop()
         }
@@ -218,7 +225,7 @@ struct DiaryScreen: View {
                 let threshold: CGFloat = 72
                 if value.translation.width < -threshold {
                     requestDateChange(to: selectedDate.addingTimeInterval(24 * 60 * 60))
-                } else if value.translation.width > threshold {
+                } else if value.translation.width > threshold, canMoveBackward {
                     requestDateChange(to: selectedDate.addingTimeInterval(-24 * 60 * 60))
                 } else {
                     withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
@@ -235,7 +242,7 @@ struct DiaryScreen: View {
 
     private func requestDateChange(to date: Date, relativeTo referenceDate: Date? = nil) {
         guard !viewModel.isLoading, !isPageTransitioning else { return }
-        let clampedDate = min(date, Date())
+        let clampedDate = clampedDiaryDate(date)
         let nextDateKey = clampedDate.petalogDateKey
         guard nextDateKey != viewModel.dateKey else {
             selectedDate = clampedDate
@@ -272,6 +279,18 @@ struct DiaryScreen: View {
             }
         }
     }
+
+    private var earliestDiaryDate: Date {
+        Calendar.current.startOfDay(for: group.createdAt)
+    }
+
+    private var canMoveBackward: Bool {
+        Calendar.current.startOfDay(for: selectedDate) > earliestDiaryDate
+    }
+
+    private func clampedDiaryDate(_ date: Date) -> Date {
+        min(max(date, earliestDiaryDate), Date())
+    }
 }
 
 private struct DiaryPageViewport<Content: View>: View {
@@ -297,6 +316,8 @@ private struct DiaryPageViewport<Content: View>: View {
 
 private struct DateNavigator: View {
     @Binding var selectedDate: Date
+    let earliestDate: Date
+    let canMoveBackward: Bool
     let canMoveForward: Bool
     let movePrevious: () -> Void
     let moveNext: () -> Void
@@ -312,15 +333,16 @@ private struct DateNavigator: View {
                             .frame(width: 38, height: 38)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(AppColors.mainText)
-                    .background(AppColors.chromeHighlight.opacity(0.78))
+                    .foregroundStyle(canMoveBackward ? AppColors.mainText : AppColors.secondaryText.opacity(0.45))
+                    .background(AppColors.chromeHighlight.opacity(canMoveBackward ? 0.78 : 0.42))
                     .clipShape(Circle())
                     .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+                    .disabled(!canMoveBackward)
 
                     DatePicker(
                         "絵日記の日付",
                         selection: $selectedDate,
-                        in: ...Date(),
+                        in: earliestDate...Date(),
                         displayedComponents: .date
                     )
                     .datePickerStyle(.compact)

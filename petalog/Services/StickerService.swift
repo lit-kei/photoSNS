@@ -37,6 +37,31 @@ final class StickerService {
             }
     }
 
+    func observeUnreadStickerCount(
+        groupId: String,
+        userId: String,
+        createdAfter lastReadAt: Date,
+        onChange: @escaping (Int, Error?) -> Void
+    ) -> ListenerRegistration {
+        db.collection("stickers")
+            .whereField("groupId", isEqualTo: groupId)
+            .addSnapshotListener { snapshot, error in
+                if let error {
+                    onChange(0, error)
+                    return
+                }
+
+                let unreadCount = snapshot?.documents.reduce(into: 0) { count, document in
+                    let data = document.data()
+                    guard data["authorId"] as? String != userId else { return }
+                    guard let createdAt = (data["createdAt"] as? Timestamp)?.dateValue(),
+                          createdAt > lastReadAt else { return }
+                    count += 1
+                } ?? 0
+                onChange(unreadCount, nil)
+            }
+    }
+
     func observeTodayFriendStickers(friendIds: [String], onChange: @escaping ([StickerPost], Error?) -> Void) -> [ListenerRegistration] {
         let uniqueFriendIds = Array(Set(friendIds)).sorted()
         guard !uniqueFriendIds.isEmpty else {
