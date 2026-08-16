@@ -178,6 +178,12 @@ struct BackgroundRemovalStickerScreen: View {
 
                 ControlSection(title: "デコレーション") {
                     HorizontalOptionPicker(options: StickerDecoration.allCases, selection: $draft.decoration)
+
+                    if draft.decoration.supportsBackgroundOutlineColor {
+                        ColorPicker("縁取り色", selection: outlineColorBinding, supportsOpacity: false)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppColors.mainText)
+                    }
                 }
 
                 ControlSection(title: "コメント") {
@@ -205,9 +211,20 @@ struct BackgroundRemovalStickerScreen: View {
             .padding(.bottom, 28)
         }
         .scrollDisabled(isInteracting)
-        .task(id: PreviewPreparationKey(effect: draft.effect, decoration: draft.decoration)) {
+        .task(id: PreviewPreparationKey(effect: draft.effect, decoration: draft.decoration, outlineColorHex: draft.outlineColorHex)) {
             await preparePreview(from: foreground)
         }
+    }
+
+    private var outlineColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Color(uiColor: UIColor(hex: draft.outlineColorHex) ?? .white)
+            },
+            set: { color in
+                draft.outlineColorHex = UIColor(color).petalogHexString
+            }
+        )
     }
 
     private func scaleBinding(for image: UIImage) -> Binding<Double> {
@@ -248,7 +265,8 @@ struct BackgroundRemovalStickerScreen: View {
             let image = try BackgroundStickerRenderer.prepareForeground(
                 foreground,
                 effect: draft.effect,
-                decoration: draft.decoration
+                decoration: draft.decoration,
+                outlineColor: UIColor(hex: draft.outlineColorHex) ?? .white
             )
             try Task.checkCancellation()
             preparedForeground = image
@@ -279,6 +297,18 @@ struct BackgroundRemovalStickerScreen: View {
 private struct PreviewPreparationKey: Equatable {
     let effect: StickerEffect
     let decoration: StickerDecoration
+    let outlineColorHex: String
+}
+
+private extension StickerDecoration {
+    var supportsBackgroundOutlineColor: Bool {
+        switch self {
+        case .whiteOutline, .sparkle:
+            true
+        case .none, .colorfulOutline, .shadow, .handDrawn:
+            false
+        }
+    }
 }
 
 private struct BackgroundForegroundPreview: View {

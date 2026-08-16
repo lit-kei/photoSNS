@@ -9,6 +9,8 @@ struct StickerPostScreen: View {
     @State private var selectedGroupIDs: Set<String> = []
     @State private var publishToBlog = true
     @State private var submissionError: String?
+    @State private var photoSaveMessage: String?
+    @State private var isSavingToPhotos = false
 
     var body: some View {
         ScrollView {
@@ -26,6 +28,14 @@ struct StickerPostScreen: View {
                             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                                 .stroke(AppColors.border, lineWidth: 0.8)
                         }
+
+                    Button {
+                        saveStickerToPhotos()
+                    } label: {
+                        Label(isSavingToPhotos ? "保存中…" : "写真に保存", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(ListRowButtonStyle())
+                    .disabled(isSavingToPhotos || stickerPNG.isEmpty)
                 } else {
                     EmptyStateView(systemImage: "exclamationmark.triangle.fill", title: "ステッカー生成待ち", message: "戻ってもう一度「完成」を押してください。")
                 }
@@ -115,6 +125,14 @@ struct StickerPostScreen: View {
         } message: {
             Text(submissionError ?? "")
         }
+        .alert("写真への保存", isPresented: Binding(
+            get: { photoSaveMessage != nil },
+            set: { if !$0 { photoSaveMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(photoSaveMessage ?? "")
+        }
     }
 
     private func submit() {
@@ -163,6 +181,20 @@ struct StickerPostScreen: View {
             selectedGroupIDs.removeAll()
         } else {
             selectedGroupIDs = Set(appState.groups.map(\.id))
+        }
+    }
+
+    private func saveStickerToPhotos() {
+        guard !stickerPNG.isEmpty, !isSavingToPhotos else { return }
+        isSavingToPhotos = true
+        Task {
+            do {
+                try await StickerPhotoLibraryService.saveStickerPNG(stickerPNG)
+                photoSaveMessage = "ステッカーを写真に保存しました。"
+            } catch {
+                photoSaveMessage = error.localizedDescription
+            }
+            isSavingToPhotos = false
         }
     }
 }

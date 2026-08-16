@@ -124,10 +124,12 @@ struct DiaryTextItem: Identifiable, Hashable {
 }
 
 struct DiaryStampItem: Identifiable, Hashable {
+    static let defaultColorHex = "#1F1B18"
     static let legacyZIndex = -1_000_000
 
     let id: String
     var symbol: String
+    var colorHex: String
     var x: Double
     var y: Double
     var rotation: Double
@@ -137,6 +139,7 @@ struct DiaryStampItem: Identifiable, Hashable {
     init(
         id: String = UUID().uuidString,
         symbol: String,
+        colorHex: String = DiaryStampItem.defaultColorHex,
         x: Double = 40,
         y: Double = 80,
         rotation: Double = -8,
@@ -145,6 +148,7 @@ struct DiaryStampItem: Identifiable, Hashable {
     ) {
         self.id = id
         self.symbol = symbol
+        self.colorHex = colorHex
         self.x = x
         self.y = y
         self.rotation = rotation
@@ -155,6 +159,7 @@ struct DiaryStampItem: Identifiable, Hashable {
     init(_ data: [String: Any]) {
         self.id = data["id"] as? String ?? UUID().uuidString
         self.symbol = data["symbol"] as? String ?? "★"
+        self.colorHex = data["colorHex"] as? String ?? DiaryStampItem.defaultColorHex
         self.x = data["x"] as? Double ?? 40
         self.y = data["y"] as? Double ?? 80
         self.rotation = data["rotation"] as? Double ?? -8
@@ -166,6 +171,7 @@ struct DiaryStampItem: Identifiable, Hashable {
         [
             "id": id,
             "symbol": symbol,
+            "colorHex": colorHex,
             "x": x,
             "y": y,
             "rotation": rotation,

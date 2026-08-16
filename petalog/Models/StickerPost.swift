@@ -20,6 +20,7 @@ struct StickerPost: Identifiable, Hashable {
     var comment: String
     var shape: StickerShapeOption
     var decoration: StickerDecoration
+    var outlineColorHex: String
     var creationMode: StickerCreationMode
     var effect: StickerEffect
     var stickerImageURL: String
@@ -39,6 +40,7 @@ struct StickerPost: Identifiable, Hashable {
         comment: String,
         shape: StickerShapeOption,
         decoration: StickerDecoration,
+        outlineColorHex: String = StickerDraft.defaultOutlineColorHex,
         creationMode: StickerCreationMode = .crop,
         effect: StickerEffect = .original,
         stickerImageURL: String = "",
@@ -57,6 +59,7 @@ struct StickerPost: Identifiable, Hashable {
         self.comment = comment
         self.shape = shape
         self.decoration = decoration
+        self.outlineColorHex = outlineColorHex
         self.creationMode = creationMode
         self.effect = effect
         self.stickerImageURL = stickerImageURL
@@ -77,6 +80,7 @@ struct StickerPost: Identifiable, Hashable {
         self.comment = data["comment"] as? String ?? ""
         self.shape = StickerShapeOption(rawValue: data["shape"] as? String ?? "") ?? .circle
         self.decoration = StickerDecoration(rawValue: data["decoration"] as? String ?? "") ?? .none
+        self.outlineColorHex = data["outlineColorHex"] as? String ?? StickerDraft.defaultOutlineColorHex
         self.creationMode = StickerCreationMode(rawValue: data["creationMode"] as? String ?? "") ?? .crop
         self.effect = StickerEffect(rawValue: data["effect"] as? String ?? "") ?? .original
         self.stickerImageURL = data["stickerImageURL"] as? String ?? ""
@@ -97,6 +101,7 @@ struct StickerPost: Identifiable, Hashable {
             "comment": comment,
             "shape": shape.rawValue,
             "decoration": decoration.rawValue,
+            "outlineColorHex": outlineColorHex,
             "creationMode": creationMode.rawValue,
             "effect": effect.rawValue,
             "stickerImageURL": stickerImageURL,
@@ -107,8 +112,11 @@ struct StickerPost: Identifiable, Hashable {
 }
 
 struct StickerDraft: Hashable {
+    static let defaultOutlineColorHex = "#FFFFFF"
+
     var shape: StickerShapeOption = .circle
     var decoration: StickerDecoration = .sparkle
+    var outlineColorHex: String = defaultOutlineColorHex
     var creationMode: StickerCreationMode = .crop
     var effect: StickerEffect = .original
     var cropScale: Double = 1

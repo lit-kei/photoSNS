@@ -385,7 +385,10 @@ private struct DateNavigator: View {
 }
 
 private struct StickerDetailSheet: View {
+    @EnvironmentObject private var appState: AppState
     let sticker: StickerPost
+    @State private var photoSaveMessage: String?
+    @State private var isSavingToPhotos = false
 
     var body: some View {
         VStack(spacing: 18) {
@@ -398,7 +401,39 @@ private struct StickerDetailSheet: View {
             .font(.headline)
             .foregroundStyle(AppColors.mainText)
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            if sticker.authorId == appState.currentUser?.id {
+                Button {
+                    saveStickerToPhotos()
+                } label: {
+                    Label(isSavingToPhotos ? "保存中…" : "写真に保存", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(PrimaryActionButtonStyle())
+                .disabled(isSavingToPhotos || sticker.stickerImageURL.isEmpty)
+            }
         }
         .padding(24)
+        .alert("写真への保存", isPresented: Binding(
+            get: { photoSaveMessage != nil },
+            set: { if !$0 { photoSaveMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(photoSaveMessage ?? "")
+        }
+    }
+
+    private func saveStickerToPhotos() {
+        guard !isSavingToPhotos else { return }
+        isSavingToPhotos = true
+        Task {
+            do {
+                try await StickerPhotoLibraryService.saveSticker(from: sticker.stickerImageURL)
+                photoSaveMessage = "ステッカーを写真に保存しました。"
+            } catch {
+                photoSaveMessage = error.localizedDescription
+            }
+            isSavingToPhotos = false
+        }
     }
 }

@@ -47,6 +47,7 @@ struct DiaryEditorScreen: View {
     @State private var isShowingFontPicker = false
     @State private var inputBuffer = DiaryTextInputBuffer()
     @State private var selectedEditorTab: DiaryEditorTab = .autoArrange
+    @State private var isAutoArranging = false
 
     init(group: PetalogGroup) {
         self.group = group
@@ -245,15 +246,15 @@ struct DiaryEditorScreen: View {
                 Button {
                     autoArrangeDiary()
                 } label: {
-                    Text("自動配置する")
+                    Text(isAutoArranging ? "自動配置中…" : "自動配置する")
                         .font(.headline.weight(.bold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .background(AppColors.burntOrange, in: RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .disabled(!canAutoArrange)
-                .opacity(canAutoArrange ? 1 : 0.42)
+                .disabled(!canAutoArrange || isAutoArranging)
+                .opacity(canAutoArrange && !isAutoArranging ? 1 : 0.42)
             }
 
         case .text:
@@ -284,7 +285,7 @@ struct DiaryEditorScreen: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(["★", "♥", "!!", "→", "✦", "☺"], id: \.self) { stamp in
+                        ForEach(["★", "♥", "!!", "→", "✦", "♪"], id: \.self) { stamp in
                             Button {
                                 addStamp(stamp)
                             } label: {
@@ -299,7 +300,15 @@ struct DiaryEditorScreen: View {
                 }
 
                 if case .stamp(let stampID) = selectedElement {
-                    deleteButton { deleteStamp(stampID) }
+                    HStack(spacing: 10) {
+                        ColorPicker("スタンプ色", selection: selectedStampColorBinding, supportsOpacity: false)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppColors.mainText)
+
+                        Spacer(minLength: 0)
+
+                        deleteButton { deleteStamp(stampID) }
+                    }
                 }
             }
 
@@ -507,6 +516,11 @@ struct DiaryEditorScreen: View {
         return draftDiary?.textItems.first { $0.id == selectedTextID }
     }
 
+    private var selectedStamp: DiaryStampItem? {
+        guard case .stamp(let id) = selectedElement else { return nil }
+        return draftDiary?.stampItems.first { $0.id == id }
+    }
+
     private var selectedFontDisplayName: String {
         guard let fontName = selectedText?.fontName, !fontName.isEmpty else { return "システム" }
         return UIFont(name: fontName, size: 24)?.familyName ?? fontName
@@ -541,6 +555,18 @@ struct DiaryEditorScreen: View {
         )
     }
 
+    private var selectedStampColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Color(uiColor: UIColor(hex: selectedStamp?.colorHex ?? DiaryStampItem.defaultColorHex) ?? UIColor(AppColors.mainText))
+            },
+            set: { color in
+                guard case .stamp(let id) = selectedElement else { return }
+                updateStamp(id) { $0.colorHex = UIColor(color).petalogHexString }
+            }
+        )
+    }
+
     private var nextZIndex: Int {
         diaryLayerEntries(
             diary: draftDiary ?? emptyDiary,
@@ -568,20 +594,29 @@ struct DiaryEditorScreen: View {
     }
 
     private func autoArrangeDiary() {
-        guard var page = draftDiary, canAutoArrange else { return }
+        guard var page = draftDiary, canAutoArrange, !isAutoArranging else { return }
         inputBuffer.apply(to: &page)
         let size = normalizedCanvasSize
-        let result = DiaryAutoArranger.arrange(
-            diary: page,
-            stickers: viewModel.stickers,
-            layouts: localLayouts,
-            canvasSize: size
-        )
+        let stickers = viewModel.stickers
+        let layouts = localLayouts
+        isAutoArranging = true
         activeElement = nil
         selectedElement = nil
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-            draftDiary = result.diary
-            localLayouts = result.layouts
+
+        Task {
+            await Task.yield()
+            let result = DiaryAutoArranger.arrange(
+                diary: page,
+                stickers: stickers,
+                layouts: layouts,
+                canvasSize: size
+            )
+
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                draftDiary = result.diary
+                localLayouts = result.layouts
+            }
+            isAutoArranging = false
         }
     }
 
@@ -596,6 +631,7 @@ struct DiaryEditorScreen: View {
             text: "新しい文字",
             x: insertionPoint.x,
             y: insertionPoint.y,
+            colorHex: randomDiaryAccentColorHex,
             zIndex: nextZIndex
         )
         draftDiary?.textItems.append(item)
@@ -606,6 +642,7 @@ struct DiaryEditorScreen: View {
     private func addStamp(_ symbol: String) {
         let item = DiaryStampItem(
             symbol: symbol,
+            colorHex: randomDiaryAccentColorHex,
             x: insertionPoint.x,
             y: insertionPoint.y,
             zIndex: nextZIndex
@@ -613,6 +650,22 @@ struct DiaryEditorScreen: View {
         draftDiary?.stampItems.append(item)
         activeElement = nil
         selectedElement = .stamp(item.id)
+    }
+
+    private var randomDiaryAccentColorHex: String {
+        [
+            "#1F1B18",
+            "#C2410C",
+            "#E11D48",
+            "#BE185D",
+            "#7C3AED",
+            "#2563EB",
+            "#0891B2",
+            "#047857",
+            "#65A30D",
+            "#CA8A04",
+            "#EA580C"
+        ].randomElement() ?? DiaryTextItem.defaultColorHex
     }
 
     private func moveSelectedLayer(_ movement: DiaryLayerMovement) {
@@ -658,6 +711,13 @@ struct DiaryEditorScreen: View {
         draftDiary?.textItems.removeAll { $0.id == id }
         activeElement = nil
         selectedElement = nil
+    }
+
+    private func updateStamp(_ id: String, mutate: (inout DiaryStampItem) -> Void) {
+        guard var page = draftDiary,
+              let index = page.stampItems.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&page.stampItems[index])
+        draftDiary = page
     }
 
     private func deleteStamp(_ id: String) {
@@ -845,6 +905,7 @@ struct EditableDiaryCanvas: View {
                     let element = CanvasElementID.stamp(item.id)
                     Text(item.symbol)
                         .font(.largeTitle.bold())
+                        .foregroundStyle(Color(uiColor: UIColor(hex: item.colorHex) ?? UIColor(AppColors.mainText)))
                         .padding(8)
                         .overlay {
                             if selectedElement == element {
@@ -969,6 +1030,17 @@ struct EditableDiaryCanvas: View {
                 .frame(width: max(frame.width, 44), height: max(frame.height, 44))
                 .contentShape(Rectangle())
                 .position(x: frame.midX, y: frame.midY)
+                .simultaneousGesture(
+                    SpatialTapGesture()
+                        .onEnded { value in
+                            selectElement(
+                                at: CGPoint(
+                                    x: frame.minX + value.location.x,
+                                    y: frame.minY + value.location.y
+                                )
+                            )
+                        }
+                )
                 .modifier(interactionModifier(for: selectedElement))
                 .zIndex(2_000_000_000_000)
         }
@@ -1379,9 +1451,8 @@ private struct AutoArrangeElement: Identifiable {
 
 private enum DiaryAutoArranger {
     private static let safeInset: CGFloat = 14
-    private static let randomTrialCount = 8
-    private static let movementSteps: [CGFloat] = [32, 16, 8]
-    private static let maximumPassesPerStep = 3
+    private static let movementSteps: [CGFloat] = [18, 9]
+    private static let maximumPassesPerStep = 1
     private static let candidateDirections: [CGVector] = [
         CGVector(dx: 1, dy: 0),
         CGVector(dx: -1, dy: 0),
@@ -1407,9 +1478,16 @@ private enum DiaryAutoArranger {
 
         var bestElements = originalElements
         var bestScore = -Double.infinity
-        for _ in 0..<randomTrialCount {
-            var candidate = randomized(originalElements, canvasSize: size)
-            candidate = greedilyImprove(candidate, canvasSize: size)
+        let trialCount = min(max(4 + originalElements.count / 3, 4), 10)
+        for trialIndex in 0..<trialCount {
+            let candidate = greedilyImprove(
+                lightlyRefinedGridCandidate(
+                    originalElements,
+                    canvasSize: size,
+                    trialIndex: trialIndex
+                ),
+                canvasSize: size
+            )
             let score = evaluate(candidate, canvasSize: size)
             if score > bestScore {
                 bestScore = score
@@ -1417,6 +1495,7 @@ private enum DiaryAutoArranger {
             }
         }
 
+        applySemanticZOrder(to: &bestElements)
         return apply(elements: bestElements, to: diary, stickers: stickers, layouts: layouts, canvasSize: size)
     }
 
@@ -1473,19 +1552,180 @@ private enum DiaryAutoArranger {
         return elements
     }
 
-    private static func randomized(_ elements: [AutoArrangeElement], canvasSize: CGSize) -> [AutoArrangeElement] {
+    private static func lightlyRefinedGridCandidate(
+        _ elements: [AutoArrangeElement],
+        canvasSize: CGSize,
+        trialIndex: Int
+    ) -> [AutoArrangeElement] {
+        var candidate = gridSeeded(
+            elements,
+            canvasSize: canvasSize,
+            trialIndex: trialIndex
+        )
+
+        let cellSize = approximateCellSize(for: candidate.count, canvasSize: canvasSize, trialIndex: trialIndex)
+        let nudge = min(max(min(cellSize.width, cellSize.height) * 0.16, 8), 22)
+        var currentScore = evaluate(candidate, canvasSize: canvasSize)
+
+        for index in candidate.indices {
+            var bestCenter = candidate[index].center
+            var bestScore = currentScore
+            let directions = Array(candidateDirections.shuffled().prefix(4)) + [CGVector(dx: 0, dy: 0)]
+            for direction in directions {
+                var next = candidate
+                next[index].center.x += direction.dx * nudge
+                next[index].center.y += direction.dy * nudge
+                next[index].center = clampedCenter(for: next[index], canvasSize: canvasSize)
+                let score = evaluate(next, canvasSize: canvasSize)
+                if score > bestScore {
+                    bestScore = score
+                    bestCenter = next[index].center
+                }
+            }
+
+            if bestScore > currentScore {
+                candidate[index].center = bestCenter
+                currentScore = bestScore
+            }
+        }
+
+        return candidate
+    }
+
+    private static func randomized(
+        _ elements: [AutoArrangeElement],
+        canvasSize: CGSize,
+        semanticZOrder: Bool
+    ) -> [AutoArrangeElement] {
         let zOrder = elements.indices.shuffled()
         var zIndexes = Array(repeating: 0, count: elements.count)
         for (zIndex, elementIndex) in zOrder.enumerated() {
             zIndexes[elementIndex] = zIndex
         }
 
-        return elements.enumerated().map { index, element in
+        var nextElements = elements.enumerated().map { index, element in
             var next = element
             next.rotation = Double.random(in: -30...30)
+            next.scale = randomizedScale(for: next)
             next.zIndex = zIndexes[index]
             next.center = randomCenter(for: next, canvasSize: canvasSize)
             return next
+        }
+        if semanticZOrder {
+            applySemanticZOrder(to: &nextElements)
+        }
+        return nextElements
+    }
+
+    private static func gridSeeded(
+        _ elements: [AutoArrangeElement],
+        canvasSize: CGSize,
+        trialIndex: Int
+    ) -> [AutoArrangeElement] {
+        let count = max(elements.count, 1)
+        let columns = preferredColumnCount(for: count, canvasSize: canvasSize, trialIndex: trialIndex)
+        let rows = max(1, Int(ceil(Double(count) / Double(columns))))
+        let cellWidth = max((canvasSize.width - safeInset * 2) / CGFloat(columns), 1)
+        let cellHeight = max((canvasSize.height - safeInset * 2) / CGFloat(rows), 1)
+        let orderedIndices = orderedElementIndices(elements, trialIndex: trialIndex)
+
+        var nextElements = elements
+        for (slot, elementIndex) in orderedIndices.enumerated() {
+            let column = slot % columns
+            let row = slot / columns
+            var next = nextElements[elementIndex]
+            let jitterX = CGFloat.random(in: (-cellWidth * 0.16)...(cellWidth * 0.16))
+            let jitterY = CGFloat.random(in: (-cellHeight * 0.16)...(cellHeight * 0.16))
+            next.rotation = Double.random(in: -30...30)
+            next.scale = randomizedScale(for: next)
+            next.center = CGPoint(
+                x: safeInset + cellWidth * (CGFloat(column) + 0.5) + jitterX,
+                y: safeInset + cellHeight * (CGFloat(row) + 0.5) + jitterY
+            )
+            next.center = clampedCenter(for: next, canvasSize: canvasSize)
+            next.zIndex = slot
+            nextElements[elementIndex] = next
+        }
+        applySemanticZOrder(to: &nextElements)
+        return nextElements
+    }
+
+    private static func randomizedScale(for element: AutoArrangeElement) -> Double {
+        switch element.kind {
+        case .sticker:
+            return Double.random(in: 0.82...1.24)
+        case .stamp:
+            return Double.random(in: 0.88...1.34)
+        case .text:
+            return Double.random(in: 0.92...1.18)
+        }
+    }
+
+    private static func preferredColumnCount(for count: Int, canvasSize: CGSize, trialIndex: Int) -> Int {
+        guard count > 1 else { return 1 }
+        let base: Int
+        if count <= 4 {
+            base = 2
+        } else if count <= 12 {
+            base = 3
+        } else {
+            base = canvasSize.width > canvasSize.height * 0.86 ? 4 : 3
+        }
+
+        if trialIndex % 4 == 3, count >= 6 {
+            return max(2, base - 1)
+        }
+        if trialIndex % 5 == 4, count >= 10 {
+            return min(base + 1, 4)
+        }
+        return base
+    }
+
+    private static func approximateCellSize(for count: Int, canvasSize: CGSize, trialIndex: Int) -> CGSize {
+        let columns = preferredColumnCount(for: max(count, 1), canvasSize: canvasSize, trialIndex: trialIndex)
+        let rows = max(1, Int(ceil(Double(max(count, 1)) / Double(columns))))
+        return CGSize(
+            width: max((canvasSize.width - safeInset * 2) / CGFloat(columns), 1),
+            height: max((canvasSize.height - safeInset * 2) / CGFloat(rows), 1)
+        )
+    }
+
+    private static func orderedElementIndices(_ elements: [AutoArrangeElement], trialIndex: Int) -> [Int] {
+        let indices = elements.indices.shuffled()
+        guard trialIndex % 2 == 0 else { return indices }
+        return indices.sorted { left, right in
+            let leftRank = semanticLayerRank(elements[left])
+            let rightRank = semanticLayerRank(elements[right])
+            if leftRank != rightRank {
+                return leftRank < rightRank
+            }
+            return elements[left].baseSize.width * elements[left].baseSize.height
+                > elements[right].baseSize.width * elements[right].baseSize.height
+        }
+    }
+
+    private static func applySemanticZOrder(to elements: inout [AutoArrangeElement]) {
+        let ordered = elements.indices.sorted { left, right in
+            let leftRank = semanticLayerRank(elements[left])
+            let rightRank = semanticLayerRank(elements[right])
+            if leftRank != rightRank {
+                return leftRank < rightRank
+            }
+            return elements[left].zIndex < elements[right].zIndex
+        }
+        for (zIndex, elementIndex) in ordered.enumerated() {
+            elements[elementIndex].zIndex = zIndex
+        }
+    }
+
+    private static func semanticLayerRank(_ element: AutoArrangeElement) -> Int {
+        switch element.kind {
+        case .sticker:
+            return 0
+        case .stamp:
+            return 1
+        case .text:
+            return 2
         }
     }
 
@@ -1503,7 +1743,7 @@ private enum DiaryAutoArranger {
                     var bestCandidate = current
                     var bestScore = currentScore
 
-                    for direction in candidateDirections.shuffled() {
+                    for direction in movementDirections(for: current[index], canvasSize: canvasSize).shuffled() {
                         var candidate = current
                         candidate[index].center.x += direction.dx * step
                         candidate[index].center.y += direction.dy * step
@@ -1521,12 +1761,47 @@ private enum DiaryAutoArranger {
                         improvedThisPass = true
                     }
                 }
-                if !improvedThisPass { break }
+                if !improvedThisPass {
+                    if step == movementSteps.first,
+                       let shaken = shakenIfImproved(current, canvasSize: canvasSize, currentScore: currentScore) {
+                        current = shaken.elements
+                        currentScore = shaken.score
+                    }
+                    break
+                }
             }
         }
 
         return current
     }
+
+    private static func movementDirections(for element: AutoArrangeElement, canvasSize: CGSize) -> [CGVector] {
+        let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        let dx = element.center.x - center.x
+        let dy = element.center.y - center.y
+        let length = max(hypot(dx, dy), 1)
+        let outward = CGVector(dx: dx / length, dy: dy / length)
+        let inward = CGVector(dx: -outward.dx, dy: -outward.dy)
+        return candidateDirections + [outward, inward]
+    }
+
+    private static func shakenIfImproved(
+        _ elements: [AutoArrangeElement],
+        canvasSize: CGSize,
+        currentScore: Double
+    ) -> (elements: [AutoArrangeElement], score: Double)? {
+        var candidate = elements
+        for index in candidate.indices {
+            let distance = CGFloat.random(in: 4...14)
+            let angle = CGFloat.random(in: 0...(2 * .pi))
+            candidate[index].center.x += cos(angle) * distance
+            candidate[index].center.y += sin(angle) * distance
+            candidate[index].center = clampedCenter(for: candidate[index], canvasSize: canvasSize)
+        }
+        let score = evaluate(candidate, canvasSize: canvasSize)
+        return score > currentScore + 0.001 ? (candidate, score) : nil
+    }
+
     private static func evaluate(
         _ elements: [AutoArrangeElement],
         canvasSize: CGSize
@@ -1539,38 +1814,7 @@ private enum DiaryAutoArranger {
         var score = 0.0
 
         // =========================================================
-        // 1. 文字 × 画像の重なりを最優先で排除する
-        // =========================================================
-
-        var textStickerViolation = 0.0
-
-        for i in elements.indices {
-            for j in elements.indices where j > i {
-                guard isTextPhotoPair(elements[i], elements[j]) else {
-                    continue
-                }
-
-                let overlap = frames[i].intersection(frames[j]).area
-
-                if overlap > 0 {
-                    // 重なっている面積そのものを違反量にする
-                    textStickerViolation += Double(overlap)
-                }
-            }
-        }
-
-        // 通常の評価値より圧倒的に大きい係数を使う。
-        //
-        // これにより、
-        // 「文字と画像が重なっているが、全体として綺麗」
-        // よりも
-        // 「多少レイアウトが悪くても、文字と画像が重なっていない」
-        // 方が必ず優先される。
-        let textStickerPenalty = textStickerViolation * 10000.0
-        score -= textStickerPenalty
-
-        // =========================================================
-        // 2. キャンバス外へのはみ出し
+        // 1. キャンバス外へのはみ出し
         // =========================================================
 
         for frame in frames {
@@ -1579,7 +1823,7 @@ private enum DiaryAutoArranger {
         }
 
         // =========================================================
-        // 3. その他の要素同士の重なり
+        // 2. 要素同士の重なり
         // =========================================================
 
         for i in elements.indices {
@@ -1592,12 +1836,6 @@ private enum DiaryAutoArranger {
 
                 let first = elements[i]
                 let second = elements[j]
-
-                // 文字 × 画像については、
-                // すでに上で特別扱いしているのでここでは除外
-                if isTextPhotoPair(first, second) {
-                    continue
-                }
 
                 let smallerArea = max(
                     min(frames[i].area, frames[j].area),
@@ -1622,7 +1860,27 @@ private enum DiaryAutoArranger {
         }
 
         // =========================================================
-        // 4. 使用領域
+        // 2.5. 画像ステッカーの中心が前面要素に隠れる配置
+        // =========================================================
+
+        for stickerIndex in elements.indices where elements[stickerIndex].kind == .sticker {
+            let sticker = elements[stickerIndex]
+            for otherIndex in elements.indices where otherIndex != stickerIndex {
+                let other = elements[otherIndex]
+                guard other.zIndex > sticker.zIndex,
+                      frames[otherIndex].contains(sticker.center) else {
+                    continue
+                }
+
+                let otherOverlap = frames[stickerIndex].intersection(frames[otherIndex]).area
+                let stickerArea = max(frames[stickerIndex].area, 1)
+                let overlapRatio = Double(otherOverlap / stickerArea)
+                score -= 22_000 + overlapRatio * 35_000
+            }
+        }
+
+        // =========================================================
+        // 3. 使用領域
         // =========================================================
 
         let unionFrame = frames.reduce(frames[0]) {
@@ -1658,7 +1916,7 @@ private enum DiaryAutoArranger {
         }
 
         // =========================================================
-        // 5. 中央への偏り
+        // 4. 中央への偏り
         // =========================================================
 
         let canvasCenter = CGPoint(
@@ -1678,7 +1936,7 @@ private enum DiaryAutoArranger {
         }
 
         // =========================================================
-        // 6. 外側の余白
+        // 5. 外側の余白
         // =========================================================
 
         let outerMargin = min(
@@ -1702,16 +1960,24 @@ private enum DiaryAutoArranger {
 
         switch (first.kind, second.kind) {
         case (.sticker, .sticker):
-            return 1.4
+            return 1.6 + overlapRatio * 1.2
 
         case (.stamp, .stamp):
-            return 1.15
+            return 1.25 + overlapRatio * 0.8
 
         case (.text, .text):
-            return 1.25
+            return 1.55 + overlapRatio * 1.4
+
+        case (.text, .stamp), (.stamp, .text):
+            return 1.3 + overlapRatio
 
         default:
-            return 0.85
+            if isTextPhotoPair(first, second) {
+                return overlapRatio > 0.72
+                    ? 0.45 + overlapRatio * 0.9
+                    : 0.08
+            }
+            return 0.95
         }
     }
 
@@ -1740,12 +2006,14 @@ private enum DiaryAutoArranger {
                 page.textItems[index].x = element.center.x
                 page.textItems[index].y = element.center.y
                 page.textItems[index].rotation = element.rotation
+                page.textItems[index].scale = element.scale
                 page.textItems[index].zIndex = element.zIndex
             case .stamp(let id):
                 guard let index = page.stampItems.firstIndex(where: { $0.id == id }) else { continue }
                 page.stampItems[index].x = element.center.x
                 page.stampItems[index].y = element.center.y
                 page.stampItems[index].rotation = element.rotation
+                page.stampItems[index].scale = element.scale
                 page.stampItems[index].zIndex = element.zIndex
             case .sticker(let id):
                 guard let sticker = stickers.first(where: { $0.id == id }) else { continue }
@@ -1755,6 +2023,7 @@ private enum DiaryAutoArranger {
                 layout.x = element.center.x - canvasSize.width / 2
                 layout.y = element.center.y - canvasSize.height / 2
                 layout.rotation = element.rotation
+                layout.scale = element.scale
                 layout.zIndex = element.zIndex
                 nextLayouts[id] = layout
             }

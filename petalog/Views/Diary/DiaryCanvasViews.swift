@@ -49,6 +49,7 @@ struct DiaryCanvasView: View {
             ForEach(diary.stampItems) { item in
                 Text(item.symbol)
                     .font(.largeTitle.bold())
+                    .foregroundStyle(Color(uiColor: UIColor(hex: item.colorHex) ?? UIColor(AppColors.mainText)))
                     .scaleEffect(item.scale)
                     .rotationEffect(.degrees(item.rotation))
                     .position(x: item.x, y: item.y)
@@ -114,13 +115,24 @@ struct DiaryTextVisual: View {
     let item: DiaryTextItem
 
     var body: some View {
+        ZStack {
+            ForEach(outlineOffsets.indices, id: \.self) { index in
+                styledText(color: resolvedOutlineColor)
+                    .offset(outlineOffsets[index])
+            }
+
+            styledText(color: resolvedColor)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: 240)
+    }
+
+    private func styledText(color: Color) -> some View {
         Text(item.text)
             .font(resolvedFont)
-            .foregroundStyle(resolvedColor)
+            .foregroundStyle(color)
             .multilineTextAlignment(.center)
             .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: 240)
     }
 
     private var resolvedFont: Font {
@@ -132,6 +144,38 @@ struct DiaryTextVisual: View {
 
     private var resolvedColor: Color {
         Color(uiColor: UIColor(hex: item.colorHex) ?? UIColor(AppColors.mainText))
+    }
+
+    private var resolvedOutlineColor: Color {
+        let textColor = UIColor(hex: item.colorHex) ?? UIColor(AppColors.mainText)
+        return textColor.petalogPerceivedBrightness > 0.68
+            ? Color.black.opacity(0.58)
+            : Color.white.opacity(0.92)
+    }
+
+    private var outlineOffsets: [CGSize] {
+        let distance: CGFloat = 1.45
+        return [
+            CGSize(width: -distance, height: 0),
+            CGSize(width: distance, height: 0),
+            CGSize(width: 0, height: -distance),
+            CGSize(width: 0, height: distance),
+            CGSize(width: -distance, height: -distance),
+            CGSize(width: distance, height: -distance),
+            CGSize(width: -distance, height: distance),
+            CGSize(width: distance, height: distance)
+        ]
+    }
+}
+
+private extension UIColor {
+    var petalogPerceivedBrightness: CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return red * 0.299 + green * 0.587 + blue * 0.114
     }
 }
 

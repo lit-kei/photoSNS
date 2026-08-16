@@ -11,11 +11,12 @@ enum BackgroundStickerRenderer {
     static func prepareForeground(
         _ foreground: UIImage,
         effect: StickerEffect,
-        decoration: StickerDecoration
+        decoration: StickerDecoration,
+        outlineColor: UIColor = .white
     ) throws -> UIImage {
         let source = foreground.petalogResized(maxDimension: 900)
         let filtered = try apply(effect, to: source)
-        return try apply(decoration, to: filtered)
+        return try apply(decoration, to: filtered, outlineColor: outlineColor)
     }
 
     static func renderPNG(preparedForeground: UIImage, draft: StickerDraft) throws -> Data {
@@ -142,7 +143,7 @@ enum BackgroundStickerRenderer {
         return UIImage(cgImage: result, scale: 1, orientation: .up)
     }
 
-    private static func apply(_ decoration: StickerDecoration, to image: UIImage) throws -> UIImage {
+    private static func apply(_ decoration: StickerDecoration, to image: UIImage, outlineColor: UIColor) throws -> UIImage {
         guard decoration != .none else { return image }
         guard let cgImage = image.cgImage else { throw ForegroundExtractionError.invalidImage }
 
@@ -161,7 +162,7 @@ enum BackgroundStickerRenderer {
 
         switch decoration {
         case .whiteOutline, .sparkle:
-            layers.append(coloredMask(dilate(mask, radius: 15), color: .white, extent: extent))
+            layers.append(coloredMask(dilate(mask, radius: 15), color: outlineColor, extent: extent))
         case .colorfulOutline:
             layers.append(coloredMask(dilate(mask, radius: 19), color: UIColor(white: 0.32, alpha: 1), extent: extent))
             layers.append(coloredMask(dilate(mask, radius: 9), color: UIColor(white: 0.88, alpha: 1), extent: extent))
