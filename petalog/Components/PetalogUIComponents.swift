@@ -472,15 +472,15 @@ extension AppTab: CaseIterable, Identifiable {
     var id: Self { self }
 
     static var allCases: [AppTab] {
-        [.home, .camera, .friends]
+        [.home, .memories, .camera, .friends, .profile]
     }
 
     var title: String {
         switch self {
         case .home: "ホーム"
         case .camera: "カメラ"
-        case .friends: "友達"
-        case .memories: "思い出"
+        case .friends: "友達一覧"
+        case .memories: "絵日記"
         case .profile: "プロフィール"
         }
     }

@@ -79,12 +79,14 @@ struct ContentView: View {
             }
         case .friends:
             NavigationStack {
-                FriendFeedScreen(showsRootTabBar: true)
+                FriendListScreen(showsRootTabBar: true)
             }
         case .memories:
-            MemoriesScreen()
+            MemoriesScreen(showsRootTabBar: true)
         case .profile:
-            ProfileScreen()
+            NavigationStack {
+                ProfileScreen(showsRootTabBar: true)
+            }
         }
     }
 }
@@ -128,7 +130,7 @@ struct AttachedBottomTabBar: View {
             .offset(y: -11)
             .accessibilityLabel("カメラ")
         }
-        .frame(width: 286)
+        .frame(maxWidth: .infinity)
         .background(AppColors.pureWhite)
     }
 
@@ -136,21 +138,26 @@ struct AttachedBottomTabBar: View {
         VStack(spacing: 0) {
             Rectangle()
                 .fill(AppColors.border)
+                .frame(maxWidth: .infinity)
                 .frame(height: 0.8)
 
             HStack {
                 tabButton(.home)
+                tabButton(.memories)
 
-                Spacer(minLength: 72)
+                Spacer(minLength: 58)
 
                 tabButton(.friends)
+                tabButton(.profile)
             }
-            .padding(.horizontal, 36)
+            .padding(.horizontal, 10)
             .padding(.top, 6)
             .padding(.bottom, 4)
-            .frame(width: 286, height: 56)
+            .frame(maxWidth: 390, minHeight: 56)
             .background(AppColors.pureWhite)
         }
+        .frame(maxWidth: .infinity)
+        .background(AppColors.pureWhite)
     }
 
     private func tabButton(_ tab: AppTab) -> some View {

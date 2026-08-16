@@ -9,6 +9,8 @@ import UIKit
 
 struct HomeScreen: View {
     @EnvironmentObject private var appState: AppState
+    @State private var isShowingGroupOptions = false
+    @State private var groupRoute: GroupRoute?
     var showsRootTabBar = false
 
     var body: some View {
@@ -17,7 +19,7 @@ struct HomeScreen: View {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
                     header
                     quickActions
-                    groupsSection
+                    friendFeedSection
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.screenTop)
@@ -33,6 +35,23 @@ struct HomeScreen: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .confirmationDialog("グループ", isPresented: $isShowingGroupOptions, titleVisibility: .visible) {
+                Button("グループを作る") {
+                    groupRoute = .create
+                }
+                Button("参加する") {
+                    groupRoute = .join
+                }
+                Button("キャンセル", role: .cancel) {}
+            }
+            .navigationDestination(item: $groupRoute) { route in
+                switch route {
+                case .create:
+                    GroupManagementScreen(initialMode: .create)
+                case .join:
+                    GroupManagementScreen(initialMode: .join)
+                }
+            }
         }
     }
 
@@ -41,20 +60,12 @@ struct HomeScreen: View {
             VStack(spacing: 5) {
                 Text("petalog")
                     .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(AppColors.mainText)
+                    .foregroundStyle(AppColors.accentPink)
                 
             }
             .frame(width: 156)
 
             HStack(spacing: 10) {
-
-                NavigationLink {
-                    ProfileScreen()
-                } label: {
-                    IconButtonLabel(systemName: "person.crop.circle")
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("プロフィール")
 
                 NavigationLink {
                     FriendAddScreen()
@@ -84,26 +95,36 @@ struct HomeScreen: View {
     }
 
     private var quickActions: some View {
-        HStack(spacing: 12) {
-            NavigationLink {
-                GroupManagementScreen(initialMode: .create)
-            } label: {
-                Label("グループを作る", systemImage: "person.3")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(SecondaryActionButtonStyle())
-
-            NavigationLink {
-                GroupManagementScreen(initialMode: .join)
-            } label: {
-                Label("参加する", systemImage: "qrcode.viewfinder")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(SecondaryActionButtonStyle())
+        Button {
+            isShowingGroupOptions = true
+        } label: {
+            Label("グループ", systemImage: "person.3")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(SecondaryActionButtonStyle())
     }
 
-    private var groupsSection: some View {
+    private var friendFeedSection: some View {
+        FriendTodayFeedSection()
+    }
+}
+
+private enum GroupRoute: Identifiable {
+    case create
+    case join
+
+    var id: String {
+        switch self {
+        case .create: "create"
+        case .join: "join"
+        }
+    }
+}
+
+private struct GroupListSection: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "グループ")
 
@@ -285,34 +306,22 @@ private struct GroupActivityRow: View {
 
 struct MemoriesScreen: View {
     @EnvironmentObject private var appState: AppState
+    var showsRootTabBar = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("思い出")
+                        Text("絵日記")
                             .font(.system(size: 34, weight: .bold))
                             .foregroundStyle(AppColors.mainText)
-                        Text("1日1枚の絵日記")
+                        Text("グループの今日のページ")
                             .font(.system(size: 15))
                             .foregroundStyle(AppColors.secondaryText)
                     }
 
-                    if appState.groups.isEmpty {
-                        EmptyStateView(systemImage: "book.closed", title: "思い出はこれから", message: "グループでステッカーを貼ると、1日1枚の絵日記がここに並びます。")
-                    } else {
-                        VStack(spacing: 12) {
-                            ForEach(appState.groups) { group in
-                                NavigationLink {
-                                    DiaryScreen(group: group)
-                                } label: {
-                                    MemoryListCard(group: group)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
+                    GroupListSection()
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
                 .padding(.top, AppSpacing.screenTop + 18)
@@ -320,6 +329,12 @@ struct MemoriesScreen: View {
             }
             .background {
                 PetalogMetalBackground()
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if showsRootTabBar {
+                    AttachedBottomTabBar(selection: $appState.selectedTab)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
         }
@@ -362,6 +377,7 @@ struct ProfileScreen: View {
     @State private var currentAvatarURL: String?
     @State private var isShowingMyQR = false
     @State private var selectedFriendProfile: AppUser?
+    var showsRootTabBar = false
 
     var body: some View {
         ScrollView {
@@ -486,6 +502,12 @@ struct ProfileScreen: View {
         }
         .background {
             PetalogMetalBackground()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showsRootTabBar {
+                AttachedBottomTabBar(selection: $appState.selectedTab)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

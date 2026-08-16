@@ -6,10 +6,7 @@ struct FriendFeedScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                header
-                feedContent
-            }
+            FriendTodayFeedSection()
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 16)
@@ -24,13 +21,23 @@ struct FriendFeedScreen: View {
             }
         }
     }
+}
+
+struct FriendTodayFeedSection: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            header
+            feedContent
+        }
+    }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("友達の投稿")
                 .font(.system(size: 32, weight: .bold))
                 .foregroundStyle(AppColors.mainText)
-           
         }
     }
 
