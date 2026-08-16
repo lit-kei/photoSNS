@@ -223,28 +223,38 @@ struct PrimaryActionButtonStyle: ButtonStyle {
 }
 
 struct SecondaryActionButtonStyle: ButtonStyle {
+    let backgroundColor: Color?
+
+    init(backgroundColor: Color? = nil) {
+        self.backgroundColor = backgroundColor
+    }
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(AppColors.mainText)
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
             .frame(height: 52)
             .background {
-                ZStack {
-                    RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
-                        .fill(AppColors.elevatedSurface.opacity(configuration.isPressed ? 0.88 : 0.98))
-                }
+                RoundedRectangle(
+                    cornerRadius: AppRadius.button,
+                    style: .continuous
+                )
+                .fill(
+                    (backgroundColor ?? AppColors.elevatedSurface)
+                        .opacity(configuration.isPressed ? 0.88 : 0.98)
+                )
             }
             .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
+                if backgroundColor == nil {
+                    RoundedRectangle(
+                        cornerRadius: AppRadius.button,
+                        style: .continuous
+                    )
                     .stroke(AppColors.border, lineWidth: 0.8)
+                }
             }
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .opacity(configuration.isPressed ? 0.86 : 1)
-            .animation(.spring(response: 0.24, dampingFraction: 0.86), value: configuration.isPressed)
     }
 }
 

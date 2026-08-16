@@ -166,9 +166,7 @@ struct DiaryScreen: View {
         } label: {
             Label("今日の絵日記へ", systemImage: "calendar.badge.clock")
         }
-        .buttonStyle(SecondaryActionButtonStyle())
-        .opacity(0.48)
-        .background(AppColors.accentBlue.opacity(0.72))
+        .buttonStyle(SecondaryActionButtonStyle(backgroundColor: AppColors.accentBlue))
         .accessibilityLabel("今日の絵日記へ移動します")
     }
 
