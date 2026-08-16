@@ -9,12 +9,32 @@ struct FriendListScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center) {
                     Text("友達一覧")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(AppColors.mainText)
-                        .font(.system(size: 15))
-                        .foregroundStyle(AppColors.secondaryText)
+                        .font(.system(size: 38, weight: .heavy, design: .rounded))
+                        .foregroundStyle(AppColors.accentPink)
+                        .tracking(0.4)
+
+                    Spacer()
+
+                    NavigationLink {
+                        FriendAddScreen()
+                    } label: {
+                        Label("追加", systemImage: "person.badge.plus")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(AppColors.mainText)
+                            .labelStyle(.titleAndIcon)
+                            .padding(.horizontal, 13)
+                            .frame(height: 40)
+                            .background(AppColors.elevatedSurface.opacity(0.96), in: Capsule())
+                            .overlay {
+                                Capsule()
+                                    .stroke(AppColors.mainText.opacity(0.16), lineWidth: 1)
+                            }
+                            .shadow(color: AppColors.mainText.opacity(0.06), radius: 8, y: 3)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("友達追加")
                 }
 
                 if appState.friends.isEmpty {

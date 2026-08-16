@@ -307,10 +307,9 @@ struct MemoriesScreen: View {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("絵日記")
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(AppColors.mainText)
-                            .font(.system(size: 15))
-                            .foregroundStyle(AppColors.secondaryText)
+                            .font(.system(size: 38, weight: .heavy, design: .rounded))
+                            .foregroundStyle(AppColors.accentPink)
+                            .tracking(0.4)
                     }
 
                     GroupListSection()
@@ -371,8 +370,9 @@ struct ProfileScreen: View {
             VStack(spacing: 30) {
                 HStack {
                     Text("プロフィール")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(AppColors.mainText)
+                        .font(.system(size: 38, weight: .heavy, design: .rounded))
+                        .foregroundStyle(AppColors.accentPink)
+                        .tracking(0.4)
 
                     Spacer()
                 }
