@@ -19,6 +19,7 @@ struct GroupManagementScreen: View {
     @State private var candidateGroup: PetalogGroup?
     @State private var lookupTask: Task<Void, Never>?
     @State private var isJoining = false
+    @State private var groupToLeave: PetalogGroup?
 
     var body: some View {
         ScrollView {
@@ -39,6 +40,16 @@ struct GroupManagementScreen: View {
                                                 .foregroundStyle(AppColors.secondaryText)
                                         }
                                         Spacer()
+                                        Button {
+                                            groupToLeave = group
+                                        } label: {
+                                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                                .font(.system(size: 15, weight: .semibold))
+                                                .foregroundStyle(AppColors.secondaryText)
+                                                .frame(width: 38, height: 38)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("\(group.name)から脱退")
                                     }
                                     .padding(12)
                                     .background(AppColors.surface.opacity(0.94))
@@ -163,6 +174,26 @@ struct GroupManagementScreen: View {
         }
         .navigationTitle("グループ")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog(
+            "グループから脱退しますか？",
+            isPresented: Binding(
+                get: { groupToLeave != nil },
+                set: { if !$0 { groupToLeave = nil } }
+            ),
+            presenting: groupToLeave
+        ) { group in
+            Button("脱退", role: .destructive) {
+                Task {
+                    await appState.leaveGroup(group)
+                    groupToLeave = nil
+                }
+            }
+            Button("キャンセル", role: .cancel) {
+                groupToLeave = nil
+            }
+        } message: { group in
+            Text("\(group.name)から脱退します。")
+        }
     }
 
     private func scheduleLookup(for code: String) {
@@ -193,6 +224,7 @@ struct GroupEditScreen: View {
     @State private var selectedIconItem: PhotosPickerItem?
     @State private var selectedIconData: Data?
     @State private var isSaving = false
+    @State private var isConfirmingLeave = false
 
     init(group: PetalogGroup) {
         self.group = group
@@ -274,6 +306,14 @@ struct GroupEditScreen: View {
                 }
                 .buttonStyle(PrimaryActionButtonStyle())
                 .disabled(groupName.trimmedForPetalog.isEmpty || isSaving)
+
+                Button(role: .destructive) {
+                    isConfirmingLeave = true
+                } label: {
+                    Label("グループから脱退", systemImage: "rectangle.portrait.and.arrow.right")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -283,6 +323,17 @@ struct GroupEditScreen: View {
             PetalogMetalBackground()
         }
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("グループから脱退しますか？", isPresented: $isConfirmingLeave, titleVisibility: .visible) {
+            Button("脱退", role: .destructive) {
+                Task {
+                    await appState.leaveGroup(group)
+                    dismiss()
+                }
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("\(group.name)から脱退します。")
+        }
     }
 }
 

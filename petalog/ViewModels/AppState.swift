@@ -152,6 +152,15 @@ final class AppState: ObservableObject {
         }
     }
 
+    func leaveGroup(_ group: PetalogGroup) async {
+        guard let currentUser else { return }
+        do {
+            try await services.groups.leaveGroup(group, currentUser: currentUser)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func findUser(email: String) async -> AppUser? {
         do {
             return try await services.friends.findUser(email: email)

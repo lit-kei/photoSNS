@@ -262,6 +262,51 @@ final class GroupService {
         }
     }
 
+    func leaveGroup(_ group: PetalogGroup, currentUser: AppUser) async throws {
+        guard let memberIndex = group.memberIds.firstIndex(of: currentUser.id) else { return }
+
+        let groupRef = db.collection("groups").document(group.id)
+        let memberRef = db.collection("groupMembers").document("\(group.id)_\(currentUser.id)")
+        let remainingMemberIds = group.memberIds.filter { $0 != currentUser.id }
+        let batch = db.batch()
+
+        if remainingMemberIds.isEmpty {
+            batch.deleteDocument(groupRef)
+            batch.deleteDocument(memberRef)
+            try await batch.commit()
+            if let iconURL = group.iconURL {
+                await deleteGroupIcon(at: iconURL)
+            }
+            return
+        }
+
+        var memberNames = group.memberNames
+        var memberAvatars = group.memberAvatars
+        while memberNames.count < group.memberIds.count { memberNames.append("") }
+        while memberAvatars.count < group.memberIds.count { memberAvatars.append("system:person.fill") }
+        memberNames.remove(at: memberIndex)
+        memberAvatars.remove(at: memberIndex)
+
+        var updateData: [String: Any] = [
+            "memberIds": remainingMemberIds,
+            "memberNames": memberNames,
+            "memberAvatars": memberAvatars
+        ]
+
+        if group.ownerId == currentUser.id, let nextOwnerId = remainingMemberIds.first {
+            updateData["ownerId"] = nextOwnerId
+            batch.setData(
+                ["role": "owner"],
+                forDocument: db.collection("groupMembers").document("\(group.id)_\(nextOwnerId)"),
+                merge: true
+            )
+        }
+
+        batch.updateData(updateData, forDocument: groupRef)
+        batch.deleteDocument(memberRef)
+        try await batch.commit()
+    }
+
     private func saveGroupReadState(groupId: String, userId: String, at date: Date) async throws {
         try await db.collection("groupMembers")
             .document("\(groupId)_\(userId)")
