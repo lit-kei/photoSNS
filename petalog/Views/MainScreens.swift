@@ -40,18 +40,9 @@ struct HomeScreen: View {
         ZStack(alignment: .top) {
             VStack(spacing: 5) {
                 Text("petalog")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
-                Text(Date().petalogDisplayDate)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(AppColors.secondaryText)
-                if let user = appState.currentUser {
-                    Text(user.displayName)
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(AppColors.secondaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.84)
-                }
+                
             }
             .frame(width: 156)
 
