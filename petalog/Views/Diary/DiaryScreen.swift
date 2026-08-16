@@ -380,6 +380,7 @@ private struct DateNavigator: View {
                 .frame(height: 30)*/
             }
         }
+
     }
 }
 

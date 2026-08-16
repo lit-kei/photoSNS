@@ -166,8 +166,16 @@ final class StickerService {
             forDocument: db.collection("stickerAssets").document(assetId)
         )
         for (group, post) in zip(groups, posts) {
-            let diary = DiaryPage(id: post.diaryId, groupId: group.id, dateKey: dateKey, title: createdAt.petalogShortTitle)
-            batch.setData(diary.dictionary, forDocument: db.collection("diaries").document(post.diaryId), merge: true)
+            batch.setData(
+                [
+                    "groupId": group.id,
+                    "dateKey": dateKey,
+                    "stickerLayout": FieldValue.arrayUnion([post.layout.dictionary]),
+                    "updatedAt": FieldValue.serverTimestamp()
+                ],
+                forDocument: db.collection("diaries").document(post.diaryId),
+                merge: true
+            )
             batch.setData(post.dictionary, forDocument: db.collection("stickers").document(post.id))
             batch.updateData(["diaryCount": FieldValue.increment(Int64(1))], forDocument: db.collection("groups").document(group.id))
         }

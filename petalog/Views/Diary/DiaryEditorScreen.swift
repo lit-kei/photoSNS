@@ -22,6 +22,15 @@ private enum DiaryLayerMovement {
     case back
 }
 
+private enum DiaryEditorTab: String, CaseIterable, Identifiable {
+    case autoArrange = "自動生成"
+    case text = "文字"
+    case stamp = "スタンプ"
+    case background = "背景"
+
+    var id: String { rawValue }
+}
+
 struct DiaryEditorScreen: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -37,6 +46,7 @@ struct DiaryEditorScreen: View {
     @State private var activeElement: CanvasElementID?
     @State private var isShowingFontPicker = false
     @State private var inputBuffer = DiaryTextInputBuffer()
+    @State private var selectedEditorTab: DiaryEditorTab = .autoArrange
 
     init(group: PetalogGroup) {
         self.group = group
@@ -133,6 +143,16 @@ struct DiaryEditorScreen: View {
                 seedLayouts(from: diary)
             }
         }
+        .onChange(of: selectedElement) { _, element in
+            switch element {
+            case .text:
+                selectedEditorTab = .text
+            case .stamp:
+                selectedEditorTab = .stamp
+            case .sticker, nil:
+                break
+            }
+        }
         .sheet(isPresented: $isShowingFontPicker) {
             DiaryFontPicker(
                 selectedFontName: selectedFontNameBinding,
@@ -144,91 +164,19 @@ struct DiaryEditorScreen: View {
 
     @ViewBuilder
     private var editorDock: some View {
-        VStack(spacing: 9) {
-            if let selectedElement, let entry = selectedLayerEntry {
-                HStack(spacing: 8) {
-                    Label(entry.title, systemImage: entry.systemImage)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-
-                    Spacer(minLength: 4)
-
-                    Button {
-                        self.selectedElement = nil
-                        activeElement = nil
-                    } label: {
-                        Label("編集を終了", systemImage: "xmark.circle.fill")
-                            .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("編集を終了")
-                }
-
-                HStack(spacing: 6) {
-                    DiaryLayerActionButton(title: "前へ", systemImage: "arrow.up", isDisabled: !canMoveSelectedForward) {
-                        moveSelectedLayer(.forward)
-                    }
-                    DiaryLayerActionButton(title: "後ろへ", systemImage: "arrow.down", isDisabled: !canMoveSelectedBackward) {
-                        moveSelectedLayer(.backward)
-                    }
-                    DiaryLayerActionButton(title: "最前面", systemImage: "square.3.layers.3d.top.filled", isDisabled: !canMoveSelectedForward) {
-                        moveSelectedLayer(.front)
-                    }
-                    DiaryLayerActionButton(title: "最背面", systemImage: "square.3.layers.3d.bottom.filled", isDisabled: !canMoveSelectedBackward) {
-                        moveSelectedLayer(.back)
-                    }
-                }
-
-                selectedDockControls(for: selectedElement)
-            } else {
-                VStack(spacing: 8) {
-                    Text("写真・文字・スタンプをタップして編集")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(AppColors.secondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    HStack(spacing: 8) {
-                        Button {
-                            autoArrangeDiary()
-                        } label: {
-                            Label("自動配置", systemImage: "sparkles")
-                        }
-                        .disabled(!canAutoArrange)
-
-                        Button {
-                            addText()
-                        } label: {
-                            Label("文字", systemImage: "text.badge.plus")
-                        }
-
-                        Menu {
-                            ForEach(["★", "♥", "!!", "→", "✦", "☺"], id: \.self) { stamp in
-                                Button(stamp) { addStamp(stamp) }
-                            }
-                        } label: {
-                            Label("スタンプ", systemImage: "star.fill")
-                        }
-
-                        Menu {
-                            ForEach(ScrapbookBackground.allCases) { background in
-                                Button {
-                                    draftDiary?.background = background
-                                } label: {
-                                    Label(background.title, systemImage: background.systemImage)
-                                }
-                            }
-                        } label: {
-                            Label("背景", systemImage: "paintpalette.fill")
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(AppColors.mainText)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
-                }
+        VStack(spacing: 10) {
+            if selectedElement != nil {
+                selectedObjectSummary
             }
+
+            editorTabBar
+
+            Divider()
+                .overlay(AppColors.border.opacity(0.7))
+
+            editorTabContent
         }
-        .controlSize(.large)
+        .controlSize(.regular)
         .padding(12)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
@@ -238,10 +186,181 @@ struct DiaryEditorScreen: View {
         }
     }
 
+    private var editorTabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(DiaryEditorTab.allCases) { tab in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            selectedEditorTab = tab
+                        }
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(selectedEditorTab == tab ? .white : AppColors.mainText)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 9)
+                            .background {
+                                Capsule()
+                                    .fill(selectedEditorTab == tab ? AppColors.burntOrange : AppColors.surface.opacity(0.92))
+                            }
+                            .overlay {
+                                Capsule()
+                                    .stroke(AppColors.border.opacity(selectedEditorTab == tab ? 0 : 0.8), lineWidth: 0.8)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
     @ViewBuilder
-    private func selectedDockControls(for element: CanvasElementID) -> some View {
-        switch element {
-        case .text(let textID):
+    private var editorTabContent: some View {
+        switch selectedEditorTab {
+        case .autoArrange:
+            VStack(alignment: .leading, spacing: 8) {
+                Text("写真・文字・スタンプをまとめて、見やすい位置へ並べ直します。")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+
+                Button {
+                    autoArrangeDiary()
+                } label: {
+                    Text("自動配置する")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .background(AppColors.burntOrange, in: RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canAutoArrange)
+                .opacity(canAutoArrange ? 1 : 0.42)
+            }
+
+        case .text:
+            VStack(alignment: .leading, spacing: 9) {
+                if case .text(let textID) = selectedElement {
+                    textEditingControls(textID: textID)
+                } else {
+                    Text("文字を追加すると、キャンバス上で移動・拡大縮小・回転できます。")
+                        .font(.caption)
+                        .foregroundStyle(AppColors.secondaryText)
+
+                    Button {
+                        addText()
+                    } label: {
+                        Text("文字を追加")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppColors.mainText)
+                }
+            }
+
+        case .stamp:
+            VStack(alignment: .leading, spacing: 9) {
+                Text("追加したスタンプはタップして選択し、位置やレイヤーを調整できます。")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(["★", "♥", "!!", "→", "✦", "☺"], id: \.self) { stamp in
+                            Button {
+                                addStamp(stamp)
+                            } label: {
+                                Text(stamp)
+                                    .font(.title3.weight(.bold))
+                                    .frame(width: 50, height: 42)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(AppColors.mainText)
+                        }
+                    }
+                }
+
+                if case .stamp(let stampID) = selectedElement {
+                    deleteButton { deleteStamp(stampID) }
+                }
+            }
+
+        case .background:
+            VStack(alignment: .leading, spacing: 9) {
+                Text("絵日記の背景を選びます。")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.secondaryText)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(ScrapbookBackground.allCases) { background in
+                            Button {
+                                draftDiary?.background = background
+                            } label: {
+                                Text(background.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 14)
+                                    .frame(height: 42)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(draftDiary?.background == background ? AppColors.burntOrange : AppColors.mainText)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var selectedObjectSummary: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                if let entry = selectedLayerEntry {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.title)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        Text("\(entry.detail)を編集中")
+                            .font(.caption2)
+                            .foregroundStyle(AppColors.secondaryText)
+                    }
+                }
+
+                Spacer(minLength: 4)
+
+                if let selectedSticker,
+                   selectedSticker.authorId == appState.currentUser?.id {
+                    deleteButton { Task { await deleteSelectedSticker(selectedSticker) } }
+                }
+
+                Button {
+                    selectedElement = nil
+                    activeElement = nil
+                } label: {
+                    Text("終了")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            HStack(spacing: 6) {
+                DiaryLayerActionButton(title: "前へ", systemImage: "arrow.up", isDisabled: !canMoveSelectedForward) {
+                    moveSelectedLayer(.forward)
+                }
+                DiaryLayerActionButton(title: "後ろへ", systemImage: "arrow.down", isDisabled: !canMoveSelectedBackward) {
+                    moveSelectedLayer(.backward)
+                }
+                DiaryLayerActionButton(title: "最前面", systemImage: "square.3.layers.3d.top.filled", isDisabled: !canMoveSelectedForward) {
+                    moveSelectedLayer(.front)
+                }
+                DiaryLayerActionButton(title: "最背面", systemImage: "square.3.layers.3d.bottom.filled", isDisabled: !canMoveSelectedBackward) {
+                    moveSelectedLayer(.back)
+                }
+            }
+        }
+    }
+
+    private func textEditingControls(textID: String) -> some View {
+        VStack(spacing: 9) {
             BufferedDiaryTextField(
                 placeholder: "文字を入力",
                 initialText: selectedText?.text ?? "",
@@ -261,7 +380,7 @@ struct DiaryEditorScreen: View {
                 Button {
                     isShowingFontPicker = true
                 } label: {
-                    Label(selectedFontDisplayName, systemImage: "textformat")
+                    Text(selectedFontDisplayName)
                         .lineLimit(1)
                 }
                 .buttonStyle(.bordered)
@@ -273,8 +392,7 @@ struct DiaryEditorScreen: View {
                     Button {
                         updateText(textID) { $0.fontName = "" }
                     } label: {
-                        Label("標準フォント", systemImage: "arrow.uturn.backward")
-                            .labelStyle(.iconOnly)
+                        Text("標準")
                     }
                     .buttonStyle(.bordered)
                     .accessibilityLabel("システムフォントに戻す")
@@ -282,21 +400,6 @@ struct DiaryEditorScreen: View {
 
                 Spacer(minLength: 0)
                 deleteButton { deleteText(textID) }
-            }
-
-        case .stamp(let stampID):
-            HStack {
-                Spacer()
-                deleteButton { deleteStamp(stampID) }
-            }
-
-        case .sticker:
-            if let selectedSticker,
-               selectedSticker.authorId == appState.currentUser?.id {
-                HStack {
-                    Spacer()
-                    deleteButton { Task { await deleteSelectedSticker(selectedSticker) } }
-                }
             }
         }
     }
