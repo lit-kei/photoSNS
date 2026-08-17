@@ -48,6 +48,7 @@ struct DiaryEditorScreen: View {
     @State private var inputBuffer = DiaryTextInputBuffer()
     @State private var selectedEditorTab: DiaryEditorTab = .autoArrange
     @State private var isAutoArranging = false
+    @State private var editorBottomSheetHeight: CGFloat = 0
 
     init(group: PetalogGroup) {
         self.group = group
@@ -90,7 +91,7 @@ struct DiaryEditorScreen: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
-        .padding(.bottom, draftDiary == nil ? 8 : 0)
+        .padding(.bottom, draftDiary == nil ? 8 : editorBottomSheetHeight)
         .background {
             ZStack {
                 PetalogMetalBackground()
@@ -101,7 +102,19 @@ struct DiaryEditorScreen: View {
         .overlay(alignment: .bottom) {
             if draftDiary != nil {
                 editorBottomSheet
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: EditorBottomSheetHeightPreferenceKey.self,
+                                value: proxy.size.height
+                            )
+                        }
+                    }
             }
+        }
+        .onPreferenceChange(EditorBottomSheetHeightPreferenceKey.self) { height in
+            guard height.isFinite, abs(editorBottomSheetHeight - height) > 0.5 else { return }
+            editorBottomSheetHeight = height
         }
         .navigationTitle("絵日記編集")
         .navigationBarTitleDisplayMode(.inline)
@@ -826,7 +839,10 @@ private struct AdaptiveEditableDiaryCanvas: View {
             )
             .frame(width: logicalSize.width, height: logicalSize.height)
             .scaleEffect(scale, anchor: .center)
-            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            .position(
+                x: proxy.size.width / 2,
+                y: logicalSize.height * scale / 2
+            )
         }
     }
 }
@@ -842,6 +858,8 @@ struct EditableDiaryCanvas: View {
     @State private var elementFrames: [CanvasElementID: CGRect] = [:]
     @State private var canvasDragElement: CanvasElementID?
     @State private var canvasDragOrigin: CGPoint?
+    @State private var canvasScaleElement: CanvasElementID?
+    @State private var canvasScaleOrigin: Double?
 
     var body: some View {
         GeometryReader { _ in
@@ -972,6 +990,7 @@ struct EditableDiaryCanvas: View {
                     .onEnded { value in selectElement(at: value.location) }
             )
             .highPriorityGesture(canvasDragGesture)
+            .simultaneousGesture(canvasScaleGesture)
             .onAppear {
                 if canvasSize != DiaryCanvasMetrics.logicalSize {
                     canvasSize = DiaryCanvasMetrics.logicalSize
@@ -1118,6 +1137,37 @@ struct EditableDiaryCanvas: View {
             }
     }
 
+    private var canvasScaleGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                if canvasScaleElement == nil {
+                    let startLocation = CGPoint(
+                        x: value.startAnchor.x * DiaryCanvasMetrics.logicalSize.width,
+                        y: value.startAnchor.y * DiaryCanvasMetrics.logicalSize.height
+                    )
+                    guard let element = hitElement(at: startLocation),
+                          let origin = scale(for: element) else { return }
+                    canvasScaleElement = element
+                    canvasScaleOrigin = origin
+                    selectedElement = nil
+                    activeElement = element
+                }
+
+                guard let element = canvasScaleElement,
+                      let origin = canvasScaleOrigin else { return }
+                updateScale(for: element, scale: clampedScale(origin * value.magnification, for: element))
+            }
+            .onEnded { value in
+                if let element = canvasScaleElement,
+                   let origin = canvasScaleOrigin {
+                    updateScale(for: element, scale: clampedScale(origin * value.magnification, for: element))
+                }
+                canvasScaleElement = nil
+                canvasScaleOrigin = nil
+                activeElement = nil
+            }
+    }
+
     private func hitElement(at location: CGPoint) -> CanvasElementID? {
         let hitEntries = diaryLayerEntries(diary: diary, stickers: stickers, layouts: layouts)
             .filter { entry in
@@ -1189,6 +1239,44 @@ struct EditableDiaryCanvas: View {
             guard let sticker = stickers.first(where: { $0.id == id }) else { return nil }
             let layout = layouts[id] ?? diary.stickerLayout.first(where: { $0.stickerId == id }) ?? sticker.layout
             return CGPoint(x: layout.x, y: layout.y)
+        }
+    }
+
+    private func scale(for element: CanvasElementID) -> Double? {
+        switch element {
+        case .text(let id):
+            guard let item = diary.textItems.first(where: { $0.id == id }) else { return nil }
+            return item.scale
+        case .stamp(let id):
+            guard let item = diary.stampItems.first(where: { $0.id == id }) else { return nil }
+            return item.scale
+        case .sticker(let id):
+            guard let sticker = stickers.first(where: { $0.id == id }) else { return nil }
+            let layout = layouts[id] ?? diary.stickerLayout.first(where: { $0.stickerId == id }) ?? sticker.layout
+            return layout.scale
+        }
+    }
+
+    private func clampedScale(_ scale: Double, for element: CanvasElementID) -> Double {
+        let range: ClosedRange<Double>
+        switch element {
+        case .text, .stamp:
+            range = 0.5...3
+        case .sticker:
+            range = 0.55...1.8
+        }
+        return min(range.upperBound, max(range.lowerBound, scale))
+    }
+
+    private func updateScale(for element: CanvasElementID, scale: Double) {
+        switch element {
+        case .text(let id):
+            updateText(id) { $0.scale = scale }
+        case .stamp(let id):
+            updateStamp(id) { $0.scale = scale }
+        case .sticker(let id):
+            guard let sticker = stickers.first(where: { $0.id == id }) else { return }
+            updateSticker(sticker) { $0.scale = scale }
         }
     }
 
@@ -1356,6 +1444,14 @@ private struct DiaryElementFramePreferenceKey: PreferenceKey {
         nextValue: () -> [CanvasElementID: CGRect]
     ) {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+private struct EditorBottomSheetHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
