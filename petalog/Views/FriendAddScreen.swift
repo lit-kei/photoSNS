@@ -179,6 +179,7 @@ struct FriendAddScreen: View {
                             FriendRow(friend: friend)
                         }
                         .buttonStyle(.plain)
+                        #if !DEBUG
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 friendToDelete = friend
@@ -193,6 +194,7 @@ struct FriendAddScreen: View {
                                 Label("友達を削除", systemImage: "trash")
                             }
                         }
+                        #endif
                     }
                 }
             }

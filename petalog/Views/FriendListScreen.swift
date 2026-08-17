@@ -117,6 +117,7 @@ private struct FriendListRow: View {
             }
             .buttonStyle(.plain)
 
+            #if !DEBUG
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .font(.system(size: 14, weight: .semibold))
@@ -126,6 +127,7 @@ private struct FriendListRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(displayName)を削除")
+            #endif
         }
         .padding(.vertical, 14)
         .overlay(alignment: .bottom) {

@@ -571,8 +571,8 @@ struct DiaryEditorScreen: View {
     }
 
     private var insertionPoint: CGPoint {
-        let width = canvasSize.width > 0 ? canvasSize.width : max(UIScreen.main.bounds.width - 40, 320)
-        let height = canvasSize.height > 0 ? canvasSize.height : 480
+        let width = canvasSize.width > 0 ? canvasSize.width : DiaryCanvasMetrics.logicalSize.width
+        let height = canvasSize.height > 0 ? canvasSize.height : DiaryCanvasMetrics.logicalSize.height
         return CGPoint(x: width / 2, y: height / 2)
     }
 
@@ -609,9 +609,7 @@ struct DiaryEditorScreen: View {
     }
 
     private var normalizedCanvasSize: CGSize {
-        let width = canvasSize.width > 0 ? canvasSize.width : max(UIScreen.main.bounds.width - 40, 320)
-        let height = canvasSize.height > 0 ? canvasSize.height : 480
-        return CGSize(width: max(width, 240), height: max(height, 320))
+        DiaryCanvasMetrics.logicalSize
     }
 
     private func addText() {
@@ -810,12 +808,13 @@ private struct AdaptiveEditableDiaryCanvas: View {
     @Binding var activeElement: CanvasElementID?
     @Binding var canvasSize: CGSize
 
-    private let logicalHeight: CGFloat = 480
-
     var body: some View {
         GeometryReader { proxy in
-            let logicalWidth = max(proxy.size.width, 1)
-            let scale = min(1, max(proxy.size.height, 1) / logicalHeight)
+            let logicalSize = DiaryCanvasMetrics.logicalSize
+            let scale = min(
+                max(proxy.size.width, 1) / logicalSize.width,
+                max(proxy.size.height, 1) / logicalSize.height
+            )
 
             EditableDiaryCanvas(
                 diary: $diary,
@@ -825,9 +824,9 @@ private struct AdaptiveEditableDiaryCanvas: View {
                 activeElement: $activeElement,
                 canvasSize: $canvasSize
             )
-            .frame(width: logicalWidth, height: logicalHeight)
-            .scaleEffect(scale, anchor: .top)
-            .position(x: proxy.size.width / 2, y: logicalHeight / 2)
+            .frame(width: logicalSize.width, height: logicalSize.height)
+            .scaleEffect(scale, anchor: .center)
+            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }
     }
 }
@@ -841,9 +840,11 @@ struct EditableDiaryCanvas: View {
     @Binding var canvasSize: CGSize
 
     @State private var elementFrames: [CanvasElementID: CGRect] = [:]
+    @State private var canvasDragElement: CanvasElementID?
+    @State private var canvasDragOrigin: CGPoint?
 
     var body: some View {
-        GeometryReader { proxy in
+        GeometryReader { _ in
             ZStack {
                 DiaryBackgroundView(background: diary.background)
                     .contentShape(Rectangle())
@@ -925,7 +926,7 @@ struct EditableDiaryCanvas: View {
                 ForEach(stickers) { sticker in
                     let layout = layouts[sticker.id] ?? sticker.layout
                     let element = CanvasElementID.sticker(sticker.id)
-                    RemoteStickerView(sticker: sticker, size: 118)
+                    RemoteStickerView(sticker: sticker, size: DiaryCanvasMetrics.stickerBaseSize)
                         .overlay {
                             if selectedElement == element {
                                 RoundedRectangle(cornerRadius: AppRadius.card)
@@ -970,14 +971,11 @@ struct EditableDiaryCanvas: View {
                 SpatialTapGesture()
                     .onEnded { value in selectElement(at: value.location) }
             )
+            .highPriorityGesture(canvasDragGesture)
             .onAppear {
-                if canvasSize != proxy.size {
-                    canvasSize = proxy.size
+                if canvasSize != DiaryCanvasMetrics.logicalSize {
+                    canvasSize = DiaryCanvasMetrics.logicalSize
                 }
-            }
-            .onChange(of: proxy.size) { _, size in
-                guard canvasSize != size else { return }
-                canvasSize = size
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
@@ -1083,22 +1081,53 @@ struct EditableDiaryCanvas: View {
     }
 
     private func selectElement(at location: CGPoint) {
-        let hitEntries = diaryLayerEntries(diary: diary, stickers: stickers, layouts: layouts)
-            .filter { entry in
-                interactionFrame(for: entry.element)?.insetBy(dx: -8, dy: -8).contains(location) == true
-            }
-
-        guard !hitEntries.isEmpty else {
+        guard let element = hitElement(at: location) else {
             selectedElement = nil
             activeElement = nil
             return
         }
 
-        selectedElement = hitEntries.first { entry in
+        selectedElement = element
+        activeElement = nil
+    }
+
+    private var canvasDragGesture: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .named("diaryCanvas"))
+            .onChanged { value in
+                if canvasDragElement == nil {
+                    guard let element = hitElement(at: value.startLocation),
+                          let origin = position(for: element) else { return }
+                    canvasDragElement = element
+                    canvasDragOrigin = origin
+                    selectedElement = nil
+                    activeElement = element
+                }
+
+                guard let element = canvasDragElement,
+                      let origin = canvasDragOrigin else { return }
+                updatePosition(
+                    for: element,
+                    x: origin.x + value.translation.width,
+                    y: origin.y + value.translation.height
+                )
+            }
+            .onEnded { _ in
+                canvasDragElement = nil
+                canvasDragOrigin = nil
+                activeElement = nil
+            }
+    }
+
+    private func hitElement(at location: CGPoint) -> CanvasElementID? {
+        let hitEntries = diaryLayerEntries(diary: diary, stickers: stickers, layouts: layouts)
+            .filter { entry in
+                interactionFrame(for: entry.element)?.insetBy(dx: -8, dy: -8).contains(location) == true
+            }
+
+        return hitEntries.first { entry in
             if case .sticker = entry.element { return true }
             return false
-        }?.element ?? hitEntries[0].element
-        activeElement = nil
+        }?.element ?? hitEntries.first?.element
     }
 
     private func interactionFrame(for element: CanvasElementID) -> CGRect? {
@@ -1111,7 +1140,8 @@ struct EditableDiaryCanvas: View {
     private func stickerInteractionFrame(id: String) -> CGRect? {
         guard let sticker = stickers.first(where: { $0.id == id }) else { return nil }
         let layout = layouts[id] ?? diary.stickerLayout.first(where: { $0.stickerId == id }) ?? sticker.layout
-        let size = rotatedSize(width: 118 * layout.scale, height: 118 * layout.scale, degrees: layout.rotation)
+        let baseSize = DiaryCanvasMetrics.stickerBaseSize
+        let size = rotatedSize(width: baseSize * layout.scale, height: baseSize * layout.scale, degrees: layout.rotation)
         let center = CGPoint(
             x: canvasSize.width / 2 + layout.x,
             y: canvasSize.height / 2 + layout.y
@@ -1145,6 +1175,42 @@ struct EditableDiaryCanvas: View {
         var layout = layouts[sticker.id] ?? sticker.layout
         mutate(&layout)
         layouts[sticker.id] = layout
+    }
+
+    private func position(for element: CanvasElementID) -> CGPoint? {
+        switch element {
+        case .text(let id):
+            guard let item = diary.textItems.first(where: { $0.id == id }) else { return nil }
+            return CGPoint(x: item.x, y: item.y)
+        case .stamp(let id):
+            guard let item = diary.stampItems.first(where: { $0.id == id }) else { return nil }
+            return CGPoint(x: item.x, y: item.y)
+        case .sticker(let id):
+            guard let sticker = stickers.first(where: { $0.id == id }) else { return nil }
+            let layout = layouts[id] ?? diary.stickerLayout.first(where: { $0.stickerId == id }) ?? sticker.layout
+            return CGPoint(x: layout.x, y: layout.y)
+        }
+    }
+
+    private func updatePosition(for element: CanvasElementID, x: Double, y: Double) {
+        switch element {
+        case .text(let id):
+            updateText(id) {
+                $0.x = x
+                $0.y = y
+            }
+        case .stamp(let id):
+            updateStamp(id) {
+                $0.x = x
+                $0.y = y
+            }
+        case .sticker(let id):
+            guard let sticker = stickers.first(where: { $0.id == id }) else { return }
+            updateSticker(sticker) {
+                $0.x = x
+                $0.y = y
+            }
+        }
     }
 }
 
@@ -1448,7 +1514,7 @@ private enum DiaryAutoArranger {
         layouts: [String: StickerLayout],
         canvasSize: CGSize
     ) -> DiaryAutoArrangeResult {
-        let size = CGSize(width: max(canvasSize.width, 240), height: max(canvasSize.height, 320))
+        let size = DiaryCanvasMetrics.logicalSize
         let originalElements = makeElements(diary: diary, stickers: stickers, layouts: layouts, canvasSize: size)
         guard !originalElements.isEmpty else {
             return DiaryAutoArrangeResult(diary: diary, layouts: layouts)
@@ -1516,7 +1582,10 @@ private enum DiaryAutoArranger {
             elements.append(AutoArrangeElement(
                 id: .sticker(sticker.id),
                 kind: .sticker,
-                baseSize: CGSize(width: 118, height: 118),
+                baseSize: CGSize(
+                    width: DiaryCanvasMetrics.stickerBaseSize,
+                    height: DiaryCanvasMetrics.stickerBaseSize
+                ),
                 center: CGPoint(
                     x: canvasSize.width / 2 + layout.x,
                     y: canvasSize.height / 2 + layout.y

@@ -294,7 +294,6 @@ struct DiaryScreen: View {
 }
 
 private struct DiaryPageViewport<Content: View>: View {
-    private let logicalHeight: CGFloat = 480
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -303,11 +302,14 @@ private struct DiaryPageViewport<Content: View>: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let logicalWidth = max(proxy.size.width, 1)
-            let scale = min(1, max(proxy.size.height, 1) / logicalHeight)
+            let logicalSize = DiaryCanvasMetrics.logicalSize
+            let scale = min(
+                max(proxy.size.width, 1) / logicalSize.width,
+                max(proxy.size.height, 1) / logicalSize.height
+            )
 
             content
-                .frame(width: logicalWidth, height: logicalHeight)
+                .frame(width: logicalSize.width, height: logicalSize.height)
                 .scaleEffect(scale)
                 .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }

@@ -514,6 +514,7 @@ struct ProfileScreen: View {
                     diaries: appState.groups.reduce(0) { $0 + $1.diaryCount }
                 )
 
+                #if !DEBUG
                 Button("ログアウト") {
                     appState.signOut()
                 }
@@ -521,6 +522,7 @@ struct ProfileScreen: View {
                 .foregroundStyle(AppColors.secondaryText)
                 .buttonStyle(.plain)
                 .padding(.top, 4)
+                #endif
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.screenTop + 18)

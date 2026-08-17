@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+enum DiaryCanvasMetrics {
+    static let logicalSize = CGSize(width: 360, height: 480)
+    static let stickerBaseSize: CGFloat = 118
+}
+
 extension UIColor {
     convenience init?(hex: String) {
         let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -70,7 +75,7 @@ struct DiaryCanvasView: View {
 
             ForEach(stickers) { sticker in
                 let layout = diary.stickerLayout.first(where: { $0.stickerId == sticker.id }) ?? sticker.layout
-                RemoteStickerView(sticker: sticker, size: 118)
+                RemoteStickerView(sticker: sticker, size: DiaryCanvasMetrics.stickerBaseSize)
                     .contentShape(Rectangle())
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 0)
@@ -93,6 +98,7 @@ struct DiaryCanvasView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
+        .frame(width: DiaryCanvasMetrics.logicalSize.width, height: DiaryCanvasMetrics.logicalSize.height)
         .animation(.spring(response: 0.35, dampingFraction: 0.72), value: stickers.count)
         .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         .overlay {
