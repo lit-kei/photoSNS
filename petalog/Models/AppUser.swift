@@ -10,6 +10,7 @@ struct AppUser: Identifiable, Hashable {
     var avatarURL: String?
     var createdAt: Date
     var updatedAt: Date
+    var termsAcceptedAt: Date?
 
     init(
         id: String,
@@ -19,7 +20,8 @@ struct AppUser: Identifiable, Hashable {
         avatar: String = "",
         avatarURL: String? = nil,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        termsAcceptedAt: Date? = nil
     ) {
         self.id = id
         self.email = email
@@ -29,6 +31,7 @@ struct AppUser: Identifiable, Hashable {
         self.avatarURL = avatarURL
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.termsAcceptedAt = termsAcceptedAt
     }
 
     init(id: String, data: [String: Any]) {
@@ -40,10 +43,11 @@ struct AppUser: Identifiable, Hashable {
         self.avatarURL = data["avatarURL"] as? String
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
         self.updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
+        self.termsAcceptedAt = (data["termsAcceptedAt"] as? Timestamp)?.dateValue()
     }
 
     var dictionary: [String: Any] {
-        [
+        var data: [String: Any] = [
             "email": email,
             "normalizedEmail": email.lowercased(),
             "playerId": playerId,
@@ -53,6 +57,10 @@ struct AppUser: Identifiable, Hashable {
             "createdAt": Timestamp(date: createdAt),
             "updatedAt": FieldValue.serverTimestamp()
         ]
+        if let termsAcceptedAt {
+            data["termsAcceptedAt"] = Timestamp(date: termsAcceptedAt)
+        }
+        return data
     }
 
     /// Value stored in `groups.memberAvatars`. Profile photos take priority;

@@ -48,13 +48,13 @@ final class AuthService {
         return user
     }
 
-    func createProfile(account: AuthenticatedAccount, displayName: String, avatar: String) async throws -> AppUser {
+    func createProfile(account: AuthenticatedAccount, displayName: String, avatar: String, termsAcceptedAt: Date? = nil) async throws -> AppUser {
         let name = displayName.trimmedForPetalog
         guard !name.isEmpty else {
             throw PetalogError.message("ユーザー名を入力してください。")
         }
 
-        let user = AppUser(id: account.uid, email: account.email, displayName: name, avatar: avatar)
+        let user = AppUser(id: account.uid, email: account.email, displayName: name, avatar: avatar, termsAcceptedAt: termsAcceptedAt)
         try await db.collection("users").document(account.uid).setData(user.dictionary, merge: true)
         return user
     }

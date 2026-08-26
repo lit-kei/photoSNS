@@ -58,8 +58,13 @@ struct FriendTodayFeedSection: View {
 }
 
 private struct FriendFeedCard: View {
+    @EnvironmentObject private var appState: AppState
     let sticker: StickerPost
     let latestProfile: AppUser?
+    @State private var isConfirmingReport = false
+    @State private var reportMessage: String?
+    @State private var isReporting = false
+    @State private var didReport = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -86,6 +91,25 @@ private struct FriendFeedCard: View {
                     Text(sticker.createdAt.petalogTimeText)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(AppColors.secondaryText)
+
+                    if sticker.authorId != appState.currentUser?.id {
+                        Menu {
+                            Button(role: .destructive) {
+                                isConfirmingReport = true
+                            } label: {
+                                Label(didReport ? "報告済み" : "報告する", systemImage: "exclamationmark.bubble")
+                            }
+                            .disabled(isReporting || didReport)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(AppColors.secondaryText)
+                                .frame(width: 30, height: 30)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("投稿メニュー")
+                    }
                 }
 
                 if !sticker.comment.isEmpty {
@@ -104,10 +128,37 @@ private struct FriendFeedCard: View {
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
+        .confirmationDialog("この画像を報告しますか？", isPresented: $isConfirmingReport, titleVisibility: .visible) {
+            Button("不適切な画像として報告", role: .destructive) {
+                reportSticker()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("報告内容は確認のために保存されます。投稿が自動で削除されることはありません。")
+        }
+        .alert("報告", isPresented: Binding(
+            get: { reportMessage != nil },
+            set: { if !$0 { reportMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(reportMessage ?? "")
+        }
     }
 
     private var displayName: String {
         latestProfile?.displayName ?? sticker.authorName
+    }
+
+    private func reportSticker() {
+        guard !isReporting, !didReport else { return }
+        isReporting = true
+        Task {
+            let success = await appState.reportSticker(sticker)
+            didReport = success
+            reportMessage = success ? "報告しました。" : "報告できませんでした。"
+            isReporting = false
+        }
     }
 }
 

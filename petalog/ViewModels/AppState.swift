@@ -39,6 +39,7 @@ final class AppState: ObservableObject {
     private var incomingFriendRequestListener: ListenerRegistration?
     private var outgoingFriendRequestListener: ListenerRegistration?
     private var pendingAccount: AuthenticatedAccount?
+    private var pendingTermsAcceptedAt: Date?
     private var hasLoadedIncomingFriendRequests = false
     private var knownIncomingFriendRequestIds: Set<String> = []
 
@@ -81,12 +82,14 @@ final class AppState: ObservableObject {
     }
 
     func signIn(email: String, password: String) async {
+        pendingTermsAcceptedAt = nil
         await authenticate {
             try await services.auth.signIn(email: email, password: password)
         }
     }
 
-    func createAccount(email: String, password: String) async {
+    func createAccount(email: String, password: String, termsAcceptedAt: Date) async {
+        pendingTermsAcceptedAt = termsAcceptedAt
         await authenticate {
             try await services.auth.createAccount(email: email, password: password)
         }
@@ -98,8 +101,9 @@ final class AppState: ObservableObject {
         defer { isAuthenticating = false }
 
         do {
-            let user = try await services.auth.createProfile(account: pendingAccount, displayName: displayName, avatar: avatar)
+            let user = try await services.auth.createProfile(account: pendingAccount, displayName: displayName, avatar: avatar, termsAcceptedAt: pendingTermsAcceptedAt)
             self.pendingAccount = nil
+            pendingTermsAcceptedAt = nil
             currentUser = user
             authState = .signedIn
             observeSignedInData(for: user.id)
@@ -228,6 +232,17 @@ final class AppState: ObservableObject {
             try await services.friends.removeFriend(friend, currentUser: currentUser)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func reportSticker(_ sticker: StickerPost) async -> Bool {
+        guard let currentUser else { return false }
+        do {
+            try await services.stickers.reportSticker(sticker, user: currentUser)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -490,6 +505,7 @@ final class AppState: ObservableObject {
         do {
             if let user = try await services.auth.fetchUser(account: account) {
                 pendingAccount = nil
+                pendingTermsAcceptedAt = nil
                 currentUser = user
                 authState = .signedIn
                 observeSignedInData(for: user.id)
@@ -507,6 +523,7 @@ final class AppState: ObservableObject {
                 avatar: ""
             )
             pendingAccount = nil
+            pendingTermsAcceptedAt = nil
             currentUser = fallbackUser
             authState = .signedIn
             observeSignedInData(for: fallbackUser.id)
@@ -515,6 +532,7 @@ final class AppState: ObservableObject {
 
     private func clearSignedInState() {
         stickerUploadCoordinator.cancelAndClear()
+        pendingTermsAcceptedAt = nil
         groupListener?.remove()
         groupListener = nil
         groupReadStateListener?.remove()
@@ -621,7 +639,7 @@ final class AppState: ObservableObject {
     }
 }
 
-enum AuthState: Equatable {
+enum AuthState: Hashable {
     case bootstrapping
     case signedOut
     case needsProfile(email: String)
