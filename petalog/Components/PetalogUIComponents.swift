@@ -284,15 +284,17 @@ struct PrimaryActionButtonStyle: ButtonStyle {
 
 struct SecondaryActionButtonStyle: ButtonStyle {
     let backgroundColor: Color?
+    let foregroundColor: Color
 
-    init(backgroundColor: Color? = nil) {
+    init(backgroundColor: Color? = nil, foregroundColor: Color = AppColors.mainText) {
         self.backgroundColor = backgroundColor
+        self.foregroundColor = foregroundColor
     }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(AppColors.mainText)
+            .foregroundStyle(foregroundColor)
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
             .frame(height: 52)

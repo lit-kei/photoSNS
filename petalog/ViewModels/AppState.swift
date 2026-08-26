@@ -231,6 +231,17 @@ final class AppState: ObservableObject {
         }
     }
 
+    func reportSticker(_ sticker: StickerPost) async -> Bool {
+        guard let currentUser else { return false }
+        do {
+            try await services.stickers.reportSticker(sticker, user: currentUser)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     func openNotifications() {
         selectedTab = .home
         isShowingNotifications = true

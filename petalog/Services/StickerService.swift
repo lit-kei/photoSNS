@@ -288,6 +288,26 @@ final class StickerService {
         }
     }
 
+    func reportSticker(_ sticker: StickerPost, user: AppUser, reason: String = "inappropriate_image") async throws {
+        guard sticker.authorId != user.id else {
+            throw PetalogError.message("自分の投稿は報告できません。")
+        }
+
+        let reportId = "\(sticker.id)_\(user.id)"
+        try await db.collection("stickerReports").document(reportId).setData([
+            "stickerId": sticker.id,
+            "assetId": sticker.assetId,
+            "stickerImageURL": sticker.stickerImageURL,
+            "reportedAuthorId": sticker.authorId,
+            "reportedAuthorName": sticker.authorName,
+            "reporterId": user.id,
+            "reporterName": user.displayName,
+            "reason": reason,
+            "createdAt": FieldValue.serverTimestamp(),
+            "status": "open"
+        ], merge: false)
+    }
+
     private func upload(
         data: Data,
         path: String,
