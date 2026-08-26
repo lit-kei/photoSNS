@@ -31,6 +31,7 @@ struct FriendListScreen: View {
                                 Capsule()
                                     .stroke(AppColors.mainText.opacity(0.16), lineWidth: 1)
                             }
+                            .shadow(color: AppColors.mainText.opacity(0.06), radius: 8, y: 3)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("友達追加")

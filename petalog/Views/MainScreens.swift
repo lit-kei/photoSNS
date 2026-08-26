@@ -30,11 +30,14 @@ struct HomeScreen: View {
             }
             .rootTabBar(shows: showsRootTabBar, selection: $appState.selectedTab)
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $isShowingGroupOptions) {
-                GroupActionSheet { route in
-                    isShowingGroupOptions = false
-                    groupRoute = route
+            .confirmationDialog("グループ", isPresented: $isShowingGroupOptions, titleVisibility: .visible) {
+                Button("グループを作る") {
+                    groupRoute = .create
                 }
+                Button("参加する") {
+                    groupRoute = .join
+                }
+                Button("キャンセル", role: .cancel) {}
             }
             .navigationDestination(item: $groupRoute) { route in
                 switch route {
@@ -114,9 +117,6 @@ private struct HomeGroupActionRow: View {
                 Text("グループ")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
-                Text("作成・参加")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(AppColors.secondaryText)
             }
 
             Spacer()
@@ -145,104 +145,6 @@ private enum GroupRoute: Identifiable {
         case .create: "create"
         case .join: "join"
         }
-    }
-}
-
-private struct GroupActionSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let onSelect: (GroupRoute) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Capsule()
-                .fill(AppColors.border)
-                .frame(width: 42, height: 5)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 10)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("グループ")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(AppColors.mainText)
-            }
-
-            VStack(spacing: 12) {
-                GroupActionCard(
-                    title: "グループを作る",
-                    systemImage: "person.3.fill",
-                    tint: AppColors.accentPink
-                ) {
-                    onSelect(.create)
-                }
-
-                GroupActionCard(
-                    title: "招待コードで参加する",
-                    systemImage: "number.square.fill",
-                    tint: AppColors.accentBlue
-                ) {
-                    onSelect(.join)
-                }
-            }
-
-            Button("閉じる") {
-                dismiss()
-            }
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(AppColors.secondaryText)
-            .frame(maxWidth: .infinity)
-            .buttonStyle(.plain)
-            .padding(.top, 2)
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 22)
-        .background {
-            PetalogMetalBackground()
-                .ignoresSafeArea()
-        }
-        .presentationDetents([.height(340)])
-        .presentationDragIndicator(.hidden)
-    }
-}
-
-private struct GroupActionCard: View {
-    let title: String
-    let systemImage: String
-    let tint: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(AppColors.mainText)
-                    .frame(width: 48, height: 48)
-                    .background(tint.opacity(0.86), in: Circle())
-                    .overlay {
-                        Circle().stroke(AppColors.border, lineWidth: 0.8)
-                    }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(AppColors.mainText)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppColors.darkSilver)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity)
-            .background(AppColors.elevatedSurface.opacity(0.96), in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                    .stroke(AppColors.border, lineWidth: 0.8)
-            }
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -437,28 +339,16 @@ private struct GroupActivityRow: View {
 struct MemoriesScreen: View {
     @EnvironmentObject private var appState: AppState
     var showsRootTabBar = false
-    @State private var isShowingGroupOptions = false
-    @State private var groupRoute: GroupRoute?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("絵日記")
                             .font(.system(size: 38, weight: .heavy, design: .rounded))
                             .foregroundStyle(AppColors.accentPink)
                             .tracking(0.4)
-
-                        Spacer()
-
-                        Button {
-                            isShowingGroupOptions = true
-                        } label: {
-                            GroupAddIconButtonLabel()
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("グループを作成または参加")
                     }
 
                     GroupListSection()
@@ -472,39 +362,7 @@ struct MemoriesScreen: View {
             }
             .rootTabBar(shows: showsRootTabBar, selection: $appState.selectedTab)
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $isShowingGroupOptions) {
-                GroupActionSheet { route in
-                    isShowingGroupOptions = false
-                    groupRoute = route
-                }
-            }
-            .navigationDestination(item: $groupRoute) { route in
-                switch route {
-                case .create:
-                    GroupManagementScreen(initialMode: .create)
-                case .join:
-                    GroupManagementScreen(initialMode: .join)
-                }
-            }
         }
-    }
-}
-
-private struct GroupAddIconButtonLabel: View {
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            IconButtonLabel(systemName: "person.3.fill")
-
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(AppColors.mainText)
-                .background(.white, in: Circle())
-                .overlay {
-                    Circle().stroke(AppColors.elevatedSurface, lineWidth: 1.6)
-                }
-                .offset(x: 2, y: 2)
-        }
-        .frame(width: 46, height: 46)
     }
 }
 
@@ -647,14 +505,21 @@ struct ProfileScreen: View {
                 .buttonStyle(PrimaryActionButtonStyle())
                 .disabled(isSavingProfile)
 
+                StatsStrip(
+                    groups: appState.groups.count,
+                    members: appState.groups.reduce(0) { $0 + $1.memberIds.count },
+                    diaries: appState.groups.reduce(0) { $0 + $1.diaryCount }
+                )
 
+                #if !DEBUG
                 Button("ログアウト") {
                     appState.signOut()
                 }
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppColors.destructiveRed)
+                .foregroundStyle(AppColors.secondaryText)
                 .buttonStyle(.plain)
                 .padding(.top, 4)
+                #endif
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.screenTop + 18)
@@ -765,6 +630,25 @@ private struct ProfilePhotoPickerLabel: View {
         Image(systemName: "person.crop.circle.fill")
             .font(.system(size: 72, weight: .regular))
             .foregroundStyle(AppColors.mainText.opacity(0.72))
+    }
+}
+
+private struct StatsStrip: View {
+    let groups: Int
+    let members: Int
+    let diaries: Int
+
+    var body: some View {
+        MetalCard(padding: 0) {
+            HStack(spacing: 0) {
+                ProfileStat(title: "グループ", value: "\(groups)")
+                Divider().frame(height: 34)
+                ProfileStat(title: "参加中", value: "\(members)")
+                Divider().frame(height: 34)
+                ProfileStat(title: "投稿", value: "\(diaries)")
+            }
+            .padding(.vertical, 16)
+        }
     }
 }
 

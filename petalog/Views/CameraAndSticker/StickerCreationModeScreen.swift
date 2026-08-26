@@ -24,6 +24,7 @@ struct StickerCreationModeScreen: View {
                     } label: {
                         CreationModeRow(
                             title: "切り抜き",
+                            detail: "",
                             systemImage: "scissors"
                         )
                     }
@@ -34,6 +35,7 @@ struct StickerCreationModeScreen: View {
                     } label: {
                         CreationModeRow(
                             title: "背景透過",
+                            detail: "",
                             systemImage: "person.crop.rectangle"
                         )
                     }
@@ -52,6 +54,7 @@ struct StickerCreationModeScreen: View {
 
 private struct CreationModeRow: View {
     let title: String
+    let detail: String
     let systemImage: String
 
     var body: some View {
@@ -69,6 +72,9 @@ private struct CreationModeRow: View {
                 Text(title)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
+                Text(detail)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(AppColors.secondaryText)
             }
 
             Spacer(minLength: 4)

@@ -391,10 +391,6 @@ private struct StickerDetailSheet: View {
     let sticker: StickerPost
     @State private var photoSaveMessage: String?
     @State private var isSavingToPhotos = false
-    @State private var isConfirmingReport = false
-    @State private var reportMessage: String?
-    @State private var isReporting = false
-    @State private var didReport = false
 
     var body: some View {
         VStack(spacing: 18) {
@@ -408,29 +404,17 @@ private struct StickerDetailSheet: View {
             .foregroundStyle(AppColors.mainText)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(spacing: 12) {
+            if sticker.authorId == appState.currentUser?.id {
                 Button {
                     saveStickerToPhotos()
                 } label: {
-                    Label(isSavingToPhotos ? "保存中…" : "写真を保存", systemImage: "square.and.arrow.down")
+                    Label(isSavingToPhotos ? "保存中…" : "写真に保存", systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(PrimaryActionButtonStyle())
                 .disabled(isSavingToPhotos || sticker.stickerImageURL.isEmpty)
-
-                if sticker.authorId != appState.currentUser?.id {
-                    reportButton
-                }
             }
         }
         .padding(24)
-        .confirmationDialog("画像を報告しますか？", isPresented: $isConfirmingReport, titleVisibility: .visible) {
-            Button("不適切な画像として報告", role: .destructive) {
-                reportSticker()
-            }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("報告内容は確認のために保存されます。投稿は自動で削除されません。")
-        }
         .alert("写真への保存", isPresented: Binding(
             get: { photoSaveMessage != nil },
             set: { if !$0 { photoSaveMessage = nil } }
@@ -439,24 +423,6 @@ private struct StickerDetailSheet: View {
         } message: {
             Text(photoSaveMessage ?? "")
         }
-        .alert("報告", isPresented: Binding(
-            get: { reportMessage != nil },
-            set: { if !$0 { reportMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(reportMessage ?? "")
-        }
-    }
-
-    private var reportButton: some View {
-        Button(role: .destructive) {
-            isConfirmingReport = true
-        } label: {
-            Label(isReporting ? "報告中…" : didReport ? "報告済み" : "報告する", systemImage: "exclamationmark.bubble")
-        }
-        .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
-        .disabled(isReporting || didReport)
     }
 
     private func saveStickerToPhotos() {
@@ -470,17 +436,6 @@ private struct StickerDetailSheet: View {
                 photoSaveMessage = error.localizedDescription
             }
             isSavingToPhotos = false
-        }
-    }
-
-    private func reportSticker() {
-        guard !isReporting, !didReport else { return }
-        isReporting = true
-        Task {
-            let success = await appState.reportSticker(sticker)
-            didReport = success
-            reportMessage = success ? "報告しました。" : "報告できませんでした。"
-            isReporting = false
         }
     }
 }

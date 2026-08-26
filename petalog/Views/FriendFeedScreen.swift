@@ -58,16 +58,8 @@ struct FriendTodayFeedSection: View {
 }
 
 private struct FriendFeedCard: View {
-    @EnvironmentObject private var appState: AppState
     let sticker: StickerPost
     let latestProfile: AppUser?
-    @State private var isShowingActions = false
-    @State private var isConfirmingReport = false
-    @State private var photoSaveMessage: String?
-    @State private var reportMessage: String?
-    @State private var isSavingToPhotos = false
-    @State private var isReporting = false
-    @State private var didReport = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -94,18 +86,6 @@ private struct FriendFeedCard: View {
                     Text(sticker.createdAt.petalogTimeText)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(AppColors.secondaryText)
-
-                    Button {
-                        isShowingActions = true
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(AppColors.secondaryText)
-                            .frame(width: 30, height: 30)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("投稿メニュー")
                 }
 
                 if !sticker.comment.isEmpty {
@@ -124,113 +104,10 @@ private struct FriendFeedCard: View {
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
-        .sheet(isPresented: $isShowingActions) {
-            FriendFeedActionSheet(
-                isSavingToPhotos: isSavingToPhotos,
-                isReporting: isReporting,
-                didReport: didReport,
-                canReport: sticker.authorId != appState.currentUser?.id,
-                saveAction: {
-                    saveStickerToPhotos()
-                },
-                reportAction: {
-                    isShowingActions = false
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .seconds(0.2))
-                        isConfirmingReport = true
-                    }
-                }
-            )
-            .presentationDetents([.height(sticker.authorId == appState.currentUser?.id ? 126 : 190)])
-            .presentationDragIndicator(.visible)
-        }
-        .confirmationDialog("画像を報告しますか？", isPresented: $isConfirmingReport, titleVisibility: .visible) {
-            Button("不適切な画像として報告", role: .destructive) {
-                reportSticker()
-            }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("報告内容は確認のために保存されます。投稿は自動で削除されません。")
-        }
-        .alert("写真への保存", isPresented: Binding(
-            get: { photoSaveMessage != nil },
-            set: { if !$0 { photoSaveMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(photoSaveMessage ?? "")
-        }
-        .alert("報告", isPresented: Binding(
-            get: { reportMessage != nil },
-            set: { if !$0 { reportMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(reportMessage ?? "")
-        }
     }
 
     private var displayName: String {
         latestProfile?.displayName ?? sticker.authorName
-    }
-
-    private func saveStickerToPhotos() {
-        guard !isSavingToPhotos else { return }
-        isSavingToPhotos = true
-        Task {
-            do {
-                try await StickerPhotoLibraryService.saveSticker(from: sticker.stickerImageURL)
-                photoSaveMessage = "写真を保存しました。"
-            } catch {
-                photoSaveMessage = error.localizedDescription
-            }
-            isSavingToPhotos = false
-            isShowingActions = false
-        }
-    }
-
-    private func reportSticker() {
-        guard !isReporting, !didReport else { return }
-        isReporting = true
-        Task {
-            let success = await appState.reportSticker(sticker)
-            didReport = success
-            reportMessage = success ? "報告しました。" : "報告できませんでした。"
-            isReporting = false
-        }
-    }
-}
-
-private struct FriendFeedActionSheet: View {
-    let isSavingToPhotos: Bool
-    let isReporting: Bool
-    let didReport: Bool
-    let canReport: Bool
-    let saveAction: () -> Void
-    let reportAction: () -> Void
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Button(action: saveAction) {
-                Label(isSavingToPhotos ? "保存中…" : "写真を保存", systemImage: "square.and.arrow.down")
-            }
-            .buttonStyle(PrimaryActionButtonStyle())
-            .disabled(isSavingToPhotos)
-
-            if canReport {
-                Button(role: .destructive, action: reportAction) {
-                    Label(isReporting ? "報告中…" : didReport ? "報告済み" : "報告する", systemImage: "exclamationmark.bubble")
-                }
-                .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
-                .disabled(isReporting || didReport)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 22)
-        .background {
-            PetalogMetalBackground()
-                .ignoresSafeArea()
-        }
     }
 }
 
