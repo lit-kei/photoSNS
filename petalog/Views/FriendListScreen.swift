@@ -121,7 +121,7 @@ private struct FriendListRow: View {
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppColors.secondaryText)
+                    .foregroundStyle(AppColors.destructiveRed)
                     .frame(width: 40, height: 40)
                     .contentShape(Circle())
             }

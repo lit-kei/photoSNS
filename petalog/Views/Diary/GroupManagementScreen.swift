@@ -316,7 +316,7 @@ struct GroupEditScreen: View {
                     Label("グループから脱退", systemImage: "rectangle.portrait.and.arrow.right")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(SecondaryActionButtonStyle())
+                .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
                 #endif
             }
             .padding(.horizontal, 20)

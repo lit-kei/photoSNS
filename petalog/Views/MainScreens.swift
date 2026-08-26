@@ -516,7 +516,7 @@ struct ProfileScreen: View {
                     appState.signOut()
                 }
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppColors.secondaryText)
+                .foregroundStyle(AppColors.destructiveRed)
                 .buttonStyle(.plain)
                 .padding(.top, 4)
                 #endif
