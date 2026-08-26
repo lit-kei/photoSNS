@@ -989,7 +989,7 @@ struct EditableDiaryCanvas: View {
                 SpatialTapGesture()
                     .onEnded { value in selectElement(at: value.location) }
             )
-            .simultaneousGesture(canvasDragGesture)
+            .highPriorityGesture(canvasDragGesture)
             .simultaneousGesture(canvasScaleGesture)
             .onAppear {
                 if canvasSize != DiaryCanvasMetrics.logicalSize {
@@ -1114,11 +1114,11 @@ struct EditableDiaryCanvas: View {
         DragGesture(minimumDistance: 8, coordinateSpace: .named("diaryCanvas"))
             .onChanged { value in
                 if canvasDragElement == nil {
-                    guard selectedElement == nil else { return }
                     guard let element = hitElement(at: value.startLocation),
                           let origin = position(for: element) else { return }
                     canvasDragElement = element
                     canvasDragOrigin = origin
+                    selectedElement = nil
                     activeElement = element
                 }
 
@@ -1141,7 +1141,6 @@ struct EditableDiaryCanvas: View {
         MagnifyGesture()
             .onChanged { value in
                 if canvasScaleElement == nil {
-                    guard selectedElement == nil else { return }
                     let startLocation = CGPoint(
                         x: value.startAnchor.x * DiaryCanvasMetrics.logicalSize.width,
                         y: value.startAnchor.y * DiaryCanvasMetrics.logicalSize.height
@@ -1150,6 +1149,7 @@ struct EditableDiaryCanvas: View {
                           let origin = scale(for: element) else { return }
                     canvasScaleElement = element
                     canvasScaleOrigin = origin
+                    selectedElement = nil
                     activeElement = element
                 }
 
@@ -1314,8 +1314,6 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     @Binding var activeElement: CanvasElementID?
     var raisesWhenActive = false
     var allowsDirectHitTesting = true
-    var allowsDragGesture = true
-    var allowsScaleGesture = true
     let updatePosition: (Double, Double) -> Void
     let updateScale: (Double) -> Void
     let updateRotation: (Double) -> Void
@@ -1330,35 +1328,16 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     private var isActive: Bool { activeElement == element }
     private var isDimmed: Bool { activeElement != nil && !isActive }
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        let base = interactionBase(content)
-        if allowsDragGesture && allowsScaleGesture {
-            base
-                .highPriorityGesture(dragGesture)
-                .simultaneousGesture(scaleGesture)
-                .simultaneousGesture(rotationGesture)
-        } else if allowsDragGesture {
-            base
-                .highPriorityGesture(dragGesture)
-                .simultaneousGesture(rotationGesture)
-        } else if allowsScaleGesture {
-            base
-                .simultaneousGesture(scaleGesture)
-                .simultaneousGesture(rotationGesture)
-        } else {
-            base
-                .simultaneousGesture(rotationGesture)
-        }
-    }
-
-    private func interactionBase(_ content: Content) -> some View {
         content
             .contentShape(Rectangle())
             .opacity(isDimmed ? 0.25 : 1)
             .zIndex(displayZIndex)
             .allowsHitTesting(allowsDirectHitTesting && !isDimmed)
             .animation(.easeOut(duration: 0.15), value: isDimmed)
+            .highPriorityGesture(dragGesture)
+            .simultaneousGesture(scaleGesture)
+            .simultaneousGesture(rotationGesture)
     }
 
     private var displayZIndex: Double {

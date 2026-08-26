@@ -17,7 +17,6 @@ enum AppColors {
     static var mutedLavender: Color { accentBlue }
     static var kraftBeige: Color { accentBlue }
     static let burntOrange = Color(red: 0.87, green: 0.40, blue: 0.16)
-    static let destructiveRed = Color(red: 1.0, green: 0, blue: 0)
     static let deepGreen = Color(red: 0.06, green: 0.25, blue: 0.20)
     static let electricPurple = Color(red: 0.25, green: 0.11, blue: 0.96)
     static let darkCard = Color(red: 0.135, green: 0.135, blue: 0.14)

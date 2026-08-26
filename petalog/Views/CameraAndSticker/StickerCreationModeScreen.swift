@@ -24,7 +24,7 @@ struct StickerCreationModeScreen: View {
                     } label: {
                         CreationModeRow(
                             title: "切り抜き",
-                            detail: "形マスク",
+                            detail: "",
                             systemImage: "scissors"
                         )
                     }
@@ -35,7 +35,7 @@ struct StickerCreationModeScreen: View {
                     } label: {
                         CreationModeRow(
                             title: "背景透過",
-                            detail: "人物・もの",
+                            detail: "",
                             systemImage: "person.crop.rectangle"
                         )
                     }

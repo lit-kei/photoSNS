@@ -76,15 +76,6 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid == resource.data.ownerId;
     }
 
-    match /stickerReports/{reportId} {
-      allow create: if signedIn()
-        && request.resource.data.reporterId == request.auth.uid
-        && reportId == request.resource.data.stickerId + "_" + request.auth.uid
-        && request.resource.data.reason == "inappropriate_image"
-        && request.resource.data.status == "open";
-      allow read, update, delete: if false;
-    }
-
     // The app checks deterministic IDs before creating these documents.
     // Authenticated reads must therefore also work when a document is absent.
     match /friendships/{friendshipId} {

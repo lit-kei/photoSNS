@@ -89,7 +89,7 @@ enum StickerDecoration: String, PetalogOption {
         switch self {
         case .sparkle: "キラキラ"
         case .whiteOutline: "白ふち"
-        case .colorfulOutline: "カラフルふち"
+        case .colorfulOutline: "メタル"
         case .shadow: "影"
         case .handDrawn: "手描き"
         case .none: "なし"
@@ -125,7 +125,7 @@ enum ScrapbookBackground: String, PetalogOption {
         case .grid: "方眼"
         case .craft: "クラフト"
         case .sky: "水色"
-        case .pink: "ピンク"
+        case .pink: "シルバー"
         case .stars: "星空"
         case .check: "チェック"
         }
