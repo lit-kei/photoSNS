@@ -637,6 +637,19 @@ enum AuthState: Equatable {
     case signedOut
     case needsProfile(email: String)
     case signedIn
+
+    var transitionID: String {
+        switch self {
+        case .bootstrapping:
+            return "bootstrapping"
+        case .signedOut:
+            return "signedOut"
+        case .needsProfile:
+            return "needsProfile"
+        case .signedIn:
+            return "signedIn"
+        }
+    }
 }
 
 enum AppTab {

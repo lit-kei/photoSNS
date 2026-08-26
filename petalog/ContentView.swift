@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
@@ -13,11 +14,7 @@ struct ContentView: View {
         Group {
             switch appState.authState {
             case .bootstrapping:
-                ProgressView("petalog")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background {
-                        PetalogMetalBackground()
-                    }
+                BootstrappingSplashView()
             case .signedOut:
                 AuthScreen()
             case .needsProfile(let email):
@@ -26,6 +23,9 @@ struct ContentView: View {
                 signedInTabs
             }
         }
+        .id(appState.authState.transitionID)
+        .transition(.opacity)
+        .animation(.easeOut(duration: 0.32), value: appState.authState)
         .dismissKeyboardOnOutsideTap()
         .task {
             appState.stickerUploadCoordinator.setAppActive(scenePhase == .active)
@@ -97,6 +97,37 @@ struct ContentView: View {
             NavigationStack {
                 ProfileScreen(showsRootTabBar: true)
             }
+        }
+    }
+}
+
+private struct BootstrappingSplashView: View {
+    var body: some View {
+        ZStack {
+            PetalogMetalBackground()
+
+            appIcon
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
+                .offset(y: -20)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var appIcon: some View {
+        if let image = UIImage(named: "AppIcon") ?? UIImage(named: "AppIcon60x60") {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+        } else {
+            RoundedRectangle(cornerRadius: 25, style: .continuous)
+                .fill(AppColors.accentPink)
+                .overlay {
+                    Circle()
+                        .fill(AppColors.accentBlue.opacity(0.9))
+                        .padding(24)
+                }
         }
     }
 }
