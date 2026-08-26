@@ -40,18 +40,6 @@ struct GroupManagementScreen: View {
                                                 .foregroundStyle(AppColors.secondaryText)
                                         }
                                         Spacer()
-                                        #if !DEBUG
-                                        Button {
-                                            groupToLeave = group
-                                        } label: {
-                                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                                                .font(.system(size: 15, weight: .semibold))
-                                                .foregroundStyle(AppColors.secondaryText)
-                                                .frame(width: 38, height: 38)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("\(group.name)から脱退")
-                                        #endif
                                     }
                                     .padding(12)
                                     .background(AppColors.surface.opacity(0.94))
@@ -309,7 +297,6 @@ struct GroupEditScreen: View {
                 .buttonStyle(PrimaryActionButtonStyle())
                 .disabled(groupName.trimmedForPetalog.isEmpty || isSaving)
 
-                #if !DEBUG
                 Button(role: .destructive) {
                     isConfirmingLeave = true
                 } label: {
@@ -317,7 +304,6 @@ struct GroupEditScreen: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
-                #endif
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)

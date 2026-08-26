@@ -23,7 +23,7 @@ struct ContentView: View {
                 signedInTabs
             }
         }
-        .id(appState.authState.transitionID)
+        .id(appState.authState)
         .transition(.opacity)
         .animation(.easeOut(duration: 0.32), value: appState.authState)
         .dismissKeyboardOnOutsideTap()

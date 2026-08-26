@@ -5,7 +5,6 @@ struct FriendAddScreen: View {
     @State private var playerId = ""
     @State private var selectedProfile: AppUser?
     @State private var isSearching = false
-    @State private var friendToDelete: AppFriend?
     @State private var isShowingMyQR = false
 
     var body: some View {
@@ -14,7 +13,6 @@ struct FriendAddScreen: View {
                 header
                 searchCard
                 requestSections
-                friendsSection
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -34,23 +32,6 @@ struct FriendAddScreen: View {
                 }
                 .environmentObject(appState)
             }
-        }
-        .confirmationDialog(
-            "友達を削除しますか？",
-            isPresented: Binding(
-                get: { friendToDelete != nil },
-                set: { if !$0 { friendToDelete = nil } }
-            ),
-            presenting: friendToDelete
-        ) { friend in
-            Button("削除", role: .destructive) {
-                deleteFriend(friend)
-            }
-            Button("キャンセル", role: .cancel) {
-                friendToDelete = nil
-            }
-        } message: { friend in
-            Text("\(friend.friendName)を友達一覧から削除します。")
         }
     }
 
@@ -160,47 +141,6 @@ struct FriendAddScreen: View {
         }
     }
 
-    private var friendsSection: some View {
-        ControlSection(title: "友達") {
-            if appState.friends.isEmpty {
-                EmptyStateView(systemImage: "person.2", title: "まだ友達がいません", message: nil)
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(appState.friends) { friend in
-                        Button {
-                            selectedProfile = AppUser(
-                                id: friend.friendId,
-                                email: friend.friendEmail,
-                                displayName: friend.friendName,
-                                avatar: friend.friendAvatar,
-                                avatarURL: friend.friendAvatarURL
-                            )
-                        } label: {
-                            FriendRow(friend: friend)
-                        }
-                        .buttonStyle(.plain)
-                        #if !DEBUG
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                friendToDelete = friend
-                            } label: {
-                                Label("削除", systemImage: "trash")
-                            }
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                friendToDelete = friend
-                            } label: {
-                                Label("友達を削除", systemImage: "trash")
-                            }
-                        }
-                        #endif
-                    }
-                }
-            }
-        }
-    }
-
     private func searchUser() async {
         isSearching = true
         let user = await appState.findUser(playerId: playerId)
@@ -209,13 +149,6 @@ struct FriendAddScreen: View {
             selectedProfile = user
         } else if appState.errorMessage == nil {
             appState.errorMessage = "このユーザーIDのユーザーが見つかりません。"
-        }
-    }
-
-    private func deleteFriend(_ friend: AppFriend) {
-        Task {
-            await appState.removeFriend(friend)
-            friendToDelete = nil
         }
     }
 
@@ -232,9 +165,11 @@ struct FriendAddScreen: View {
 
 struct FriendProfileScreen: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     let user: AppUser
     @State private var isSending = false
     @State private var didSend = false
+    @State private var isConfirmingDelete = false
 
     private var isCurrentUser: Bool {
         appState.currentUser?.id == user.id
@@ -242,6 +177,10 @@ struct FriendProfileScreen: View {
 
     private var isFriend: Bool {
         appState.friends.contains { $0.friendId == user.id }
+    }
+
+    private var currentFriend: AppFriend? {
+        appState.friends.first { $0.friendId == user.id }
     }
 
     private var hasOutgoingRequest: Bool {
@@ -291,6 +230,32 @@ struct FriendProfileScreen: View {
         }
         .navigationTitle("プロフィール")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let currentFriend {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) {
+                        isConfirmingDelete = true
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .foregroundStyle(AppColors.destructiveRed)
+                    .accessibilityLabel("\(currentFriend.friendName)を削除")
+                }
+            }
+        }
+        .confirmationDialog("友達を削除しますか？", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+            if let currentFriend {
+                Button("削除", role: .destructive) {
+                    Task {
+                        await appState.removeFriend(currentFriend)
+                        dismiss()
+                    }
+                }
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("\(user.displayName)を友達一覧から削除します。")
+        }
         .onAppear(perform: syncLocalSendState)
         .onChange(of: appState.outgoingFriendRequests) { _, _ in
             syncLocalSendState()
@@ -303,7 +268,7 @@ struct FriendProfileScreen: View {
             Label("自分のプロフィール", systemImage: "person.crop.circle")
                 .profileStatusStyle()
         } else if isFriend {
-            Label("友達です", systemImage: "person.2.fill")
+            Label("友達", systemImage: "person.2.fill")
                 .profileStatusStyle()
         } else if hasOutgoingRequest {
             Label("申請済み", systemImage: "checkmark.circle.fill")

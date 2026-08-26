@@ -39,6 +39,7 @@ final class AppState: ObservableObject {
     private var incomingFriendRequestListener: ListenerRegistration?
     private var outgoingFriendRequestListener: ListenerRegistration?
     private var pendingAccount: AuthenticatedAccount?
+    private var pendingTermsAcceptedAt: Date?
     private var hasLoadedIncomingFriendRequests = false
     private var knownIncomingFriendRequestIds: Set<String> = []
 
@@ -81,12 +82,14 @@ final class AppState: ObservableObject {
     }
 
     func signIn(email: String, password: String) async {
+        pendingTermsAcceptedAt = nil
         await authenticate {
             try await services.auth.signIn(email: email, password: password)
         }
     }
 
-    func createAccount(email: String, password: String) async {
+    func createAccount(email: String, password: String, termsAcceptedAt: Date) async {
+        pendingTermsAcceptedAt = termsAcceptedAt
         await authenticate {
             try await services.auth.createAccount(email: email, password: password)
         }
@@ -98,8 +101,9 @@ final class AppState: ObservableObject {
         defer { isAuthenticating = false }
 
         do {
-            let user = try await services.auth.createProfile(account: pendingAccount, displayName: displayName, avatar: avatar)
+            let user = try await services.auth.createProfile(account: pendingAccount, displayName: displayName, avatar: avatar, termsAcceptedAt: pendingTermsAcceptedAt)
             self.pendingAccount = nil
+            pendingTermsAcceptedAt = nil
             currentUser = user
             authState = .signedIn
             observeSignedInData(for: user.id)
@@ -501,6 +505,7 @@ final class AppState: ObservableObject {
         do {
             if let user = try await services.auth.fetchUser(account: account) {
                 pendingAccount = nil
+                pendingTermsAcceptedAt = nil
                 currentUser = user
                 authState = .signedIn
                 observeSignedInData(for: user.id)
@@ -518,6 +523,7 @@ final class AppState: ObservableObject {
                 avatar: ""
             )
             pendingAccount = nil
+            pendingTermsAcceptedAt = nil
             currentUser = fallbackUser
             authState = .signedIn
             observeSignedInData(for: fallbackUser.id)
@@ -526,6 +532,7 @@ final class AppState: ObservableObject {
 
     private func clearSignedInState() {
         stickerUploadCoordinator.cancelAndClear()
+        pendingTermsAcceptedAt = nil
         groupListener?.remove()
         groupListener = nil
         groupReadStateListener?.remove()
@@ -632,24 +639,11 @@ final class AppState: ObservableObject {
     }
 }
 
-enum AuthState: Equatable {
+enum AuthState: Hashable {
     case bootstrapping
     case signedOut
     case needsProfile(email: String)
     case signedIn
-
-    var transitionID: String {
-        switch self {
-        case .bootstrapping:
-            return "bootstrapping"
-        case .signedOut:
-            return "signedOut"
-        case .needsProfile:
-            return "needsProfile"
-        case .signedIn:
-            return "signedIn"
-        }
-    }
 }
 
 enum AppTab {

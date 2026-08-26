@@ -4,7 +4,6 @@ struct FriendListScreen: View {
     @EnvironmentObject private var appState: AppState
     var showsRootTabBar = false
     @State private var selectedProfile: AppUser?
-    @State private var friendToDelete: AppFriend?
 
     var body: some View {
         ScrollView {
@@ -45,8 +44,7 @@ struct FriendListScreen: View {
                             FriendListRow(
                                 friend: friend,
                                 latestProfile: latestProfile,
-                                onOpen: { selectedProfile = friend.profileUser(latestProfile: latestProfile) },
-                                onDelete: { friendToDelete = friend }
+                                onOpen: { selectedProfile = friend.profileUser(latestProfile: latestProfile) }
                             )
                         }
                     }
@@ -64,26 +62,6 @@ struct FriendListScreen: View {
         .navigationDestination(item: $selectedProfile) { user in
             FriendProfileScreen(user: user)
         }
-        .confirmationDialog(
-            "友達を削除しますか？",
-            isPresented: Binding(
-                get: { friendToDelete != nil },
-                set: { if !$0 { friendToDelete = nil } }
-            ),
-            presenting: friendToDelete
-        ) { friend in
-            Button("削除", role: .destructive) {
-                Task {
-                    await appState.removeFriend(friend)
-                    friendToDelete = nil
-                }
-            }
-            Button("キャンセル", role: .cancel) {
-                friendToDelete = nil
-            }
-        } message: { friend in
-            Text("\(friend.friendName)を友達一覧から削除します。")
-        }
     }
 }
 
@@ -91,43 +69,28 @@ private struct FriendListRow: View {
     let friend: AppFriend
     let latestProfile: AppUser?
     let onOpen: () -> Void
-    let onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onOpen) {
-                HStack(spacing: 12) {
-                    FriendListAvatar(friend: friend, latestProfile: latestProfile)
+        Button(action: onOpen) {
+            HStack(spacing: 12) {
+                FriendListAvatar(friend: friend, latestProfile: latestProfile)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(displayName)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(AppColors.mainText)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(AppColors.darkSilver)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(displayName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
                 }
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
 
-            #if !DEBUG
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppColors.destructiveRed)
-                    .frame(width: 40, height: 40)
-                    .contentShape(Circle())
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.darkSilver)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(displayName)を削除")
-            #endif
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .padding(.vertical, 14)
         .overlay(alignment: .bottom) {
             Rectangle()
