@@ -31,6 +31,8 @@ private enum DiaryEditorTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+
+
 struct DiaryEditorScreen: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -49,6 +51,7 @@ struct DiaryEditorScreen: View {
     @State private var selectedEditorTab: DiaryEditorTab = .autoArrange
     @State private var isAutoArranging = false
     @State private var editorBottomSheetHeight: CGFloat = 0
+
 
     init(group: PetalogGroup) {
         self.group = group
@@ -91,7 +94,7 @@ struct DiaryEditorScreen: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
-        .padding(.bottom, draftDiary == nil ? 8 : editorBottomSheetHeight)
+        .padding(.bottom, 8)
         .background {
             ZStack {
                 PetalogMetalBackground()
@@ -137,8 +140,10 @@ struct DiaryEditorScreen: View {
                         ProgressView()
                     } else {
                         Label("保存", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(AppColors.accentPink)
                     }
                 }
+                .buttonStyle(.plain)
                 .disabled(isSaving || lockMessage != nil || draftDiary == nil)
             }
         }
@@ -179,6 +184,14 @@ struct DiaryEditorScreen: View {
         }
     }
 
+    private var isStickerSelected: Bool {
+        if case .sticker = selectedElement {
+            return true
+        }
+        return false
+    }
+
+
     @ViewBuilder
     private var editorBottomSheet: some View {
         VStack(spacing: 0) {
@@ -187,7 +200,12 @@ struct DiaryEditorScreen: View {
                     selectedObjectSummary
                 }
 
-                editorTabContent
+                if !isStickerSelected {
+                    editorTabContent
+                }
+
+
+
             }
             .controlSize(.regular)
             .padding(.horizontal, 16)
@@ -196,10 +214,13 @@ struct DiaryEditorScreen: View {
             .frame(maxWidth: .infinity)
             .background(.white)
 
-            Divider()
-                .overlay(AppColors.border.opacity(0.55))
+            if selectedElement == nil {
+                Rectangle()
+                    .fill(AppColors.border.opacity(0.55))
+                    .frame(height: 1)
 
-            editorBottomTabBar
+                editorBottomTabBar
+            }
         }
         .frame(maxWidth: .infinity)
         .background(.white)
@@ -291,7 +312,15 @@ struct DiaryEditorScreen: View {
                     HStack(spacing: 8) {
                         ForEach(["★", "♥", "!!", "→", "✦", "♪"], id: \.self) { stamp in
                             Button {
-                                addStamp(stamp)
+                                if case .stamp(let stampID) = selectedElement {
+                                    // 選択中のスタンプを書き換える
+                                    updateStamp(stampID) {
+                                        $0.symbol = stamp
+                                    }
+                                } else {
+                                    // 何も選択していないなら新規追加
+                                    addStamp(stamp)
+                                }
                             } label: {
                                 Text(stamp)
                                     .font(.title3.weight(.bold))
@@ -342,23 +371,9 @@ struct DiaryEditorScreen: View {
     private var selectedObjectSummary: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                if let entry = selectedLayerEntry {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(entry.title)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                        Text("\(entry.detail)を編集中")
-                            .font(.caption2)
-                            .foregroundStyle(AppColors.secondaryText)
-                    }
-                }
 
                 Spacer(minLength: 4)
 
-                if let selectedSticker,
-                   selectedSticker.authorId == appState.currentUser?.id {
-                    deleteButton { Task { await deleteSelectedSticker(selectedSticker) } }
-                }
 
                 Button {
                     selectedElement = nil
@@ -856,10 +871,6 @@ struct EditableDiaryCanvas: View {
     @Binding var canvasSize: CGSize
 
     @State private var elementFrames: [CanvasElementID: CGRect] = [:]
-    @State private var canvasDragElement: CanvasElementID?
-    @State private var canvasDragOrigin: CGPoint?
-    @State private var canvasScaleElement: CanvasElementID?
-    @State private var canvasScaleOrigin: Double?
 
     var body: some View {
         GeometryReader { _ in
@@ -880,28 +891,10 @@ struct EditableDiaryCanvas: View {
                         }
                         .scaleEffect(item.scale)
                         .rotationEffect(.degrees(item.rotation))
-                        .position(x: item.x, y: item.y)
                         .diaryElementFrame(element)
-                        .modifier(DiaryElementInteractionModifier(
-                            element: element,
-                            zIndex: item.zIndex,
-                            x: item.x,
-                            y: item.y,
-                            scale: item.scale,
-                            rotation: item.rotation,
-                            scaleRange: 0.5...3,
-                            selectedElement: $selectedElement,
-                            activeElement: $activeElement,
-                            allowsDirectHitTesting: false,
-                            updatePosition: { x, y in
-                                updateText(item.id) {
-                                    $0.x = x
-                                    $0.y = y
-                                }
-                            },
-                            updateScale: { scale in updateText(item.id) { $0.scale = scale } },
-                            updateRotation: { rotation in updateText(item.id) { $0.rotation = rotation } }
-                        ))
+                        .position(x: item.x, y: item.y)
+                        .allowsHitTesting(false)
+                        .zIndex(Double(item.zIndex))
                 }
 
                 ForEach(diary.stampItems) { item in
@@ -917,28 +910,10 @@ struct EditableDiaryCanvas: View {
                         }
                         .scaleEffect(item.scale)
                         .rotationEffect(.degrees(item.rotation))
-                        .position(x: item.x, y: item.y)
                         .diaryElementFrame(element)
-                        .modifier(DiaryElementInteractionModifier(
-                            element: element,
-                            zIndex: item.zIndex,
-                            x: item.x,
-                            y: item.y,
-                            scale: item.scale,
-                            rotation: item.rotation,
-                            scaleRange: 0.5...3,
-                            selectedElement: $selectedElement,
-                            activeElement: $activeElement,
-                            allowsDirectHitTesting: false,
-                            updatePosition: { x, y in
-                                updateStamp(item.id) {
-                                    $0.x = x
-                                    $0.y = y
-                                }
-                            },
-                            updateScale: { scale in updateStamp(item.id) { $0.scale = scale } },
-                            updateRotation: { rotation in updateStamp(item.id) { $0.rotation = rotation } }
-                        ))
+                        .position(x: item.x, y: item.y)
+                        .allowsHitTesting(false)
+                        .zIndex(Double(item.zIndex))
                 }
 
                 ForEach(stickers) { sticker in
@@ -953,31 +928,16 @@ struct EditableDiaryCanvas: View {
                         }
                         .scaleEffect(layout.scale)
                         .rotationEffect(.degrees(layout.rotation))
-                        .offset(x: layout.x, y: layout.y)
+                        .position(
+                            x: DiaryCanvasMetrics.logicalSize.width / 2 + layout.x,
+                            y: DiaryCanvasMetrics.logicalSize.height / 2 + layout.y
+                        )
                         .diaryElementFrame(element)
-                        .modifier(DiaryElementInteractionModifier(
-                            element: element,
-                            zIndex: layout.zIndex,
-                            x: layout.x,
-                            y: layout.y,
-                            scale: layout.scale,
-                            rotation: layout.rotation,
-                            scaleRange: 0.55...1.8,
-                            selectedElement: $selectedElement,
-                            activeElement: $activeElement,
-                            allowsDirectHitTesting: false,
-                            updatePosition: { x, y in
-                                updateSticker(sticker) {
-                                    $0.x = x
-                                    $0.y = y
-                                }
-                            },
-                            updateScale: { scale in updateSticker(sticker) { $0.scale = scale } },
-                            updateRotation: { rotation in updateSticker(sticker) { $0.rotation = rotation } }
-                        ))
+                        .allowsHitTesting(false)
+                        .zIndex(Double(layout.zIndex))
                 }
 
-                selectedInteractionProxy
+                interactionLayer
             }
             .coordinateSpace(name: "diaryCanvas")
             .contentShape(Rectangle())
@@ -987,10 +947,10 @@ struct EditableDiaryCanvas: View {
             }
             .simultaneousGesture(
                 SpatialTapGesture()
-                    .onEnded { value in selectElement(at: value.location) }
+                    .onEnded { value in
+                        selectElement(at: value.location)
+                    }
             )
-            .highPriorityGesture(canvasDragGesture)
-            .simultaneousGesture(canvasScaleGesture)
             .onAppear {
                 if canvasSize != DiaryCanvasMetrics.logicalSize {
                     canvasSize = DiaryCanvasMetrics.logicalSize
@@ -1005,38 +965,87 @@ struct EditableDiaryCanvas: View {
     }
 
     @ViewBuilder
-    private var selectedInteractionProxy: some View {
-        if let selectedElement,
-           let frame = interactionFrame(for: selectedElement),
-           frame.width.isFinite,
-           frame.height.isFinite {
-            Color.clear
-                .frame(width: max(frame.width, 44), height: max(frame.height, 44))
-                .contentShape(Rectangle())
-                .position(x: frame.midX, y: frame.midY)
-                .simultaneousGesture(
-                    SpatialTapGesture()
-                        .onEnded { value in
-                            selectElement(
-                                at: CGPoint(
-                                    x: frame.minX + value.location.x,
-                                    y: frame.minY + value.location.y
-                                )
-                            )
-                        }
-                )
-                .modifier(interactionModifier(for: selectedElement))
-                .zIndex(2_000_000_000_000)
+    private var interactionLayer: some View {
+        let entries = diaryLayerEntries(
+            diary: diary,
+            stickers: stickers,
+            layouts: layouts
+        )
+
+        ForEach(entries, id: \.element) { entry in
+            interactionRegion(
+                for: entry.element,
+                zIndex: entry.zIndex
+            )
         }
     }
-
-    private func interactionModifier(for element: CanvasElementID) -> DiaryElementInteractionModifier {
+    private func interactionHitSize(
+        for element: CanvasElementID,
+        frame: CGRect
+    ) -> CGSize {
         switch element {
+        case .stamp:
+            // 選択中ならピンチしやすい領域に拡大
+            if selectedElement == element {
+                return CGSize(
+                    width: max(frame.width, 100),
+                    height: max(frame.height, 100)
+                )
+            }
+
+            return frame.size
+
+        default:
+            return frame.size
+        }
+    }
+    @ViewBuilder
+    private func interactionRegion(
+        for element: CanvasElementID,
+        zIndex: Int
+    ) -> some View {
+        if let frame = interactionFrame(for: element),
+           frame.width > 0,
+           frame.height > 0,
+           frame.width.isFinite,
+           frame.height.isFinite {
+
+            let hitSize = interactionHitSize(
+                for: element,
+                frame: frame
+            )
+
+            Color.clear
+                .frame(
+                    width: hitSize.width,
+                    height: hitSize.height
+                )
+                .contentShape(Rectangle())
+                .modifier(
+                    interactionModifier(
+                        for: element,
+                        zIndex: zIndex
+                    )
+                )
+                .position(
+                    x: frame.midX,
+                    y: frame.midY
+                )
+        }
+    }
+    private func interactionModifier(
+        for element: CanvasElementID,
+        zIndex: Int
+    ) -> DiaryElementInteractionModifier {
+
+        switch element {
+
         case .text(let id):
-            let item = diary.textItems.first(where: { $0.id == id })
+            let item = diary.textItems.first { $0.id == id }
+
             return DiaryElementInteractionModifier(
                 element: element,
-                zIndex: Int.max,
+                zIndex: zIndex,
                 x: item?.x ?? 0,
                 y: item?.y ?? 0,
                 scale: item?.scale ?? 1,
@@ -1044,17 +1053,31 @@ struct EditableDiaryCanvas: View {
                 scaleRange: 0.5...3,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
-                raisesWhenActive: true,
                 allowsDirectHitTesting: true,
-                updatePosition: { x, y in updateText(id) { $0.x = x; $0.y = y } },
-                updateScale: { scale in updateText(id) { $0.scale = scale } },
-                updateRotation: { rotation in updateText(id) { $0.rotation = rotation } }
+                updatePosition: { x, y in
+                    updateText(id) {
+                        $0.x = x
+                        $0.y = y
+                    }
+                },
+                updateScale: { scale in
+                    updateText(id) {
+                        $0.scale = scale
+                    }
+                },
+                updateRotation: { rotation in
+                    updateText(id) {
+                        $0.rotation = rotation
+                    }
+                }
             )
+
         case .stamp(let id):
-            let item = diary.stampItems.first(where: { $0.id == id })
+            let item = diary.stampItems.first { $0.id == id }
+
             return DiaryElementInteractionModifier(
                 element: element,
-                zIndex: Int.max,
+                zIndex: zIndex,
                 x: item?.x ?? 0,
                 y: item?.y ?? 0,
                 scale: item?.scale ?? 1,
@@ -1062,18 +1085,39 @@ struct EditableDiaryCanvas: View {
                 scaleRange: 0.5...3,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
-                raisesWhenActive: true,
                 allowsDirectHitTesting: true,
-                updatePosition: { x, y in updateStamp(id) { $0.x = x; $0.y = y } },
-                updateScale: { scale in updateStamp(id) { $0.scale = scale } },
-                updateRotation: { rotation in updateStamp(id) { $0.rotation = rotation } }
+                updatePosition: { x, y in
+                    updateStamp(id) {
+                        $0.x = x
+                        $0.y = y
+                    }
+                },
+                updateScale: { scale in
+                    updateStamp(id) {
+                        $0.scale = scale
+                    }
+                },
+                updateRotation: { rotation in
+                    updateStamp(id) {
+                        $0.rotation = rotation
+                    }
+                }
             )
+
         case .sticker(let id):
-            let sticker = stickers.first(where: { $0.id == id })
-            let layout = sticker.map { layouts[id] ?? $0.layout }
+            let sticker = stickers.first { $0.id == id }
+
+            let layout: StickerLayout? = sticker.map {
+                layouts[id]
+                    ?? diary.stickerLayout.first {
+                        $0.stickerId == id
+                    }
+                    ?? $0.layout
+            }
+
             return DiaryElementInteractionModifier(
                 element: element,
-                zIndex: Int.max,
+                zIndex: zIndex,
                 x: layout?.x ?? 0,
                 y: layout?.y ?? 0,
                 scale: layout?.scale ?? 1,
@@ -1081,105 +1125,67 @@ struct EditableDiaryCanvas: View {
                 scaleRange: 0.55...1.8,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
-                raisesWhenActive: true,
                 allowsDirectHitTesting: true,
                 updatePosition: { x, y in
                     guard let sticker else { return }
-                    updateSticker(sticker) { $0.x = x; $0.y = y }
+
+                    updateSticker(sticker) {
+                        $0.x = x
+                        $0.y = y
+                    }
                 },
                 updateScale: { scale in
                     guard let sticker else { return }
-                    updateSticker(sticker) { $0.scale = scale }
+
+                    updateSticker(sticker) {
+                        $0.scale = scale
+                    }
                 },
                 updateRotation: { rotation in
                     guard let sticker else { return }
-                    updateSticker(sticker) { $0.rotation = rotation }
+
+                    updateSticker(sticker) {
+                        $0.rotation = rotation
+                    }
                 }
             )
         }
     }
-
     private func selectElement(at location: CGPoint) {
-        guard let element = hitElement(at: location) else {
+        let elements = hitElements(at: location)
+
+        guard !elements.isEmpty else {
             selectedElement = nil
             activeElement = nil
             return
         }
 
-        selectedElement = element
+        if let selectedElement,
+           let currentIndex = elements.firstIndex(of: selectedElement) {
+
+            let nextIndex = (currentIndex + 1) % elements.count
+            self.selectedElement = elements[nextIndex]
+
+        } else {
+            selectedElement = elements[0]
+        }
+
         activeElement = nil
     }
 
-    private var canvasDragGesture: some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .named("diaryCanvas"))
-            .onChanged { value in
-                if canvasDragElement == nil {
-                    guard let element = hitElement(at: value.startLocation),
-                          let origin = position(for: element) else { return }
-                    canvasDragElement = element
-                    canvasDragOrigin = origin
-                    selectedElement = nil
-                    activeElement = element
-                }
-
-                guard let element = canvasDragElement,
-                      let origin = canvasDragOrigin else { return }
-                updatePosition(
-                    for: element,
-                    x: origin.x + value.translation.width,
-                    y: origin.y + value.translation.height
-                )
-            }
-            .onEnded { _ in
-                canvasDragElement = nil
-                canvasDragOrigin = nil
-                activeElement = nil
-            }
+    private func hitElements(at location: CGPoint) -> [CanvasElementID] {
+        diaryLayerEntries(
+            diary: diary,
+            stickers: stickers,
+            layouts: layouts
+        )
+        .filter { entry in
+            interactionFrame(for: entry.element)?
+                .insetBy(dx: -8, dy: -8)
+                .contains(location) == true
+        }
+        .map(\.element)
     }
-
-    private var canvasScaleGesture: some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                if canvasScaleElement == nil {
-                    let startLocation = CGPoint(
-                        x: value.startAnchor.x * DiaryCanvasMetrics.logicalSize.width,
-                        y: value.startAnchor.y * DiaryCanvasMetrics.logicalSize.height
-                    )
-                    guard let element = hitElement(at: startLocation),
-                          let origin = scale(for: element) else { return }
-                    canvasScaleElement = element
-                    canvasScaleOrigin = origin
-                    selectedElement = nil
-                    activeElement = element
-                }
-
-                guard let element = canvasScaleElement,
-                      let origin = canvasScaleOrigin else { return }
-                updateScale(for: element, scale: clampedScale(origin * value.magnification, for: element))
-            }
-            .onEnded { value in
-                if let element = canvasScaleElement,
-                   let origin = canvasScaleOrigin {
-                    updateScale(for: element, scale: clampedScale(origin * value.magnification, for: element))
-                }
-                canvasScaleElement = nil
-                canvasScaleOrigin = nil
-                activeElement = nil
-            }
-    }
-
-    private func hitElement(at location: CGPoint) -> CanvasElementID? {
-        let hitEntries = diaryLayerEntries(diary: diary, stickers: stickers, layouts: layouts)
-            .filter { entry in
-                interactionFrame(for: entry.element)?.insetBy(dx: -8, dy: -8).contains(location) == true
-            }
-
-        return hitEntries.first { entry in
-            if case .sticker = entry.element { return true }
-            return false
-        }?.element ?? hitEntries.first?.element
-    }
-
     private func interactionFrame(for element: CanvasElementID) -> CGRect? {
         if case .sticker(let id) = element {
             return stickerInteractionFrame(id: id)
@@ -1314,6 +1320,9 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     @Binding var activeElement: CanvasElementID?
     var raisesWhenActive = false
     var allowsDirectHitTesting = true
+    var selectsOnInteraction = true
+    var allowsDragGesture = true
+    var allowsScaleGesture = true
     let updatePosition: (Double, Double) -> Void
     let updateScale: (Double) -> Void
     let updateRotation: (Double) -> Void
@@ -1328,16 +1337,46 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     private var isActive: Bool { activeElement == element }
     private var isDimmed: Bool { activeElement != nil && !isActive }
 
+    @ViewBuilder
     func body(content: Content) -> some View {
+        let base = interactionBase(content)
+        if allowsDragGesture && allowsScaleGesture {
+            base
+                .highPriorityGesture(dragGesture)
+                .simultaneousGesture(scaleGesture)
+                .simultaneousGesture(rotationGesture)
+        } else if allowsDragGesture {
+            base
+                .highPriorityGesture(dragGesture)
+                .simultaneousGesture(rotationGesture)
+        } else if allowsScaleGesture {
+            base
+                .simultaneousGesture(scaleGesture)
+                .simultaneousGesture(rotationGesture)
+        } else {
+            base
+                .simultaneousGesture(rotationGesture)
+        }
+    }
+
+    private var canReceiveInteraction: Bool {
+        guard allowsDirectHitTesting else {
+            return false
+        }
+
+        if let selectedElement {
+            return selectedElement == element
+        }
+
+        return true
+    }
+
+    private func interactionBase(_ content: Content) -> some View {
         content
-            .contentShape(Rectangle())
             .opacity(isDimmed ? 0.25 : 1)
             .zIndex(displayZIndex)
-            .allowsHitTesting(allowsDirectHitTesting && !isDimmed)
+            .allowsHitTesting(canReceiveInteraction)
             .animation(.easeOut(duration: 0.15), value: isDimmed)
-            .highPriorityGesture(dragGesture)
-            .simultaneousGesture(scaleGesture)
-            .simultaneousGesture(rotationGesture)
     }
 
     private var displayZIndex: Double {
@@ -1347,19 +1386,30 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     }
 
     private var dragGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                beginInteraction(.drag)
-                let origin = dragOrigin ?? CGSize(width: x, height: y)
-                if dragOrigin == nil { dragOrigin = origin }
-                updatePosition(origin.width + value.translation.width, origin.height + value.translation.height)
-            }
-            .onEnded { _ in
-                dragOrigin = nil
-                endInteraction(.drag)
-            }
-    }
+        DragGesture(
+            minimumDistance: 0,
+            coordinateSpace: .named("diaryCanvas")
+        )
+        .onChanged { value in
+            let origin = dragOrigin ?? CGSize(width: x, height: y)
 
+            if dragOrigin == nil {
+                dragOrigin = origin
+            }
+
+            beginInteraction(.drag)
+
+            updatePosition(
+                origin.width + value.translation.width,
+                origin.height + value.translation.height
+            )
+        }
+        .onEnded { value in
+
+            dragOrigin = nil
+            endInteraction(.drag)
+        }
+    }
     private var scaleGesture: some Gesture {
         MagnificationGesture()
             .onChanged { value in
@@ -1397,12 +1447,21 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     }
 
     private func beginInteraction(_ kind: InteractionKind) {
-        selectedElement = element
-        activeElement = element
+        if selectedElement != element {
+            selectedElement = element
+        }
+
+        if activeElement != element {
+            activeElement = element
+        }
+
         switch kind {
-        case .drag: isDragging = true
-        case .scale: isScaling = true
-        case .rotation: isRotating = true
+        case .drag:
+            isDragging = true
+        case .scale:
+            isScaling = true
+        case .rotation:
+            isRotating = true
         }
     }
 
@@ -1749,7 +1808,6 @@ private enum DiaryAutoArranger {
         var nextElements = elements.enumerated().map { index, element in
             var next = element
             next.rotation = Double.random(in: -30...30)
-            next.scale = randomizedScale(for: next)
             next.zIndex = zIndexes[index]
             next.center = randomCenter(for: next, canvasSize: canvasSize)
             return next
@@ -1780,7 +1838,6 @@ private enum DiaryAutoArranger {
             let jitterX = CGFloat.random(in: (-cellWidth * 0.16)...(cellWidth * 0.16))
             let jitterY = CGFloat.random(in: (-cellHeight * 0.16)...(cellHeight * 0.16))
             next.rotation = Double.random(in: -30...30)
-            next.scale = randomizedScale(for: next)
             next.center = CGPoint(
                 x: safeInset + cellWidth * (CGFloat(column) + 0.5) + jitterX,
                 y: safeInset + cellHeight * (CGFloat(row) + 0.5) + jitterY
