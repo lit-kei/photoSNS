@@ -338,12 +338,6 @@ struct UsernameSetupScreen: View {
                         .disabled(displayName.trimmedForPetalog.isEmpty || appState.isAuthenticating)
                         .opacity(displayName.trimmedForPetalog.isEmpty ? 0.48 : 1)
 
-                        Button("別のアカウントでログイン") {
-                            appState.signOut()
-                        }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(AppColors.destructiveRed)
-                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, AppSpacing.screenHorizontal)
                     .padding(.bottom, 34)

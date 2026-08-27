@@ -114,9 +114,6 @@ private struct HomeGroupActionRow: View {
                 Text("グループ")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
-                Text("作成・参加")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(AppColors.secondaryText)
             }
 
             Spacer()
