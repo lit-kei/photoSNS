@@ -255,9 +255,7 @@ private struct GroupListSection: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(appState.groups) { group in
-                        NavigationLink {
-                            DiaryScreen(group: group)
-                        } label: {
+                        NavigationLink(value: group) {
                             GroupActivityRow(
                                 group: group,
                                 unreadCount: appState.unreadPostCounts[group.id, default: 0]
@@ -434,11 +432,12 @@ private struct GroupActivityRow: View {
 struct MemoriesScreen: View {
     @EnvironmentObject private var appState: AppState
     var showsRootTabBar = false
+    @State private var navigationPath = NavigationPath()
     @State private var isShowingGroupOptions = false
     @State private var groupRoute: GroupRoute?
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
                     HStack(alignment: .center) {
@@ -482,6 +481,14 @@ struct MemoriesScreen: View {
                 case .join:
                     GroupManagementScreen(initialMode: .join)
                 }
+            }
+            .navigationDestination(for: PetankoGroup.self) { group in
+                DiaryScreen(group: group)
+            }
+            .onChange(of: appState.memoriesNavigationResetID) { _, _ in
+                navigationPath = NavigationPath()
+                groupRoute = nil
+                isShowingGroupOptions = false
             }
         }
     }

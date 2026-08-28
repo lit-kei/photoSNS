@@ -171,8 +171,10 @@ struct GroupManagementScreen: View {
         ) { group in
             Button("脱退", role: .destructive) {
                 Task {
-                    await appState.leaveGroup(group)
-                    groupToLeave = nil
+                    let didLeave = await appState.leaveGroup(group)
+                    if didLeave {
+                        groupToLeave = nil
+                    }
                 }
             }
             Button("キャンセル", role: .cancel) {
@@ -313,8 +315,10 @@ struct GroupEditScreen: View {
         .confirmationDialog("グループから脱退しますか？", isPresented: $isConfirmingLeave, titleVisibility: .visible) {
             Button("脱退", role: .destructive) {
                 Task {
-                    await appState.leaveGroup(group)
-                    dismiss()
+                    let didLeave = await appState.leaveGroup(group)
+                    if didLeave {
+                        dismiss()
+                    }
                 }
             }
             Button("キャンセル", role: .cancel) {}

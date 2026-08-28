@@ -25,46 +25,6 @@ service cloud.firestore {
         && memberId == memberData.groupId + "_" + request.auth.uid;
     }
 
-    function isSelfMemberInGroupAfter(memberData) {
-      return existsAfter(/databases/$(database)/documents/groups/$(memberData.groupId))
-        && request.auth.uid in getAfter(/databases/$(database)/documents/groups/$(memberData.groupId)).data.memberIds;
-    }
-
-    function isCreatorOnlyGroup(groupData) {
-      return signedIn()
-        && groupData.ownerId == request.auth.uid
-        && groupData.memberIds is list
-        && groupData.memberIds.size() == 1
-        && groupData.memberIds[0] == request.auth.uid;
-    }
-
-    function isJoiningSelf() {
-      return signedIn()
-        && !(request.auth.uid in resource.data.memberIds)
-        && request.auth.uid in request.resource.data.memberIds
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-          "memberIds",
-          "memberNames",
-          "memberAvatars"
-        ])
-        && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
-        && request.resource.data.memberIds.hasAll(resource.data.memberIds)
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.inviteCode == resource.data.inviteCode;
-    }
-
-    function stickerTarget(stickerData) {
-      return stickerData.keys().hasAny(['target']) ? stickerData.target : 'group';
-    }
-
-    function isBlogVisible(authorId) {
-      return signedIn()
-        && (
-          request.auth.uid == authorId
-          || exists(/databases/$(database)/documents/friendships/$(request.auth.uid + "_" + authorId))
-        );
-    }
-
     function hasValidEditLockShape(lockData, diaryId) {
       return lockData.keys().hasOnly([
           "groupId",
@@ -90,20 +50,16 @@ service cloud.firestore {
 
     match /groups/{groupId} {
       allow read: if signedIn();
-      allow create: if isCreatorOnlyGroup(request.resource.data);
-      allow update: if isGroupMember(groupId) || isJoiningSelf();
-      allow delete: if signedIn()
-        && request.auth.uid in resource.data.memberIds
-        && resource.data.memberIds.size() == 1;
+      allow create: if signedIn();
+      allow update: if signedIn();
+      allow delete: if signedIn();
     }
 
     match /groupMembers/{memberId} {
       allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSelfGroupMemberDocument(memberId, request.resource.data)
-        && isSelfMemberInGroupAfter(request.resource.data);
+      allow create: if isSelfGroupMemberDocument(memberId, request.resource.data);
       allow update: if isSelfGroupMemberDocument(memberId, request.resource.data)
-        && request.resource.data.groupId == resource.data.groupId
-        && isSelfMemberInGroupAfter(request.resource.data);
+        && request.resource.data.groupId == resource.data.groupId;
       allow update: if isGroupOwner(resource.data.groupId)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(['role'])
         && request.resource.data.role == "owner";
@@ -111,45 +67,16 @@ service cloud.firestore {
     }
 
     match /diaries/{diaryId} {
-      allow read: if signedIn()
-        && (
-          resource == null
-          || isGroupMember(resource.data.groupId)
-        );
-
-      allow create: if isGroupMember(request.resource.data.groupId);
-
-      allow update: if isGroupMember(resource.data.groupId)
-        && request.resource.data.groupId == resource.data.groupId;
+      allow read, create, update: if signedIn();
     }
 
     match /stickers/{stickerId} {
-      allow read: if (stickerTarget(resource.data) == 'group' && isGroupMember(resource.data.groupId))
-        || (stickerTarget(resource.data) == 'blog' && isBlogVisible(resource.data.authorId));
-      allow create: if signedIn()
-        && request.auth.uid == request.resource.data.authorId
-        && (
-          (stickerTarget(request.resource.data) == 'group' && isGroupMember(request.resource.data.groupId))
-          || (
-            stickerTarget(request.resource.data) == 'blog'
-            && request.resource.data.groupId == ''
-            && request.resource.data.diaryId == ''
-          )
-        );
-      allow delete: if signedIn() && request.auth.uid == resource.data.authorId;
+      allow read, create, delete: if signedIn();
       allow update: if false;
     }
 
     match /stickerAssets/{assetId} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && request.auth.uid == request.resource.data.ownerId
-        && request.resource.data.referenceCount > 0;
-      allow update: if signedIn()
-        && request.auth.uid == resource.data.ownerId
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.referenceCount > 0;
-      allow delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+      allow read, create, update, delete: if signedIn();
     }
 
     match /stickerReports/{reportId} {
@@ -165,9 +92,7 @@ service cloud.firestore {
     // Authenticated reads must therefore also work when a document is absent.
     match /friendships/{friendshipId} {
       allow read: if signedIn();
-      allow create: if signedIn()
-        && (request.auth.uid == request.resource.data.userId
-          || request.auth.uid == request.resource.data.friendId);
+      allow create: if signedIn();
       allow delete: if signedIn()
         && (request.auth.uid == resource.data.userId
           || request.auth.uid == resource.data.friendId);
@@ -176,18 +101,8 @@ service cloud.firestore {
 
     match /friendRequests/{requestId} {
       allow read: if signedIn();
-      allow create: if signedIn()
-        && request.auth.uid == request.resource.data.fromUserId
-        && request.resource.data.status == "pending";
-      allow update: if signedIn()
-        && request.resource.data.fromUserId == resource.data.fromUserId
-        && request.resource.data.toUserId == resource.data.toUserId
-        && (
-          (request.auth.uid == resource.data.toUserId
-            && request.resource.data.status in ["accepted", "rejected"])
-          || (request.auth.uid == resource.data.fromUserId
-            && request.resource.data.status == "pending")
-        );
+      allow create: if signedIn();
+      allow update: if signedIn();
       allow delete: if signedIn()
         && (request.auth.uid == resource.data.fromUserId
           || request.auth.uid == resource.data.toUserId);
@@ -195,7 +110,10 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       allow read, update, delete: if signedIn()
-        && request.auth.uid == resource.data.userId;
+        && (
+          request.auth.uid == resource.data.userId
+          || request.auth.uid == resource.data.recipientId
+        );
       allow create: if signedIn();
     }
 

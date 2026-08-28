@@ -19,6 +19,7 @@ final class AppState: ObservableObject {
     @Published var outgoingFriendRequests: [FriendRequest] = []
     @Published private(set) var unreadPostCounts: [String: Int] = [:]
     @Published var selectedTab: AppTab = .home
+    @Published var memoriesNavigationResetID = UUID()
     @Published var authState: AuthState = .bootstrapping
     @Published var errorMessage: String?
     @Published var isAuthenticating = false
@@ -42,6 +43,7 @@ final class AppState: ObservableObject {
     private var pendingTermsAcceptedAt: Date?
     private var hasLoadedIncomingFriendRequests = false
     private var knownIncomingFriendRequestIds: Set<String> = []
+    private var leavingGroupIds: Set<String> = []
 
     init() {
         let services = AppServices.shared
@@ -158,12 +160,25 @@ final class AppState: ObservableObject {
         }
     }
 
-    func leaveGroup(_ group: PetankoGroup) async {
-        guard let currentUser else { return }
+    func leaveGroup(_ group: PetankoGroup) async -> Bool {
+        guard let currentUser else { return false }
+        leavingGroupIds.insert(group.id)
+        selectedTab = .memories
+        memoriesNavigationResetID = UUID()
+
         do {
             try await services.groups.leaveGroup(group, currentUser: currentUser)
+            groupLastReadDates.removeValue(forKey: group.id)
+            unreadPostCounts.removeValue(forKey: group.id)
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                leavingGroupIds.remove(group.id)
+            }
+            return true
         } catch {
+            leavingGroupIds.remove(group.id)
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -253,6 +268,7 @@ final class AppState: ObservableObject {
 
     func markGroupAsRead(_ groupId: String) {
         guard let userId = currentUser?.id,
+              !leavingGroupIds.contains(groupId),
               groups.contains(where: { $0.id == groupId }) else { return }
 
         let previousReadDate = groupLastReadDates[groupId]
@@ -272,6 +288,7 @@ final class AppState: ObservableObject {
                     groupLastReadDates.removeValue(forKey: groupId)
                 }
                 reconcileUnreadObservations(for: userId)
+                guard !self.leavingGroupIds.contains(groupId) else { return }
                 guard !error.isPetankoOfflineFirestoreError else { return }
                 errorMessage = error.localizedDescription
             }
