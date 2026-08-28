@@ -36,6 +36,7 @@ private enum DiaryEditorTab: String, CaseIterable, Identifiable {
 struct DiaryEditorScreen: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     let group: PetankoGroup
     @StateObject private var viewModel: DiaryViewModel
@@ -51,6 +52,7 @@ struct DiaryEditorScreen: View {
     @State private var selectedEditorTab: DiaryEditorTab = .autoArrange
     @State private var isAutoArranging = false
     @State private var editorBottomSheetHeight: CGFloat = 0
+    @State private var lockRenewalTask: Task<Void, Never>?
 
 
     init(group: PetankoGroup) {
@@ -149,7 +151,15 @@ struct DiaryEditorScreen: View {
         }
         .onAppear { viewModel.start() }
         .onDisappear {
+            stopLockHeartbeat()
             viewModel.stop()
+            if let user = appState.currentUser {
+                Task { await viewModel.releaseEditLock(user: user) }
+            }
+        }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .background else { return }
+            stopLockHeartbeat()
             if let user = appState.currentUser {
                 Task { await viewModel.releaseEditLock(user: user) }
             }
@@ -467,7 +477,10 @@ struct DiaryEditorScreen: View {
         guard lockMessage == nil, let user = appState.currentUser else { return }
         let acquired = await viewModel.acquireEditLock(user: user)
         if !acquired {
-            lockMessage = "少し待ってからもう一度開いてください。"
+            stopLockHeartbeat()
+            lockMessage = "他のメンバーが編集中です。しばらくしてからもう一度開いてください。"
+        } else {
+            startLockHeartbeat(user: user)
         }
     }
 
@@ -486,7 +499,29 @@ struct DiaryEditorScreen: View {
         localLayouts = layouts
         await viewModel.saveDiary(page)
         isSaving = false
+        stopLockHeartbeat()
         dismiss()
+    }
+
+    private func startLockHeartbeat(user: AppUser) {
+        stopLockHeartbeat()
+        lockRenewalTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30 * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                let renewed = await viewModel.renewEditLock(user: user)
+                if !renewed {
+                    lockMessage = "編集ロックが切れました。もう一度開き直してください。"
+                    stopLockHeartbeat()
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopLockHeartbeat() {
+        lockRenewalTask?.cancel()
+        lockRenewalTask = nil
     }
 
     private var selectedSticker: StickerPost? {

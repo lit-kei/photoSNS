@@ -76,6 +76,18 @@ final class DiaryViewModel: ObservableObject {
         }
     }
 
+    func renewEditLock(user: AppUser) async -> Bool {
+        guard let diary else { return false }
+        do {
+            let renewed = try await services.diaries.renewEditLock(groupId: group.id, diaryId: diary.id, user: user)
+            isEditingLocked = !renewed
+            return renewed
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     func releaseEditLock(user: AppUser) async {
         guard let diary else { return }
         try? await services.diaries.releaseEditLock(diaryId: diary.id, userId: user.id)

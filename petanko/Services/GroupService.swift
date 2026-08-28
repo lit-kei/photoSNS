@@ -1,3 +1,4 @@
+import FirebaseAuth
 import FirebaseFirestore
 import FirebaseStorage
 import Foundation
@@ -59,6 +60,10 @@ final class GroupService {
     }
 
     func createGroup(name: String, icon: String, iconImageData: Data? = nil, currentUser: AppUser) async throws -> PetankoGroup {
+        guard let authUserId = Auth.auth().currentUser?.uid else {
+            throw PetankoError.message("ログイン情報を確認できませんでした。")
+        }
+
         let groupRef = db.collection("groups").document()
         let inviteCode = Self.makeInviteCode()
         let iconURL: String?
@@ -74,8 +79,8 @@ final class GroupService {
             icon: icon,
             iconURL: iconURL,
             inviteCode: inviteCode,
-            ownerId: currentUser.id,
-            memberIds: [currentUser.id],
+            ownerId: authUserId,
+            memberIds: [authUserId],
             memberNames: [currentUser.displayName],
             memberAvatars: [currentUser.memberAvatarValue]
         )
@@ -85,7 +90,7 @@ final class GroupService {
         batch.setData(
             [
                 "groupId": group.id,
-                "userId": currentUser.id,
+                "userId": authUserId,
                 "displayName": currentUser.displayName,
                 "avatar": currentUser.avatar,
                 "avatarURL": currentUser.avatarURL ?? "",
@@ -93,7 +98,7 @@ final class GroupService {
                 "lastReadAt": Timestamp(date: Date()),
                 "joinedAt": FieldValue.serverTimestamp()
             ],
-            forDocument: db.collection("groupMembers").document("\(group.id)_\(currentUser.id)")
+            forDocument: db.collection("groupMembers").document("\(group.id)_\(authUserId)")
         )
         do {
             try await batch.commit()
@@ -120,6 +125,10 @@ final class GroupService {
     }
 
     func joinGroup(inviteCode: String, currentUser: AppUser) async throws {
+        guard let authUserId = Auth.auth().currentUser?.uid else {
+            throw PetankoError.message("ログイン情報を確認できませんでした。")
+        }
+
         let code = inviteCode.trimmedForPetanko.uppercased()
         let snapshot = try await db.collection("groups")
             .whereField("inviteCode", isEqualTo: code)
@@ -131,7 +140,7 @@ final class GroupService {
         }
 
         let group = PetankoGroup(id: document.documentID, data: document.data())
-        guard !group.memberIds.contains(currentUser.id) else {
+        guard !group.memberIds.contains(authUserId) else {
             throw PetankoError.message("すでにこのグループに参加しています。")
         }
 
@@ -144,7 +153,7 @@ final class GroupService {
         memberAvatars.append(currentUser.memberAvatarValue)
         batch.updateData(
             [
-                "memberIds": FieldValue.arrayUnion([currentUser.id]),
+                "memberIds": FieldValue.arrayUnion([authUserId]),
                 "memberNames": memberNames,
                 "memberAvatars": memberAvatars
             ],
@@ -153,7 +162,7 @@ final class GroupService {
         batch.setData(
             [
                 "groupId": group.id,
-                "userId": currentUser.id,
+                "userId": authUserId,
                 "displayName": currentUser.displayName,
                 "avatar": currentUser.avatar,
                 "avatarURL": currentUser.avatarURL ?? "",
@@ -161,11 +170,11 @@ final class GroupService {
                 "lastReadAt": Timestamp(date: Date()),
                 "joinedAt": FieldValue.serverTimestamp()
             ],
-            forDocument: db.collection("groupMembers").document("\(group.id)_\(currentUser.id)"),
+            forDocument: db.collection("groupMembers").document("\(group.id)_\(authUserId)"),
             merge: true
         )
 
-        for memberId in group.memberIds where memberId != currentUser.id {
+        for memberId in group.memberIds where memberId != authUserId {
             let notificationRef = db.collection("notifications").document()
             batch.setData(
                 [
@@ -173,7 +182,7 @@ final class GroupService {
                     "type": "group_joined",
                     "groupId": group.id,
                     "groupName": group.name,
-                    "actorId": currentUser.id,
+                    "actorId": authUserId,
                     "actorName": currentUser.displayName,
                     "message": "\(currentUser.displayName)さんが\(group.name)に参加しました。",
                     "isRead": false,
