@@ -226,16 +226,53 @@ enum BackgroundStickerRenderer {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false
+        let placements = randomSparklePlacements(in: image.size, count: 10)
         return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
             image.draw(at: .zero)
-            let center = CGPoint(x: image.size.width / 2, y: image.size.height / 2)
-            let radius = min(image.size.width, image.size.height) * 0.43
-            for index in 0..<10 {
-                let angle = CGFloat(index) / 10 * .pi * 2
-                let point = CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
-                drawSparkle(at: point, size: index.isMultiple(of: 2) ? 18 : 11)
+            for placement in placements {
+                drawSparkle(at: placement.point, size: placement.size)
             }
         }
+    }
+
+    private struct SparklePlacement {
+        let point: CGPoint
+        let size: CGFloat
+    }
+
+    private static func randomSparklePlacements(in imageSize: CGSize, count: Int) -> [SparklePlacement] {
+        let availableSizes: [CGFloat] = [10, 12, 15, 18]
+        let edgeInset = (availableSizes.max() ?? 18) + 5
+        let safeRect = CGRect(origin: .zero, size: imageSize).insetBy(dx: edgeInset, dy: edgeInset)
+        guard safeRect.width > 0, safeRect.height > 0 else { return [] }
+
+        var placements: [SparklePlacement] = []
+        for _ in 0..<count {
+            let size = availableSizes.randomElement() ?? 12
+            var placement: SparklePlacement?
+
+            for _ in 0..<160 {
+                let candidate = CGPoint(
+                    x: CGFloat.random(in: safeRect.minX...safeRect.maxX),
+                    y: CGFloat.random(in: safeRect.minY...safeRect.maxY)
+                )
+                let doesNotOverlap = placements.allSatisfy { existing in
+                    let dx = candidate.x - existing.point.x
+                    let dy = candidate.y - existing.point.y
+                    let minimumDistance = size + existing.size + 7
+                    return dx * dx + dy * dy >= minimumDistance * minimumDistance
+                }
+                if doesNotOverlap {
+                    placement = SparklePlacement(point: candidate, size: size)
+                    break
+                }
+            }
+
+            if let placement {
+                placements.append(placement)
+            }
+        }
+        return placements
     }
 
     private static func drawSparkle(at point: CGPoint, size: CGFloat) {
