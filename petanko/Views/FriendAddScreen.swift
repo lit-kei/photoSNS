@@ -48,7 +48,7 @@ struct FriendAddScreen: View {
             VStack(alignment: .leading, spacing: 12) {
                 if let currentUser = appState.currentUser {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("あなたのユーザーID")
+                        Text("ユーザーID")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(AppColors.secondaryText)
                         Text(currentUser.playerId)
@@ -88,9 +88,13 @@ struct FriendAddScreen: View {
                 .buttonStyle(.plain)
                 .disabled(appState.currentUser == nil)
 
-                TextField("ユーザーIDを入力", text: $playerId)
+                TextField("ユーザーIDを入力", text: Binding(
+                    get: { playerId },
+                    set: { playerId = $0.uppercased() }
+                ))
                     .keyboardType(.asciiCapable)
-                    .textInputAutocapitalization(.never)
+                    .textInputAutocapitalization(.characters)
+                    .textCase(.uppercase)
                     .autocorrectionDisabled()
                     .textFieldStyle(.plain)
                     .metalTextField()
