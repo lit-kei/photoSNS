@@ -36,7 +36,7 @@ struct FriendListScreen: View {
                 }
 
                 if appState.friends.isEmpty {
-                    EmptyStateView(systemImage: "person.2", title: "まだ友達がいません", message: "友達になると、ここに一覧で表示されます。")
+                    EmptyStateView(systemImage: "person.2", title: "まだ友達がいません", message: "")
                 } else {
                     VStack(spacing: 0) {
                         ForEach(appState.friends) { friend in

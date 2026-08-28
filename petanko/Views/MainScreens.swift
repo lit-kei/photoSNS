@@ -251,7 +251,7 @@ private struct GroupListSection: View {
             SectionHeader(title: "グループ")
 
             if appState.groups.isEmpty {
-                EmptyStateView(systemImage: "person.3", title: "まだグループがありません", message: "グループを作るか、招待コードで参加すると今日の絵日記を始められます。")
+                EmptyStateView(systemImage: "person.3", title: "まだグループがありません", message: "")
             } else {
                 VStack(spacing: 0) {
                     ForEach(appState.groups) { group in

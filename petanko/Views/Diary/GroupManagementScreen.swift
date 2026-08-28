@@ -27,7 +27,7 @@ struct GroupManagementScreen: View {
                 if initialMode != .join {
                     ControlSection(title: "所属グループ") {
                         if appState.groups.isEmpty {
-                            EmptyStateView(systemImage: "person.3.fill", title: "グループなし", message: "作成すると招待コードが生成されます。")
+                            EmptyStateView(systemImage: "person.3.fill", title: "グループなし", message: "")
                         } else {
                             VStack(spacing: 10) {
                                 ForEach(appState.groups) { group in
@@ -64,9 +64,6 @@ struct GroupManagementScreen: View {
                                         Text("写真からアイコンを選ぶ")
                                             .font(.system(size: 14, weight: .semibold))
                                             .foregroundStyle(AppColors.mainText)
-                                        Text("絵文字も下から選べます")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(AppColors.secondaryText)
                                     }
                                     Spacer()
                                     Image(systemName: "photo")

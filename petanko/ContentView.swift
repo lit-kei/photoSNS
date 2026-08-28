@@ -116,7 +116,7 @@ private struct BootstrappingSplashView: View {
 
     @ViewBuilder
     private var appIcon: some View {
-        if let image = UIImage(named: "AppIcon") ?? UIImage(named: "AppIcon60x60") {
+        if let image = UIImage(named: "BootSplashIcon") {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
