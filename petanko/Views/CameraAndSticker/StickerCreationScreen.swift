@@ -64,7 +64,15 @@ struct StickerCreationScreen: View {
                 }
 
                 ControlSection(title: "デコレーション") {
-                    HorizontalOptionPicker(options: StickerDecoration.allCases, selection: $draft.decoration)
+                    VStack(spacing: 12) {
+                        HorizontalOptionPicker(options: StickerDecoration.allCases, selection: $draft.decoration)
+
+                        if draft.decoration.supportsCustomOutlineColor {
+                            ColorPicker("ふちの色", selection: outlineColorBinding, supportsOpacity: false)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppColors.mainText)
+                        }
+                    }
                 }
 
                 ControlSection(title: "コメント") {
@@ -104,6 +112,17 @@ struct StickerCreationScreen: View {
         .navigationDestination(isPresented: $isShowingPostScreen) {
             StickerPostScreen(stickerPNG: generatedPNG ?? Data(), draft: draft)
         }
+    }
+
+    private var outlineColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Color(uiColor: UIColor(hex: draft.outlineColorHex) ?? .white)
+            },
+            set: { color in
+                draft.outlineColorHex = UIColor(color).petankoHexString
+            }
+        )
     }
 }
 
@@ -152,7 +171,11 @@ private struct StickerComposerPreview: View {
                         .rotationEffect(.degrees(-draft.cropRotation))
                         .offset(frameOffset)
 
-                    StickerOutline(shape: draft.shape, decoration: draft.decoration)
+                    StickerOutline(
+                        shape: draft.shape,
+                        decoration: draft.decoration,
+                        customOutlineColor: Color(uiColor: UIColor(hex: draft.outlineColorHex) ?? .white)
+                    )
                         .frame(width: frameSide, height: frameSide)
                         .rotationEffect(.degrees(-draft.cropRotation))
                         .offset(frameOffset)

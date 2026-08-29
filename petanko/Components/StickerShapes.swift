@@ -29,16 +29,17 @@ struct StickerMaskShape: Shape {
 struct StickerOutline: View {
     let shape: StickerShapeOption
     let decoration: StickerDecoration
+    var customOutlineColor: Color = .white
 
     var body: some View {
         StickerMaskShape(shape: shape)
-            .stroke(outlineColor, style: StrokeStyle(lineWidth: 7, lineCap: .round, dash: decoration == .handDrawn ? [8, 5] : []))
+            .stroke(resolvedOutlineColor, style: StrokeStyle(lineWidth: 7, lineCap: .round, dash: decoration == .handDrawn ? [8, 5] : []))
     }
 
-    private var outlineColor: Color {
+    private var resolvedOutlineColor: Color {
         switch decoration {
-        case .whiteOutline, .sparkle: .white
-        case .colorfulOutline: PetankoTheme.accent
+        case .whiteOutline: .white
+        case .sparkle, .colorfulOutline: customOutlineColor
         case .handDrawn: .black.opacity(0.72)
         case .shadow, .none: .clear
         }

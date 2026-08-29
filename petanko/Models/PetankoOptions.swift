@@ -106,6 +106,15 @@ enum StickerDecoration: String, PetankoOption {
         case .none: "slash.circle"
         }
     }
+
+    var supportsCustomOutlineColor: Bool {
+        switch self {
+        case .sparkle, .colorfulOutline:
+            true
+        case .whiteOutline, .shadow, .handDrawn, .none:
+            false
+        }
+    }
 }
 
 enum ScrapbookBackground: String, PetankoOption {

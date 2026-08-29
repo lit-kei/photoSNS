@@ -44,7 +44,12 @@ enum StickerRenderer {
             stickerSource.drawAspectFill(in: cropRect)
             context.cgContext.restoreGState()
 
-            drawDecoration(draft.decoration, around: path, in: context.cgContext)
+            drawDecoration(
+                draft.decoration,
+                around: path,
+                outlineColor: UIColor(hex: draft.outlineColorHex) ?? .white,
+                in: context.cgContext
+            )
         }
 
         guard let data = image.pngData() else {
@@ -53,17 +58,21 @@ enum StickerRenderer {
         return data
     }
 
-    private static func drawDecoration(_ decoration: StickerDecoration, around path: UIBezierPath, in context: CGContext) {
+    private static func drawDecoration(_ decoration: StickerDecoration, around path: UIBezierPath, outlineColor: UIColor, in context: CGContext) {
         switch decoration {
-        case .whiteOutline, .sparkle:
+        case .whiteOutline:
             UIColor.white.setStroke()
             path.lineWidth = 18
             path.stroke()
-        case .colorfulOutline:
-            UIColor(red: 0.43, green: 0.45, blue: 0.5, alpha: 1).setStroke()
+        case .sparkle:
+            outlineColor.setStroke()
             path.lineWidth = 18
             path.stroke()
-            UIColor(red: 0.86, green: 0.87, blue: 0.9, alpha: 1).setStroke()
+        case .colorfulOutline:
+            outlineColor.setStroke()
+            path.lineWidth = 18
+            path.stroke()
+            outlineColor.withAlphaComponent(0.55).setStroke()
             path.lineWidth = 7
             path.stroke()
         case .shadow:

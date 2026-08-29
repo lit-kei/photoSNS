@@ -179,8 +179,8 @@ struct BackgroundRemovalStickerScreen: View {
                 ControlSection(title: "デコレーション") {
                     HorizontalOptionPicker(options: StickerDecoration.allCases, selection: $draft.decoration)
 
-                    if draft.decoration.supportsBackgroundOutlineColor {
-                        ColorPicker("縁取り色", selection: outlineColorBinding, supportsOpacity: false)
+                    if draft.decoration.supportsCustomOutlineColor {
+                        ColorPicker("ふちの色", selection: outlineColorBinding, supportsOpacity: false)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppColors.mainText)
                     }
@@ -298,17 +298,6 @@ private struct PreviewPreparationKey: Equatable {
     let effect: StickerEffect
     let decoration: StickerDecoration
     let outlineColorHex: String
-}
-
-private extension StickerDecoration {
-    var supportsBackgroundOutlineColor: Bool {
-        switch self {
-        case .whiteOutline, .sparkle:
-            true
-        case .none, .colorfulOutline, .shadow, .handDrawn:
-            false
-        }
-    }
 }
 
 private struct BackgroundForegroundPreview: View {

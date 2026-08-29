@@ -161,11 +161,13 @@ enum BackgroundStickerRenderer {
         var layers: [CIImage] = []
 
         switch decoration {
-        case .whiteOutline, .sparkle:
+        case .whiteOutline:
+            layers.append(coloredMask(dilate(mask, radius: 15), color: .white, extent: extent))
+        case .sparkle:
             layers.append(coloredMask(dilate(mask, radius: 15), color: outlineColor, extent: extent))
         case .colorfulOutline:
-            layers.append(coloredMask(dilate(mask, radius: 19), color: UIColor(white: 0.32, alpha: 1), extent: extent))
-            layers.append(coloredMask(dilate(mask, radius: 9), color: UIColor(white: 0.88, alpha: 1), extent: extent))
+            layers.append(coloredMask(dilate(mask, radius: 19), color: outlineColor, extent: extent))
+            layers.append(coloredMask(dilate(mask, radius: 9), color: outlineColor.withAlphaComponent(0.55), extent: extent))
         case .shadow:
             let blurred = mask
                 .clampedToExtent()

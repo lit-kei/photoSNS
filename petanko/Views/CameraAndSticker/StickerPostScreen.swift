@@ -9,8 +9,6 @@ struct StickerPostScreen: View {
     @State private var selectedGroupIDs: Set<String> = []
     @State private var publishToBlog = true
     @State private var submissionError: String?
-    @State private var photoSaveMessage: String?
-    @State private var isSavingToPhotos = false
 
     var body: some View {
         ScrollView {
@@ -28,17 +26,11 @@ struct StickerPostScreen: View {
                             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                                 .stroke(AppColors.border, lineWidth: 0.8)
                         }
-
-                    Button {
-                        saveStickerToPhotos()
-                    } label: {
-                        Label(isSavingToPhotos ? "保存中…" : "写真に保存", systemImage: "square.and.arrow.down")
-                    }
-                    .buttonStyle(ListRowButtonStyle())
-                    .disabled(isSavingToPhotos || stickerPNG.isEmpty)
                 } else {
                     EmptyStateView(systemImage: "exclamationmark.triangle.fill", title: "ステッカー生成待ち", message: "戻ってもう一度「完成」を押してください。")
                 }
+
+                postingGuidelineMessage
 
                 ControlSection(title: "投稿先") {
                     VStack(spacing: 10) {
@@ -125,13 +117,26 @@ struct StickerPostScreen: View {
         } message: {
             Text(submissionError ?? "")
         }
-        .alert("写真への保存", isPresented: Binding(
-            get: { photoSaveMessage != nil },
-            set: { if !$0 { photoSaveMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(photoSaveMessage ?? "")
+    }
+
+    private var postingGuidelineMessage: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppColors.accentPink)
+                .padding(.top, 1)
+
+            Text("他人を傷つける内容、権利侵害、性的・暴力的な画像、個人情報を含む投稿は禁止です。")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(AppColors.surface.opacity(0.92), in: RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                .stroke(AppColors.border, lineWidth: 0.8)
         }
     }
 
@@ -184,19 +189,6 @@ struct StickerPostScreen: View {
         }
     }
 
-    private func saveStickerToPhotos() {
-        guard !stickerPNG.isEmpty, !isSavingToPhotos else { return }
-        isSavingToPhotos = true
-        Task {
-            do {
-                try await StickerPhotoLibraryService.saveStickerPNG(stickerPNG)
-                photoSaveMessage = "ステッカーを写真に保存しました。"
-            } catch {
-                photoSaveMessage = error.localizedDescription
-            }
-            isSavingToPhotos = false
-        }
-    }
 }
 
 private struct StickerSubmissionControl: View {
