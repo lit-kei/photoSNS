@@ -18,6 +18,10 @@ final class AuthService {
         return AuthenticatedAccount(uid: user.uid, email: user.email ?? "")
     }
 
+    func needsPasswordForAccountDeletion() -> Bool {
+        Auth.auth().currentUser?.providerData.contains { $0.providerID == EmailAuthProviderID } == true
+    }
+
     func signIn(email: String, password: String) async throws -> AuthenticatedAccount {
         let result = try await Auth.auth().signIn(withEmail: email.trimmedForPetanko, password: password)
         return AuthenticatedAccount(uid: result.user.uid, email: result.user.email ?? email.trimmedForPetanko)
@@ -102,6 +106,25 @@ final class AuthService {
         guard let url = URL(string: urlString) else { return }
         try? await storage.reference(forURL: urlString).delete()
         await RemoteImageCache.shared.remove(for: url)
+    }
+
+    func reauthenticate(password: String) async throws {
+        guard let user = Auth.auth().currentUser,
+              let email = user.email else {
+            throw PetankoError.message("ログイン情報を確認できませんでした。")
+        }
+        let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+        try await user.reauthenticate(with: credential)
+    }
+
+    func deleteAccount(password: String?) async throws {
+        if let password, !password.isEmpty {
+            try await reauthenticate(password: password)
+        }
+        guard let user = Auth.auth().currentUser else {
+            throw PetankoError.message("ログイン情報を確認できませんでした。")
+        }
+        try await user.delete()
     }
 
     func signOut() throws {

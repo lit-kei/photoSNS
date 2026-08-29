@@ -14,6 +14,7 @@ final class AppState: ObservableObject {
     @Published var groups: [PetankoGroup] = []
     @Published var friends: [AppFriend] = []
     @Published var friendTodayStickers: [StickerPost] = []
+    @Published var blockedUsers: [UserBlock] = []
     @Published private(set) var observedUserProfiles: [String: AppUser] = [:]
     @Published var incomingFriendRequests: [FriendRequest] = []
     @Published var outgoingFriendRequests: [FriendRequest] = []
@@ -37,8 +38,13 @@ final class AppState: ObservableObject {
     private var friendListener: ListenerRegistration?
     private var friendTodayStickerListeners: [ListenerRegistration] = []
     private var userProfileListeners: [String: ListenerRegistration] = [:]
+    private var blockedUserListener: ListenerRegistration?
     private var incomingFriendRequestListener: ListenerRegistration?
     private var outgoingFriendRequestListener: ListenerRegistration?
+    private var allFriends: [AppFriend] = []
+    private var allFriendTodayStickers: [StickerPost] = []
+    private var allIncomingFriendRequests: [FriendRequest] = []
+    private var allOutgoingFriendRequests: [FriendRequest] = []
     private var pendingAccount: AuthenticatedAccount?
     private var pendingTermsAcceptedAt: Date?
     private var hasLoadedIncomingFriendRequests = false
@@ -124,12 +130,14 @@ final class AppState: ObservableObject {
         }
     }
 
-    func createGroup(name: String, icon: String, iconImageData: Data? = nil) async {
-        guard let currentUser else { return }
+    func createGroup(name: String, icon: String, iconImageData: Data? = nil) async -> Bool {
+        guard let currentUser else { return false }
         do {
             _ = try await services.groups.createGroup(name: name, icon: icon, iconImageData: iconImageData, currentUser: currentUser)
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -145,6 +153,16 @@ final class AppState: ObservableObject {
     func findGroup(inviteCode: String) async -> PetankoGroup? {
         do {
             return try await services.groups.findGroup(inviteCode: inviteCode)
+        } catch {
+            guard !error.isPetankoOfflineFirestoreError else { return nil }
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func loadUserProfile(userId: String) async -> AppUser? {
+        do {
+            return try await services.friends.fetchUser(userId: userId)
         } catch {
             guard !error.isPetankoOfflineFirestoreError else { return nil }
             errorMessage = error.localizedDescription
@@ -213,13 +231,20 @@ final class AppState: ObservableObject {
     }
 
     func sendFriendRequest(to targetUser: AppUser) async -> Bool {
-        guard let currentUser else { return false }
+        let result = await sendFriendRequestResult(to: targetUser)
+        if case .failed(let message) = result {
+            errorMessage = message
+        }
+        return result == .sent
+    }
+
+    func sendFriendRequestResult(to targetUser: AppUser) async -> FriendRequestSendResult {
+        guard let currentUser else { return .failed("ログイン情報を確認できませんでした。") }
         do {
             try await services.friends.sendRequest(to: targetUser, currentUser: currentUser)
-            return true
+            return .sent
         } catch {
-            errorMessage = error.localizedDescription
-            return false
+            return .failed(userFriendlyMessage(for: error, fallback: "フレンド申請を送れませんでした。"))
         }
     }
 
@@ -250,13 +275,89 @@ final class AppState: ObservableObject {
         }
     }
 
+    func isBlocked(_ userId: String) -> Bool {
+        blockedUserIds.contains(userId)
+    }
+
+    func blockUser(_ userId: String) async -> Bool {
+        guard let currentUser else { return false }
+        do {
+            try await services.blocks.blockUser(blockedUserId: userId, currentUserId: currentUser.id)
+            return true
+        } catch {
+            errorMessage = userFriendlyMessage(for: error, fallback: "ブロックできませんでした。")
+            return false
+        }
+    }
+
+    func unblockUser(_ userId: String) async -> Bool {
+        guard let currentUser else { return false }
+        do {
+            try await services.blocks.unblockUser(blockedUserId: userId, currentUserId: currentUser.id)
+            return true
+        } catch {
+            errorMessage = userFriendlyMessage(for: error, fallback: "ブロックを解除できませんでした。")
+            return false
+        }
+    }
+
+    func needsPasswordForAccountDeletion() -> Bool {
+        services.auth.needsPasswordForAccountDeletion()
+    }
+
+    func reauthenticateForAccountDeletion(password: String) async -> AccountDeletionReauthenticationResult {
+        guard !password.isEmpty else {
+            return .failed("パスワードを入力してください。")
+        }
+        do {
+            try await services.auth.reauthenticate(password: password)
+            return .authenticated
+        } catch {
+            if error.isPetankoInvalidPasswordAuthError {
+                return .failed("パスワードが正しくありません。")
+            }
+            return .failed(userFriendlyMessage(for: error, fallback: "ログイン確認に失敗しました。"))
+        }
+    }
+
+    func deleteAccount(
+        password: String? = nil,
+        postRetentionPolicy: AccountDeletionPostRetentionPolicy = .deletePosts,
+        hasRecentLogin: Bool = false,
+        onProgress: @escaping @MainActor (AccountDeletionStep) -> Void = { _ in }
+    ) async -> AccountDeletionResult {
+        guard let currentUser else { return .failed("ログイン情報を確認できませんでした。") }
+        if services.auth.needsPasswordForAccountDeletion(),
+           password?.isEmpty != false,
+           !hasRecentLogin {
+            return .requiresRecentLogin
+        }
+        do {
+            try await services.accountDeletion.deleteAccount(
+                user: currentUser,
+                password: password,
+                postRetentionPolicy: postRetentionPolicy,
+                onProgress: onProgress
+            )
+            clearSignedInState()
+            authState = .signedOut
+            return .deleted
+        } catch {
+            if error.isPetankoRequiresRecentLoginError {
+                return .requiresRecentLogin
+            }
+            let message = userFriendlyMessage(for: error, fallback: "アカウントを削除できませんでした。")
+            return .failed(message)
+        }
+    }
+
     func reportSticker(_ sticker: StickerPost) async -> Bool {
         guard let currentUser else { return false }
         do {
             try await services.stickers.reportSticker(sticker, user: currentUser)
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = userFriendlyMessage(for: error, fallback: "報告できませんでした。")
             return false
         }
     }
@@ -432,7 +533,8 @@ final class AppState: ObservableObject {
                     guard !error.isPetankoOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
                 } else {
-                    self?.friends = friends
+                    self?.allFriends = friends
+                    self?.applyBlockedFilters()
                     self?.observeTodayBlogStickers(for: friends)
                     self?.reconcileObservedUserProfiles()
                 }
@@ -454,8 +556,26 @@ final class AppState: ObservableObject {
                     guard !error.isPetankoOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
                 } else {
-                    self?.friendTodayStickers = stickers
+                    self?.allFriendTodayStickers = stickers
+                    self?.applyBlockedFilters()
                     self?.reconcileObservedUserProfiles()
+                }
+            }
+        }
+    }
+
+    private func observeBlockedUsers(for userId: String) {
+        blockedUserListener?.remove()
+        blockedUserListener = services.blocks.observeBlockedUsers(userId: userId) { [weak self] blocks, error in
+            Task { @MainActor in
+                guard let self, self.currentUser?.id == userId else { return }
+                if let error {
+                    guard !error.isPetankoOfflineFirestoreError else { return }
+                    self.errorMessage = self.userFriendlyMessage(for: error, fallback: "ブロックしたユーザーを確認できませんでした。")
+                } else {
+                    self.blockedUsers = blocks
+                    self.applyBlockedFilters()
+                    self.reconcileObservedUserProfiles()
                 }
             }
         }
@@ -471,7 +591,8 @@ final class AppState: ObservableObject {
                     guard !error.isPetankoOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
                 } else {
-                    self?.applyIncomingFriendRequests(requests)
+                    self?.allIncomingFriendRequests = requests
+                    self?.applyIncomingFriendRequests(self?.filteredIncomingRequests(from: requests) ?? [])
                 }
             }
         }
@@ -482,13 +603,15 @@ final class AppState: ObservableObject {
                     guard !error.isPetankoOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
                 } else {
-                    self?.outgoingFriendRequests = requests
+                    self?.allOutgoingFriendRequests = requests
+                    self?.applyBlockedFilters()
                 }
             }
         }
     }
 
     private func observeSignedInData(for userId: String) {
+        observeBlockedUsers(for: userId)
         observeGroups(for: userId)
         observeGroupReadStates(for: userId)
         observeFriends(for: userId)
@@ -563,6 +686,8 @@ final class AppState: ObservableObject {
         friendListener = nil
         removeFriendTodayStickerListeners()
         removeUserProfileListeners()
+        blockedUserListener?.remove()
+        blockedUserListener = nil
         incomingFriendRequestListener?.remove()
         incomingFriendRequestListener = nil
         outgoingFriendRequestListener?.remove()
@@ -572,6 +697,11 @@ final class AppState: ObservableObject {
         groups = []
         friends = []
         friendTodayStickers = []
+        blockedUsers = []
+        allFriends = []
+        allFriendTodayStickers = []
+        allIncomingFriendRequests = []
+        allOutgoingFriendRequests = []
         incomingFriendRequests = []
         outgoingFriendRequests = []
         unreadPostCounts = [:]
@@ -594,6 +724,7 @@ final class AppState: ObservableObject {
         }
         activeUserIds.formUnion(friends.map(\.friendId).filter { !$0.isEmpty })
         activeUserIds.formUnion(friendTodayStickers.map(\.authorId).filter { !$0.isEmpty })
+        activeUserIds.formUnion(blockedUsers.map(\.blockedUserId).filter { !$0.isEmpty })
 
         for userId in Set(userProfileListeners.keys).subtracting(activeUserIds) {
             userProfileListeners.removeValue(forKey: userId)?.remove()
@@ -639,6 +770,43 @@ final class AppState: ObservableObject {
         knownIncomingFriendRequestIds = incomingIds
     }
 
+    private var blockedUserIds: Set<String> {
+        Set(blockedUsers.map(\.blockedUserId))
+    }
+
+    private func applyBlockedFilters() {
+        let blockedIds = blockedUserIds
+        friends = allFriends.filter { !blockedIds.contains($0.friendId) }
+        friendTodayStickers = allFriendTodayStickers.filter { !blockedIds.contains($0.authorId) }
+        outgoingFriendRequests = allOutgoingFriendRequests.filter { !blockedIds.contains($0.toUserId) }
+        applyIncomingFriendRequests(filteredIncomingRequests(from: allIncomingFriendRequests))
+    }
+
+    private func filteredIncomingRequests(from requests: [FriendRequest]) -> [FriendRequest] {
+        let blockedIds = blockedUserIds
+        return requests.filter { !blockedIds.contains($0.fromUserId) }
+    }
+
+    private func userFriendlyMessage(for error: Error, fallback: String) -> String {
+        if let petankoError = error as? PetankoError,
+           let message = petankoError.errorDescription {
+            return message
+        }
+        if error.isPetankoOfflineFirestoreError {
+            return "通信できませんでした。ネットワーク接続を確認してください。"
+        }
+        if error.isPetankoPermissionDeniedFirestoreError {
+            return "Firestoreの権限設定により処理できませんでした。ルールがデプロイ済みか確認してください。"
+        }
+        if error.isPetankoInvalidPasswordAuthError {
+            return "パスワードが正しくありません。"
+        }
+        if error.isPetankoRequiresRecentLoginError {
+            return "安全のため、もう一度ログイン確認が必要です。"
+        }
+        return fallback
+    }
+
     private func sendFriendRequestNotification(_ request: FriendRequest) {
         Task {
             let content = UNMutableNotificationContent()
@@ -669,4 +837,20 @@ enum AppTab {
     case friends
     case memories
     case profile
+}
+
+enum AccountDeletionResult: Hashable {
+    case deleted
+    case requiresRecentLogin
+    case failed(String)
+}
+
+enum AccountDeletionReauthenticationResult: Hashable {
+    case authenticated
+    case failed(String)
+}
+
+enum FriendRequestSendResult: Hashable {
+    case sent
+    case failed(String)
 }

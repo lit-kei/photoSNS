@@ -10,6 +10,7 @@ struct GroupManagementScreen: View {
     }
 
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     let initialMode: Mode
     @State private var groupName = ""
     @State private var groupIcon = "📘"
@@ -24,7 +25,7 @@ struct GroupManagementScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                if initialMode != .join {
+                if initialMode == .list {
                     ControlSection(title: "所属グループ") {
                         if appState.groups.isEmpty {
                             EmptyStateView(systemImage: "person.3.fill", title: "グループなし", message: "")
@@ -101,7 +102,12 @@ struct GroupManagementScreen: View {
 
                             Button {
                                 Task {
-                                    await appState.createGroup(name: groupName, icon: groupIcon, iconImageData: selectedIconData)
+                                    let didCreate = await appState.createGroup(name: groupName, icon: groupIcon, iconImageData: selectedIconData)
+                                    if didCreate, initialMode == .create {
+                                        dismiss()
+                                        return
+                                    }
+                                    guard didCreate else { return }
                                     groupName = ""
                                     selectedIconData = nil
                                     selectedIconItem = nil
@@ -214,6 +220,8 @@ struct GroupEditScreen: View {
     @State private var selectedIconData: Data?
     @State private var isSaving = false
     @State private var isConfirmingLeave = false
+    @State private var selectedMemberProfile: AppUser?
+    @State private var loadingMemberIds: Set<String> = []
 
     init(group: PetankoGroup) {
         self.group = group
@@ -296,6 +304,21 @@ struct GroupEditScreen: View {
                 .buttonStyle(PrimaryActionButtonStyle())
                 .disabled(groupName.trimmedForPetanko.isEmpty || isSaving)
 
+                ControlSection(title: "メンバー") {
+                    VStack(spacing: 0) {
+                        ForEach(memberSummaries) { member in
+                            GroupMemberRow(
+                                member: member,
+                                isCurrentUser: member.id == appState.currentUser?.id,
+                                isOwner: member.id == group.ownerId,
+                                isLoading: loadingMemberIds.contains(member.id)
+                            ) {
+                                Task { await openMemberProfile(member) }
+                            }
+                        }
+                    }
+                }
+
                 Button(role: .destructive) {
                     isConfirmingLeave = true
                 } label: {
@@ -312,6 +335,9 @@ struct GroupEditScreen: View {
             PetankoMetalBackground()
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $selectedMemberProfile) { user in
+            FriendProfileScreen(user: user)
+        }
         .confirmationDialog("グループから脱退しますか？", isPresented: $isConfirmingLeave, titleVisibility: .visible) {
             Button("脱退", role: .destructive) {
                 Task {
@@ -325,6 +351,140 @@ struct GroupEditScreen: View {
         } message: {
             Text("\(group.name)から脱退します。")
         }
+    }
+
+    private var memberSummaries: [GroupMemberSummary] {
+        group.memberIds.enumerated().map { index, id in
+            let name = group.memberNames.indices.contains(index) ? group.memberNames[index] : ""
+            let avatar = group.memberAvatars.indices.contains(index) ? group.memberAvatars[index] : ""
+            return GroupMemberSummary(
+                id: id,
+                name: name.isEmpty ? "petanko user" : name,
+                avatarValue: avatar.isEmpty ? "system:person.fill" : avatar
+            )
+        }
+    }
+
+    private func openMemberProfile(_ member: GroupMemberSummary) async {
+        guard loadingMemberIds.insert(member.id).inserted else { return }
+        let profile = await appState.loadUserProfile(userId: member.id)
+        loadingMemberIds.remove(member.id)
+        selectedMemberProfile = profile ?? member.fallbackUser
+    }
+}
+
+private struct GroupMemberSummary: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let avatarValue: String
+
+    var fallbackUser: AppUser {
+        AppUser(
+            id: id,
+            displayName: name,
+            avatar: isImageURL ? "" : displayAvatar,
+            avatarURL: isImageURL ? avatarValue : nil
+        )
+    }
+
+    var isSystemImage: Bool {
+        avatarValue.hasPrefix("system:")
+    }
+
+    var systemImageName: String {
+        String(avatarValue.dropFirst("system:".count))
+    }
+
+    var isImageURL: Bool {
+        avatarValue.hasPrefix("http://") || avatarValue.hasPrefix("https://")
+    }
+
+    var displayAvatar: String {
+        isSystemImage ? "" : avatarValue
+    }
+}
+
+private struct GroupMemberRow: View {
+    let member: GroupMemberSummary
+    let isCurrentUser: Bool
+    let isOwner: Bool
+    let isLoading: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                GroupMemberAvatar(member: member)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(member.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
+                        .lineLimit(1)
+
+                    HStack(spacing: 6) {
+                        if isCurrentUser {
+                            Text("あなた")
+                        }
+                        if isOwner {
+                            Text("オーナー")
+                        }
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(AppColors.secondaryText)
+                }
+
+                Spacer()
+
+                if isLoading {
+                    ProgressView()
+                        .tint(AppColors.mainText)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppColors.darkSilver)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppColors.border)
+                .frame(height: 0.8)
+        }
+        .disabled(isLoading)
+    }
+}
+
+private struct GroupMemberAvatar: View {
+    let member: GroupMemberSummary
+
+    var body: some View {
+        Group {
+            if member.isImageURL {
+                RemoteImageView(urlString: member.avatarValue) {
+                    placeholder
+                }
+            } else if member.isSystemImage {
+                placeholder
+            } else {
+                Text(member.avatarValue)
+                    .font(.system(size: 20))
+            }
+        }
+        .frame(width: 42, height: 42)
+        .background(AppColors.chromeHighlight.opacity(0.78))
+        .clipShape(Circle())
+        .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+    }
+
+    private var placeholder: some View {
+        Image(systemName: member.isSystemImage ? member.systemImageName : "person.fill")
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(AppColors.secondaryText)
     }
 }
 

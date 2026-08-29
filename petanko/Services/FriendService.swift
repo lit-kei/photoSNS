@@ -101,6 +101,9 @@ final class FriendService {
         guard targetUser.id != currentUser.id else {
             throw PetankoError.message("自分自身には申請できません。")
         }
+        guard try await !isBlockedBetween(currentUser.id, targetUser.id) else {
+            throw PetankoError.message("このユーザーにはフレンド申請できません。")
+        }
 
         let friendshipId = "\(currentUser.id)_\(targetUser.id)"
         let friendship = try await db.collection("friendships").document(friendshipId).getDocument()
@@ -119,6 +122,15 @@ final class FriendService {
             throw PetankoError.message("相手から申請が届いています。受信申請から承認できます。")
         }
 
+        let requestRef = db.collection("friendRequests").document(newRequestId)
+        if requestSnapshot.exists {
+            try await requestRef.setData(
+                ["status": "pending", "updatedAt": FieldValue.serverTimestamp()],
+                merge: true
+            )
+            return
+        }
+
         let request = FriendRequest(
             id: newRequestId,
             fromUserId: currentUser.id,
@@ -130,11 +142,14 @@ final class FriendService {
             toAvatar: targetUser.avatar,
             toAvatarURL: targetUser.avatarURL
         )
-        try await db.collection("friendRequests").document(newRequestId).setData(request.dictionary, merge: true)
+        try await requestRef.setData(request.dictionary, merge: true)
     }
 
     func acceptRequest(_ request: FriendRequest, currentUser: AppUser) async throws {
         guard request.toUserId == currentUser.id else { return }
+        guard try await !isBlockedBetween(currentUser.id, request.fromUserId) else {
+            throw PetankoError.message("このフレンド申請は承認できません。")
+        }
         let fromUser = try await fetchUser(userId: request.fromUserId) ?? AppUser(id: request.fromUserId, displayName: request.fromName, avatar: request.fromAvatar, avatarURL: request.fromAvatarURL)
 
         let currentFriend = AppFriend(
@@ -201,5 +216,21 @@ final class FriendService {
 
     private func makeRequestId(from fromUserId: String, to toUserId: String) -> String {
         "\(fromUserId)_\(toUserId)"
+    }
+
+    private func isBlockedBetween(_ firstUserId: String, _ secondUserId: String) async throws -> Bool {
+        async let firstBlocksSecond = db.collection("users")
+            .document(firstUserId)
+            .collection("blockedUsers")
+            .document(secondUserId)
+            .getDocument()
+        async let secondBlocksFirst = db.collection("users")
+            .document(secondUserId)
+            .collection("blockedUsers")
+            .document(firstUserId)
+            .getDocument()
+        let firstSnapshot = try await firstBlocksSecond
+        let secondSnapshot = try await secondBlocksFirst
+        return firstSnapshot.exists || secondSnapshot.exists
     }
 }

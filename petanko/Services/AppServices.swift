@@ -13,6 +13,8 @@ final class AppServices {
     lazy var friends = FriendService(db: db)
     lazy var diaries = DiaryService(db: db)
     lazy var stickers = StickerService(db: db, storage: storage)
+    lazy var blocks = BlockService(db: db)
+    lazy var accountDeletion = AccountDeletionService(db: db, storage: storage, auth: auth)
 
     private init() {}
 }

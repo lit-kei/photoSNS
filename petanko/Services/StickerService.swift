@@ -294,7 +294,9 @@ final class StickerService {
         }
 
         let reportId = "\(sticker.id)_\(user.id)"
-        try await db.collection("stickerReports").document(reportId).setData([
+        let reportRef = db.collection("stickerReports").document(reportId)
+        print("[StickerReport] writing stickerReports/\(reportId) stickerId=\(sticker.id) reporterId=\(user.id)")
+        try await reportRef.setData([
             "stickerId": sticker.id,
             "assetId": sticker.assetId,
             "stickerImageURL": sticker.stickerImageURL,
@@ -306,6 +308,11 @@ final class StickerService {
             "createdAt": FieldValue.serverTimestamp(),
             "status": "open"
         ], merge: false)
+        if let verification = try? await reportRef.getDocument(source: .server) {
+            print("[StickerReport] wrote stickerReports/\(reportId) serverExists=\(verification.exists)")
+        } else {
+            print("[StickerReport] wrote stickerReports/\(reportId) but server verification was skipped")
+        }
     }
 
     private func upload(

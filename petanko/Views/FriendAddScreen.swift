@@ -174,6 +174,12 @@ struct FriendProfileScreen: View {
     @State private var isSending = false
     @State private var didSend = false
     @State private var isConfirmingDelete = false
+    @State private var isConfirmingBlock = false
+    @State private var blockMessage: String?
+    @State private var friendRequestMessage: String?
+    @State private var isBlocking = false
+    @State private var isUnblocking = false
+    @State private var shouldDismissAfterBlockMessage = false
 
     private var isCurrentUser: Bool {
         appState.currentUser?.id == user.id
@@ -201,6 +207,10 @@ struct FriendProfileScreen: View {
         appState.incomingFriendRequests.first {
             $0.fromUserId == user.id && $0.status == "pending"
         }
+    }
+
+    private var isBlocked: Bool {
+        appState.isBlocked(user.id)
     }
 
     var body: some View {
@@ -235,17 +245,36 @@ struct FriendProfileScreen: View {
         .navigationTitle("プロフィール")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let currentFriend {
-                ToolbarItem(placement: .topBarTrailing) {
+            if !isCurrentUser {
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     Button(role: .destructive) {
-                        isConfirmingDelete = true
+                        isConfirmingBlock = true
                     } label: {
-                        Image(systemName: "trash")
+                        Image(systemName: "hand.raised")
                     }
                     .foregroundStyle(AppColors.destructiveRed)
-                    .accessibilityLabel("\(currentFriend.friendName)を削除")
+                    .accessibilityLabel("\(user.displayName)をブロック")
+                    .disabled(isBlocked || isBlocking)
+
+                    if let currentFriend {
+                        Button(role: .destructive) {
+                            isConfirmingDelete = true
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .foregroundStyle(AppColors.destructiveRed)
+                        .accessibilityLabel("\(currentFriend.friendName)を削除")
+                    }
                 }
             }
+        }
+        .confirmationDialog("このユーザーをブロックしますか？", isPresented: $isConfirmingBlock, titleVisibility: .visible) {
+            Button("ブロック", role: .destructive) {
+                blockUser()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("このユーザーの投稿は表示されなくなり、友達申請なども制限されます。")
         }
         .confirmationDialog("友達を削除しますか？", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             if let currentFriend {
@@ -260,6 +289,27 @@ struct FriendProfileScreen: View {
         } message: {
             Text("\(user.displayName)を友達一覧から削除します。")
         }
+        .alert("ブロック", isPresented: Binding(
+            get: { blockMessage != nil },
+            set: { if !$0 { blockMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {
+                if shouldDismissAfterBlockMessage {
+                    dismiss()
+                }
+                shouldDismissAfterBlockMessage = false
+            }
+        } message: {
+            Text(blockMessage ?? "")
+        }
+        .alert("フレンド申請", isPresented: Binding(
+            get: { friendRequestMessage != nil },
+            set: { if !$0 { friendRequestMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(friendRequestMessage ?? "")
+        }
         .onAppear(perform: syncLocalSendState)
         .onChange(of: appState.outgoingFriendRequests) { _, _ in
             syncLocalSendState()
@@ -271,6 +321,24 @@ struct FriendProfileScreen: View {
         if isCurrentUser {
             Label("自分のプロフィール", systemImage: "person.crop.circle")
                 .profileStatusStyle()
+        } else if isBlocked {
+            VStack(spacing: 10) {
+                Label("ブロック中", systemImage: "hand.raised.fill")
+                    .profileStatusStyle()
+
+                Button {
+                    unblockUser()
+                } label: {
+                    if isUnblocking {
+                        ProgressView()
+                            .tint(AppColors.mainText)
+                    } else {
+                        Label("ブロックを解除", systemImage: "hand.raised.slash")
+                    }
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
+                .disabled(isUnblocking)
+            }
         } else if isFriend {
             Label("友達", systemImage: "person.2.fill")
                 .profileStatusStyle()
@@ -288,8 +356,15 @@ struct FriendProfileScreen: View {
             Button {
                 Task {
                     isSending = true
-                    didSend = await appState.sendFriendRequest(to: user)
+                    let result = await appState.sendFriendRequestResult(to: user)
                     isSending = false
+                    switch result {
+                    case .sent:
+                        didSend = true
+                    case .failed(let message):
+                        didSend = false
+                        friendRequestMessage = message
+                    }
                 }
             } label: {
                 if isSending {
@@ -301,6 +376,28 @@ struct FriendProfileScreen: View {
             }
             .buttonStyle(PrimaryActionButtonStyle())
             .disabled(isSending)
+        }
+    }
+
+    private func blockUser() {
+        guard !isBlocking else { return }
+        isBlocking = true
+        Task {
+            let success = await appState.blockUser(user.id)
+            shouldDismissAfterBlockMessage = success
+            blockMessage = success ? "\(user.displayName)さんをブロックしました。" : "ブロックできませんでした。"
+            isBlocking = false
+        }
+    }
+
+    private func unblockUser() {
+        guard !isUnblocking else { return }
+        isUnblocking = true
+        Task {
+            let success = await appState.unblockUser(user.id)
+            shouldDismissAfterBlockMessage = false
+            blockMessage = success ? "\(user.displayName)さんのブロックを解除しました。" : "ブロックを解除できませんでした。"
+            isUnblocking = false
         }
     }
 

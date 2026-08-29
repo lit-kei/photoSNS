@@ -102,6 +102,11 @@ struct DiaryScreen: View {
             dragOffset = 0
             isPageTransitioning = false
         }
+        .onChange(of: appState.blockedUsers) { _, _ in
+            if let selectedSticker, appState.isBlocked(selectedSticker.authorId) {
+                self.selectedSticker = nil
+            }
+        }
         .sheet(item: $selectedSticker) { sticker in
             StickerDetailSheet(sticker: sticker)
                 .presentationDetents([.medium])
@@ -124,7 +129,7 @@ struct DiaryScreen: View {
             }
         } else if let diary = viewModel.diary {
             DiaryPageViewport {
-                DiaryCanvasView(diary: diary, stickers: viewModel.stickers, selectedSticker: $selectedSticker)
+                DiaryCanvasView(diary: diary, stickers: visibleStickers, selectedSticker: $selectedSticker)
             }
             .id(viewModel.dateKey)
             .offset(x: dragOffset + pageEntranceOffset)
@@ -185,6 +190,10 @@ struct DiaryScreen: View {
 
     private var canEditSelectedDiary: Bool {
         Calendar.current.isDateInToday(selectedDate)
+    }
+
+    private var visibleStickers: [StickerPost] {
+        viewModel.stickers.filter { !appState.isBlocked($0.authorId) }
     }
 
     private var pageTravelDistance: CGFloat {
@@ -395,6 +404,9 @@ private struct StickerDetailSheet: View {
     @State private var reportMessage: String?
     @State private var isReporting = false
     @State private var didReport = false
+    @State private var isConfirmingBlock = false
+    @State private var blockMessage: String?
+    @State private var isBlocking = false
 
     var body: some View {
         VStack(spacing: 18) {
@@ -419,6 +431,9 @@ private struct StickerDetailSheet: View {
 
                 if sticker.authorId != appState.currentUser?.id {
                     reportButton
+                    if canBlockAuthor {
+                        blockButton
+                    }
                 }
             }
         }
@@ -430,6 +445,14 @@ private struct StickerDetailSheet: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("報告内容は確認のために保存されます。投稿は自動で削除されません。")
+        }
+        .confirmationDialog("このユーザーをブロックしますか？", isPresented: $isConfirmingBlock, titleVisibility: .visible) {
+            Button("ブロック", role: .destructive) {
+                blockUser()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("このユーザーの投稿は表示されなくなり、友達申請なども制限されます。")
         }
         .alert("写真への保存", isPresented: Binding(
             get: { photoSaveMessage != nil },
@@ -447,6 +470,14 @@ private struct StickerDetailSheet: View {
         } message: {
             Text(reportMessage ?? "")
         }
+        .alert("ブロック", isPresented: Binding(
+            get: { blockMessage != nil },
+            set: { if !$0 { blockMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(blockMessage ?? "")
+        }
     }
 
     private var reportButton: some View {
@@ -457,6 +488,20 @@ private struct StickerDetailSheet: View {
         }
         .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
         .disabled(isReporting || didReport)
+    }
+
+    private var blockButton: some View {
+        Button(role: .destructive) {
+            isConfirmingBlock = true
+        } label: {
+            Label(isBlocking ? "ブロック中…" : "このユーザーをブロック", systemImage: "hand.raised")
+        }
+        .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
+        .disabled(isBlocking)
+    }
+
+    private var canBlockAuthor: Bool {
+        sticker.authorId != AccountDeletionService.deletedUserAuthorId
     }
 
     private func saveStickerToPhotos() {
@@ -479,8 +524,18 @@ private struct StickerDetailSheet: View {
         Task {
             let success = await appState.reportSticker(sticker)
             didReport = success
-            reportMessage = success ? "報告しました。" : "報告できませんでした。"
+            reportMessage = success ? "報告しました。" : (appState.errorMessage ?? "報告できませんでした。")
             isReporting = false
+        }
+    }
+
+    private func blockUser() {
+        guard !isBlocking else { return }
+        isBlocking = true
+        Task {
+            let success = await appState.blockUser(sticker.authorId)
+            blockMessage = success ? "\(sticker.authorName)さんをブロックしました。" : "ブロックできませんでした。"
+            isBlocking = false
         }
     }
 }

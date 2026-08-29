@@ -41,7 +41,7 @@ struct FriendTodayFeedSection: View {
         if appState.friendTodayStickers.isEmpty {
             EmptyStateView(
                 systemImage: "text.bubble",
-                title: "今日のブログ投稿はまだありません",
+                title: "タイムライン投稿はありません",
                 message: nil
             )
         } else {
@@ -68,6 +68,9 @@ private struct FriendFeedCard: View {
     @State private var isSavingToPhotos = false
     @State private var isReporting = false
     @State private var didReport = false
+    @State private var isConfirmingBlock = false
+    @State private var blockMessage: String?
+    @State private var isBlocking = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -130,6 +133,7 @@ private struct FriendFeedCard: View {
                 isReporting: isReporting,
                 didReport: didReport,
                 canReport: sticker.authorId != appState.currentUser?.id,
+                canBlock: canBlockAuthor,
                 saveAction: {
                     saveStickerToPhotos()
                 },
@@ -139,9 +143,16 @@ private struct FriendFeedCard: View {
                         try? await Task.sleep(for: .seconds(0.2))
                         isConfirmingReport = true
                     }
+                },
+                blockAction: {
+                    isShowingActions = false
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(0.2))
+                        isConfirmingBlock = true
+                    }
                 }
             )
-            .presentationDetents([.height(sticker.authorId == appState.currentUser?.id ? 126 : 190)])
+            .presentationDetents([.height(actionSheetHeight)])
             .presentationDragIndicator(.visible)
         }
         .confirmationDialog("画像を報告しますか？", isPresented: $isConfirmingReport, titleVisibility: .visible) {
@@ -151,6 +162,14 @@ private struct FriendFeedCard: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("報告内容は確認のために保存されます。投稿は自動で削除されません。")
+        }
+        .confirmationDialog("このユーザーをブロックしますか？", isPresented: $isConfirmingBlock, titleVisibility: .visible) {
+            Button("ブロック", role: .destructive) {
+                blockUser()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("このユーザーの投稿は表示されなくなり、友達申請なども制限されます。")
         }
         .alert("写真への保存", isPresented: Binding(
             get: { photoSaveMessage != nil },
@@ -168,10 +187,34 @@ private struct FriendFeedCard: View {
         } message: {
             Text(reportMessage ?? "")
         }
+        .alert("ブロック", isPresented: Binding(
+            get: { blockMessage != nil },
+            set: { if !$0 { blockMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(blockMessage ?? "")
+        }
     }
 
     private var displayName: String {
         latestProfile?.displayName ?? sticker.authorName
+    }
+
+    private var canBlockAuthor: Bool {
+        sticker.authorId != appState.currentUser?.id
+            && sticker.authorId != AccountDeletionService.deletedUserAuthorId
+    }
+
+    private var actionSheetHeight: CGFloat {
+        switch (sticker.authorId != appState.currentUser?.id, canBlockAuthor) {
+        case (true, true):
+            return 252
+        case (true, false):
+            return 186
+        default:
+            return 126
+        }
     }
 
     private func saveStickerToPhotos() {
@@ -195,8 +238,18 @@ private struct FriendFeedCard: View {
         Task {
             let success = await appState.reportSticker(sticker)
             didReport = success
-            reportMessage = success ? "報告しました。" : "報告できませんでした。"
+            reportMessage = success ? "報告しました。" : (appState.errorMessage ?? "報告できませんでした。")
             isReporting = false
+        }
+    }
+
+    private func blockUser() {
+        guard !isBlocking else { return }
+        isBlocking = true
+        Task {
+            let success = await appState.blockUser(sticker.authorId)
+            blockMessage = success ? "\(displayName)さんをブロックしました。" : "ブロックできませんでした。"
+            isBlocking = false
         }
     }
 }
@@ -206,8 +259,10 @@ private struct FriendFeedActionSheet: View {
     let isReporting: Bool
     let didReport: Bool
     let canReport: Bool
+    let canBlock: Bool
     let saveAction: () -> Void
     let reportAction: () -> Void
+    let blockAction: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
@@ -223,6 +278,13 @@ private struct FriendFeedActionSheet: View {
                 }
                 .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
                 .disabled(isReporting || didReport)
+            }
+
+            if canBlock {
+                Button(role: .destructive, action: blockAction) {
+                    Label("このユーザーをブロック", systemImage: "hand.raised")
+                }
+                .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
             }
         }
         .padding(.horizontal, 20)

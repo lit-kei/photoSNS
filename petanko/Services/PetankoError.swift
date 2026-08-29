@@ -1,4 +1,5 @@
 import FirebaseFirestore
+import FirebaseAuth
 import Foundation
 
 enum PetankoError: LocalizedError {
@@ -16,6 +17,33 @@ extension Error {
         let nsError = self as NSError
         return nsError.code == FirestoreErrorCode.unavailable.rawValue
             || nsError.localizedDescription.localizedCaseInsensitiveContains("client is offline")
+    }
+
+    var isPetankoPermissionDeniedFirestoreError: Bool {
+        let nsError = self as NSError
+        return nsError.domain == FirestoreErrorDomain
+            && nsError.code == FirestoreErrorCode.permissionDenied.rawValue
+    }
+
+    var isPetankoMissingFirestoreIndexError: Bool {
+        let nsError = self as NSError
+        return nsError.domain == FirestoreErrorDomain
+            && nsError.localizedDescription.localizedCaseInsensitiveContains("requires")
+            && nsError.localizedDescription.localizedCaseInsensitiveContains("index")
+    }
+
+    var isPetankoRequiresRecentLoginError: Bool {
+        let nsError = self as NSError
+        return nsError.domain == AuthErrorDomain
+            && nsError.code == AuthErrorCode.requiresRecentLogin.rawValue
+    }
+
+    var isPetankoInvalidPasswordAuthError: Bool {
+        let nsError = self as NSError
+        guard nsError.domain == AuthErrorDomain else { return false }
+        return nsError.code == AuthErrorCode.wrongPassword.rawValue
+            || nsError.code == AuthErrorCode.invalidCredential.rawValue
+            || nsError.code == AuthErrorCode.userMismatch.rawValue
     }
 }
 

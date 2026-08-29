@@ -43,9 +43,97 @@ service cloud.firestore {
         && lockData.expiresAt <= request.time + duration.value(5, "m");
     }
 
+    function hasValidFriendRequestShape(requestId, requestData) {
+      return requestData.keys().hasOnly([
+          "fromUserId",
+          "fromName",
+          "fromAvatar",
+          "fromAvatarURL",
+          "toUserId",
+          "toName",
+          "toAvatar",
+          "toAvatarURL",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ])
+        && requestData.fromUserId is string
+        && requestData.toUserId is string
+        && requestData.fromName is string
+        && requestData.toName is string
+        && requestData.status is string
+        && requestData.createdAt is timestamp
+        && requestData.updatedAt is timestamp
+        && requestId == requestData.fromUserId + "_" + requestData.toUserId;
+    }
+
+    function keepsFriendRequestParties() {
+      return request.resource.data.fromUserId == resource.data.fromUserId
+        && request.resource.data.fromName == resource.data.fromName
+        && request.resource.data.fromAvatar == resource.data.fromAvatar
+        && request.resource.data.fromAvatarURL == resource.data.fromAvatarURL
+        && request.resource.data.toUserId == resource.data.toUserId
+        && request.resource.data.toName == resource.data.toName
+        && request.resource.data.toAvatar == resource.data.toAvatar
+        && request.resource.data.toAvatarURL == resource.data.toAvatarURL
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function isAnonymizingOwnSticker() {
+      return signedIn()
+        && resource.data.authorId == request.auth.uid
+        && request.resource.data.authorId == "deleted-user"
+        && request.resource.data.authorName == "退会済みユーザー"
+        && request.resource.data.authorAvatar == "system:person.fill"
+        && request.resource.data.comment == ""
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "authorId",
+          "authorName",
+          "authorAvatar",
+          "comment"
+        ]);
+    }
+
     match /users/{userId} {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == userId;
+      allow delete: if signedIn() && request.auth.uid == userId;
+
+      match /blockedUsers/{blockedUserId} {
+        allow read: if signedIn()
+          && (
+            request.auth.uid == userId
+            || request.auth.uid == blockedUserId
+          );
+        allow create, update: if signedIn()
+          && request.auth.uid == userId
+          && userId != blockedUserId
+          && request.resource.data.keys().hasOnly([
+            "blockerId",
+            "blockedUserId",
+            "createdAt"
+          ])
+          && request.resource.data.blockerId == userId
+          && request.resource.data.blockedUserId == blockedUserId
+          && request.resource.data.createdAt is timestamp;
+        allow delete: if signedIn()
+          && (
+            request.auth.uid == userId
+            || (
+              request.auth.uid == blockedUserId
+              && !exists(/databases/$(database)/documents/users/$(blockedUserId))
+            )
+          );
+      }
+    }
+
+    match /{path=**}/blockedUsers/{blockedUserId} {
+      allow read: if signedIn();
+      allow delete: if signedIn()
+        && (
+          request.auth.uid == resource.data.blockerId
+          || request.auth.uid == resource.data.blockedUserId
+        );
     }
 
     match /groups/{groupId} {
@@ -72,7 +160,7 @@ service cloud.firestore {
 
     match /stickers/{stickerId} {
       allow read, create, delete: if signedIn();
-      allow update: if false;
+      allow update: if isAnonymizingOwnSticker();
     }
 
     match /stickerAssets/{assetId} {
@@ -85,7 +173,17 @@ service cloud.firestore {
         && reportId == request.resource.data.stickerId + "_" + request.auth.uid
         && request.resource.data.reason == "inappropriate_image"
         && request.resource.data.status == "open";
-      allow read, update, delete: if false;
+      allow read: if signedIn()
+        && (
+          request.auth.uid == resource.data.reporterId
+          || request.auth.uid == resource.data.reportedAuthorId
+        );
+      allow update: if false;
+      allow delete: if signedIn()
+        && (
+          request.auth.uid == resource.data.reporterId
+          || request.auth.uid == resource.data.reportedAuthorId
+        );
     }
 
     // The app checks deterministic IDs before creating these documents.
@@ -101,11 +199,32 @@ service cloud.firestore {
 
     match /friendRequests/{requestId} {
       allow read: if signedIn();
-      allow create: if signedIn();
-      allow update: if signedIn();
+      allow create: if signedIn()
+        && hasValidFriendRequestShape(requestId, request.resource.data)
+        && request.auth.uid == request.resource.data.fromUserId
+        && request.resource.data.fromUserId != request.resource.data.toUserId
+        && request.resource.data.status == "pending";
+      allow update: if signedIn()
+        && hasValidFriendRequestShape(requestId, request.resource.data)
+        && keepsFriendRequestParties()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status", "updatedAt"])
+        && (
+          (
+            request.auth.uid == resource.data.toUserId
+            && resource.data.status == "pending"
+            && request.resource.data.status in ["accepted", "rejected"]
+          )
+          || (
+            request.auth.uid == resource.data.fromUserId
+            && resource.data.status in ["accepted", "rejected"]
+            && request.resource.data.status == "pending"
+          )
+        );
       allow delete: if signedIn()
-        && (request.auth.uid == resource.data.fromUserId
-          || request.auth.uid == resource.data.toUserId);
+        && (
+          request.auth.uid == resource.data.fromUserId
+          || request.auth.uid == resource.data.toUserId
+        );
     }
 
     match /notifications/{notificationId} {
@@ -113,6 +232,7 @@ service cloud.firestore {
         && (
           request.auth.uid == resource.data.userId
           || request.auth.uid == resource.data.recipientId
+          || request.auth.uid == resource.data.actorId
         );
       allow create: if signedIn();
     }
@@ -121,6 +241,7 @@ service cloud.firestore {
       allow read: if signedIn()
         && (
           resource == null
+          || resource.data.lockedBy == request.auth.uid
           || isGroupMember(resource.data.groupId)
         );
       allow create: if hasValidEditLockShape(request.resource.data, diaryId)
@@ -133,7 +254,7 @@ service cloud.firestore {
           resource.data.lockedBy == request.auth.uid
           || resource.data.expiresAt <= request.time
         );
-      allow delete: if isGroupMember(resource.data.groupId)
+      allow delete: if signedIn()
         && resource.data.lockedBy == request.auth.uid;
     }
   }

@@ -141,6 +141,7 @@ struct ContentView_Previews: PreviewProvider {
 
 struct AttachedBottomTabBar: View {
     @Binding var selection: AppTab
+    var isDisabled = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -173,6 +174,8 @@ struct AttachedBottomTabBar: View {
         }
         .frame(maxWidth: .infinity)
         .background(AppColors.pureWhite)
+        .disabled(isDisabled)
+        .allowsHitTesting(!isDisabled)
     }
 
     private var tabSurface: some View {
@@ -222,6 +225,7 @@ struct AttachedBottomTabBar: View {
 
 private struct RootTabBarModifier: ViewModifier {
     let shows: Bool
+    let isDisabled: Bool
     @Binding var selection: AppTab
 
     func body(content: Content) -> some View {
@@ -229,7 +233,7 @@ private struct RootTabBarModifier: ViewModifier {
             .safeAreaPadding(.bottom, shows ? 72 : 0)
             .overlay(alignment: .bottom) {
                 if shows {
-                    AttachedBottomTabBar(selection: $selection)
+                    AttachedBottomTabBar(selection: $selection, isDisabled: isDisabled)
                         .ignoresSafeArea(.keyboard, edges: .bottom)
                 }
             }
@@ -238,7 +242,7 @@ private struct RootTabBarModifier: ViewModifier {
 }
 
 extension View {
-    func rootTabBar(shows: Bool, selection: Binding<AppTab>) -> some View {
-        modifier(RootTabBarModifier(shows: shows, selection: selection))
+    func rootTabBar(shows: Bool, selection: Binding<AppTab>, isDisabled: Bool = false) -> some View {
+        modifier(RootTabBarModifier(shows: shows, isDisabled: isDisabled, selection: selection))
     }
 }
