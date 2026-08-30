@@ -206,16 +206,21 @@ struct DiaryEditorScreen: View {
     private var editorBottomSheet: some View {
         VStack(spacing: 0) {
             VStack(spacing: 10) {
-                if selectedElement != nil {
+                if case .text(let textID) = selectedElement {
+                    textEditingControls(textID: textID)
                     selectedObjectSummary
-                }
-
-                if !isStickerSelected {
+                } else if case .stamp = selectedElement {
                     editorTabContent
+                    selectedObjectSummary
+                } else {
+                    if selectedElement != nil {
+                        selectedObjectSummary
+                    }
+
+                    if !isStickerSelected {
+                        editorTabContent
+                    }
                 }
-
-
-
             }
             .controlSize(.regular)
             .padding(.horizontal, 16)
@@ -306,11 +311,14 @@ struct DiaryEditorScreen: View {
                     Button {
                         addText()
                     } label: {
-                        Text("文字を追加")
+                        Label("文字を追加", systemImage: "text.badge.plus")
                             .font(.headline.weight(.bold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(.black, in: RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous))
+                            .foregroundStyle(AppColors.mainText)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .background(
+                                AppColors.accentPink,
+                                in: RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
+                            )
                     }
                     .buttonStyle(.plain)
                 }
@@ -379,22 +387,29 @@ struct DiaryEditorScreen: View {
     }
 
     private var selectedObjectSummary: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
+                Label("レイヤー", systemImage: "square.3.layers.3d")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppColors.mainText)
 
                 Spacer(minLength: 4)
-
 
                 Button {
                     selectedElement = nil
                     activeElement = nil
                 } label: {
-                    Text("終了")
+                    Text("完了")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(AppColors.mainText)
+                        .padding(.horizontal, 13)
+                        .frame(height: 32)
+                        .background(AppColors.accentPink, in: Capsule())
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 DiaryLayerActionButton(title: "前へ", systemImage: "arrow.up", isDisabled: !canMoveSelectedForward) {
                     moveSelectedLayer(.forward)
                 }
@@ -409,10 +424,23 @@ struct DiaryEditorScreen: View {
                 }
             }
         }
+        .padding(12)
+        .background(
+            AppColors.accentPink.opacity(0.10),
+            in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(AppColors.accentPink.opacity(0.38), lineWidth: 1)
+        }
     }
 
     private func textEditingControls(textID: String) -> some View {
-        VStack(spacing: 9) {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("文字", systemImage: "textformat")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(AppColors.mainText)
+
             BufferedDiaryTextField(
                 placeholder: "文字を入力",
                 initialText: selectedText?.text ?? "",
@@ -432,27 +460,76 @@ struct DiaryEditorScreen: View {
                 Button {
                     isShowingFontPicker = true
                 } label: {
-                    Text(selectedFontDisplayName)
+                    Text("Aa")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(AppColors.mainText)
                         .lineLimit(1)
+                        .frame(width: 48, height: 38)
+                        .background(AppColors.accentPink.opacity(0.16), in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(AppColors.accentPink.opacity(0.45), lineWidth: 1)
+                        }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
+                .accessibilityLabel("フォント：\(selectedFontDisplayName)")
 
-                ColorPicker("文字色", selection: selectedTextColorBinding, supportsOpacity: false)
-                    .labelsHidden()
+                ColorPicker("カラー", selection: selectedTextColorBinding, supportsOpacity: false)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppColors.mainText)
+                    .lineLimit(1)
+                    .padding(.horizontal, 9)
+                    .frame(height: 38)
+                    .background(AppColors.accentPink.opacity(0.16), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(AppColors.accentPink.opacity(0.45), lineWidth: 1)
+                    }
 
                 if !(selectedText?.fontName ?? "").isEmpty {
                     Button {
                         updateText(textID) { $0.fontName = "" }
                     } label: {
                         Text("標準")
+                            .font(.caption.weight(.bold))
+                            .lineLimit(1)
                     }
                     .buttonStyle(.bordered)
+                    .tint(AppColors.accentPink)
                     .accessibilityLabel("システムフォントに戻す")
                 }
 
                 Spacer(minLength: 0)
-                deleteButton { deleteText(textID) }
+
+                Button(role: .destructive) {
+                    deleteText(textID)
+                } label: {
+                    Label("削除", systemImage: "trash")
+                        .font(.caption.weight(.bold))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 9)
+                        .frame(height: 38)
+                        .background(
+                            AppColors.destructiveRed.opacity(0.09),
+                            in: Capsule()
+                        )
+                        .overlay {
+                            Capsule()
+                                .stroke(AppColors.destructiveRed.opacity(0.30), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
             }
+        }
+        .padding(12)
+        .background(
+            AppColors.elevatedSurface,
+            in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(AppColors.accentPink.opacity(0.32), lineWidth: 1)
         }
     }
 
@@ -2312,14 +2389,32 @@ private struct DiaryLayerActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.caption.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 44)
+            VStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 17, weight: .semibold))
+
+                Text(title)
+                    .font(.caption2.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            .foregroundStyle(isDisabled ? AppColors.secondaryText : AppColors.mainText)
+            .frame(maxWidth: .infinity, minHeight: 54)
+            .background(
+                isDisabled ? AppColors.border.opacity(0.55) : AppColors.accentPink.opacity(0.22),
+                in: RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
+                    .stroke(
+                        isDisabled ? AppColors.border : AppColors.accentPink.opacity(0.55),
+                        lineWidth: 1
+                    )
+            }
         }
-        .buttonStyle(.bordered)
-        .tint(AppColors.mainText)
+        .buttonStyle(.plain)
         .disabled(isDisabled)
-        .opacity(isDisabled ? 0.42 : 1)
+        .accessibilityLabel(title)
     }
 }
 
