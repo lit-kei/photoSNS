@@ -352,13 +352,39 @@ struct DiaryEditorScreen: View {
 
                 if case .stamp(let stampID) = selectedElement {
                     HStack(spacing: 10) {
-                        ColorPicker("スタンプ色", selection: selectedStampColorBinding, supportsOpacity: false)
-                            .font(.subheadline.weight(.semibold))
+                        ColorPicker("カラー", selection: selectedStampColorBinding, supportsOpacity: false)
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(AppColors.mainText)
+                            .lineLimit(1)
+                            .padding(.horizontal, 9)
+                            .frame(height: 38)
+                            .background(AppColors.accentPink.opacity(0.16), in: Capsule())
+                            .overlay {
+                                Capsule()
+                                    .stroke(AppColors.accentPink.opacity(0.45), lineWidth: 1)
+                            }
 
                         Spacer(minLength: 0)
 
-                        deleteButton { deleteStamp(stampID) }
+                        Button(role: .destructive) {
+                            deleteStamp(stampID)
+                        } label: {
+                            Label("削除", systemImage: "trash")
+                                .font(.caption.weight(.bold))
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .padding(.horizontal, 9)
+                                .frame(height: 38)
+                                .background(
+                                    AppColors.destructiveRed.opacity(0.09),
+                                    in: Capsule()
+                                )
+                                .overlay {
+                                    Capsule()
+                                        .stroke(AppColors.destructiveRed.opacity(0.30), lineWidth: 1)
+                                }
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
