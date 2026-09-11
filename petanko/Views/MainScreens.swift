@@ -398,7 +398,7 @@ private struct GroupActivityRow: View {
                 Text(group.name)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
-                Text("招待 \(group.inviteCode)")
+                Text("コード \(group.inviteCode)")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(AppColors.secondaryText)
             }

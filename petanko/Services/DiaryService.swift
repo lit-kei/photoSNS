@@ -1,13 +1,16 @@
 import FirebaseFirestore
+import FirebaseStorage
 import Foundation
 
 final class DiaryService {
     static let editLockLeaseDuration: TimeInterval = 90
 
     private let db: Firestore
+    private let storage: Storage
 
-    init(db: Firestore) {
+    init(db: Firestore, storage: Storage) {
         self.db = db
+        self.storage = storage
     }
 
     func diaryId(groupId: String, dateKey: String) -> String {
@@ -44,6 +47,42 @@ final class DiaryService {
 
     func saveDiaryLayout(_ diary: DiaryPage) async throws {
         try await db.collection("diaries").document(diary.id).setData(diary.dictionary, merge: true)
+    }
+
+    func saveDiaryLayout(
+        _ diary: DiaryPage,
+        backgroundImageData: Data?,
+        previousBackgroundImageURL: String?
+    ) async throws -> DiaryPage {
+        var page = diary
+        var uploadedBackgroundURL: URL?
+
+        if let backgroundImageData {
+            let url = try await uploadBackgroundImage(
+                groupId: diary.groupId,
+                diaryId: diary.id,
+                imageData: backgroundImageData
+            )
+            uploadedBackgroundURL = url
+            page.backgroundImageURL = url.absoluteString
+        }
+
+        do {
+            try await saveDiaryLayout(page)
+        } catch {
+            if let uploadedBackgroundURL {
+                await deleteBackgroundImage(at: uploadedBackgroundURL.absoluteString)
+            }
+            throw error
+        }
+
+        if let previousBackgroundImageURL,
+           !previousBackgroundImageURL.isEmpty,
+           previousBackgroundImageURL != page.backgroundImageURL {
+            await deleteBackgroundImage(at: previousBackgroundImageURL)
+        }
+
+        return page
     }
 
     func acquireEditLock(groupId: String, diaryId: String, user: AppUser) async throws -> Bool {
@@ -116,5 +155,46 @@ final class DiaryService {
             "expiresAt": Timestamp(date: now.addingTimeInterval(Self.editLockLeaseDuration)),
             "updatedAt": FieldValue.serverTimestamp()
         ]
+    }
+
+    private func uploadBackgroundImage(groupId: String, diaryId: String, imageData: Data) async throws -> URL {
+        let uploadData = imageData.petankoOptimizedJPEG(
+            maxDimension: 1_800,
+            quality: 0.82,
+            maximumBytes: 1_500_000
+        )
+        let ref = storage.reference(
+            withPath: "groupIcons/\(groupId)/diary-background-\(diaryId)-\(UUID().uuidString).jpg"
+        )
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        metadata.cacheControl = "private,max-age=31536000,immutable"
+
+        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<StorageMetadata, Error>) in
+            ref.putData(uploadData, metadata: metadata) { metadata, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let metadata {
+                    continuation.resume(returning: metadata)
+                } else {
+                    continuation.resume(throwing: PetankoError.message("背景写真の保存に失敗しました。"))
+                }
+            }
+        }
+
+        do {
+            let url = try await ref.downloadURL()
+            Task { await RemoteImageCache.shared.store(data: uploadData, for: url) }
+            return url
+        } catch {
+            try? await ref.delete()
+            throw error
+        }
+    }
+
+    private func deleteBackgroundImage(at urlString: String) async {
+        guard let url = URL(string: urlString) else { return }
+        try? await storage.reference(forURL: urlString).delete()
+        await RemoteImageCache.shared.remove(for: url)
     }
 }

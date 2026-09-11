@@ -40,7 +40,10 @@ struct DiaryCanvasView: View {
 
     var body: some View {
         ZStack {
-            DiaryBackgroundView(background: diary.background)
+            DiaryBackgroundView(
+                background: diary.background,
+                customImageURL: diary.backgroundImageURL
+            )
                 .zIndex(-2_000_000_000_000)
 
             ForEach(diary.textItems) { item in
@@ -52,9 +55,7 @@ struct DiaryCanvasView: View {
             }
 
             ForEach(diary.stampItems) { item in
-                Text(item.symbol)
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(Color(uiColor: UIColor(hex: item.colorHex) ?? UIColor(AppColors.mainText)))
+                DiaryStampVisual(item: item)
                     .scaleEffect(item.scale)
                     .rotationEffect(.degrees(item.rotation))
                     .position(x: item.x, y: item.y)
@@ -117,14 +118,78 @@ struct DiaryCanvasView: View {
     }
 }
 
+struct DiaryStampVisual: View {
+    let item: DiaryStampItem
+
+    @ViewBuilder
+    var body: some View {
+        switch item.design {
+        case .normal:
+            stampText(color: selectedColor)
+        case .sparkle:
+            stampText(color: selectedColor)
+                .overlay { sparkleHalo }
+        case .layered:
+            ZStack {
+                stampText(color: AppColors.accentPink.opacity(0.88))
+                    .offset(x: -3.5, y: -3)
+                stampText(color: AppColors.accentBlue.opacity(0.92))
+                    .offset(x: 3.5, y: 3)
+                stampText(color: selectedColor)
+            }
+        case .neon:
+            stampText(color: .white)
+                .shadow(color: selectedColor.opacity(0.98), radius: 2)
+                .shadow(color: selectedColor.opacity(0.90), radius: 6)
+                .shadow(color: selectedColor.opacity(0.64), radius: 11)
+        case .shadow:
+            ZStack {
+                stampText(color: .black.opacity(0.36))
+                    .offset(x: 4, y: 5)
+                stampText(color: selectedColor)
+            }
+        }
+    }
+
+    private func stampText(color: Color) -> some View {
+        Text(item.symbol)
+            .font(.largeTitle.bold())
+            .foregroundStyle(color)
+    }
+
+    private var selectedColor: Color {
+        Color(uiColor: UIColor(hex: item.colorHex) ?? UIColor(AppColors.mainText))
+    }
+
+    private var sparkleHalo: some View {
+        ZStack {
+            sparkle(size: 11, offset: CGSize(width: -23, height: -21))
+            sparkle(size: 8, offset: CGSize(width: 23, height: -15))
+            sparkle(size: 9, offset: CGSize(width: -21, height: 20))
+            sparkle(size: 12, offset: CGSize(width: 22, height: 21))
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func sparkle(size: CGFloat, offset: CGSize) -> some View {
+        Image(systemName: "sparkle")
+            .font(.system(size: size, weight: .bold))
+            .foregroundStyle(AppColors.accentPink)
+            .shadow(color: .white.opacity(0.9), radius: 1)
+            .offset(offset)
+    }
+}
+
 struct DiaryTextVisual: View {
     let item: DiaryTextItem
 
     var body: some View {
         ZStack {
-            ForEach(outlineOffsets.indices, id: \.self) { index in
-                styledText(color: resolvedOutlineColor)
-                    .offset(outlineOffsets[index])
+            if !containsEmoji {
+                ForEach(outlineOffsets.indices, id: \.self) { index in
+                    styledText(color: resolvedOutlineColor)
+                        .offset(outlineOffsets[index])
+                }
             }
 
             styledText(color: resolvedColor)
@@ -157,6 +222,12 @@ struct DiaryTextVisual: View {
         return textColor.petankoPerceivedBrightness > 0.68
             ? Color.black.opacity(0.58)
             : Color.white.opacity(0.92)
+    }
+
+    private var containsEmoji: Bool {
+        item.text.unicodeScalars.contains { scalar in
+            scalar.properties.isEmojiPresentation || scalar.value == 0xFE0F
+        }
     }
 
     private var outlineOffsets: [CGSize] {

@@ -93,11 +93,19 @@ final class DiaryViewModel: ObservableObject {
         try? await services.diaries.releaseEditLock(diaryId: diary.id, userId: user.id)
     }
 
-    func saveDiary(_ diary: DiaryPage) async {
+    func saveDiary(_ diary: DiaryPage, backgroundImageData: Data? = nil) async -> DiaryPage? {
         do {
-            try await services.diaries.saveDiaryLayout(diary)
+            let savedPage = try await services.diaries.saveDiaryLayout(
+                diary,
+                backgroundImageData: backgroundImageData,
+                previousBackgroundImageURL: self.diary?.backgroundImageURL
+            )
+            self.diary = savedPage
+            errorMessage = nil
+            return savedPage
         } catch {
             errorMessage = error.localizedDescription
+            return nil
         }
     }
 

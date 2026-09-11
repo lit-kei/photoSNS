@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -53,6 +54,10 @@ struct DiaryEditorScreen: View {
     @State private var isAutoArranging = false
     @State private var editorBottomSheetHeight: CGFloat = 0
     @State private var lockRenewalTask: Task<Void, Never>?
+    @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
+    @State private var backgroundImageData: Data?
+    @State private var isShowingBackgroundCamera = false
+    @State private var backgroundImageError: String?
 
 
     init(group: PetankoGroup) {
@@ -79,7 +84,8 @@ struct DiaryEditorScreen: View {
                     layouts: $localLayouts,
                     selectedElement: $selectedElement,
                     activeElement: $activeElement,
-                    canvasSize: $canvasSize
+                    canvasSize: $canvasSize,
+                    backgroundImageData: backgroundImageData
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
@@ -185,12 +191,43 @@ struct DiaryEditorScreen: View {
                 break
             }
         }
+        .onChange(of: selectedBackgroundPhotoItem) { _, item in
+            guard let item else { return }
+            Task {
+                do {
+                    guard let data = try await item.loadTransferable(type: Data.self) else {
+                        throw PetankoError.message("選択した写真を読み込めませんでした。")
+                    }
+                    applyBackgroundImageData(data)
+                } catch {
+                    backgroundImageError = error.localizedDescription
+                    selectedBackgroundPhotoItem = nil
+                }
+            }
+        }
         .sheet(isPresented: $isShowingFontPicker) {
             DiaryFontPicker(
                 selectedFontName: selectedFontNameBinding,
                 isPresented: $isShowingFontPicker
             )
                 .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $isShowingBackgroundCamera) {
+            DiaryBackgroundCameraPicker(isPresented: $isShowingBackgroundCamera) { image in
+                guard let data = image.jpegData(compressionQuality: 0.92) else {
+                    backgroundImageError = "撮影した写真を読み込めませんでした。"
+                    return
+                }
+                applyBackgroundImageData(data)
+            }
+            .ignoresSafeArea()
+        }
+        .alert("背景写真", isPresented: backgroundImageErrorPresented) {
+            Button("閉じる", role: .cancel) {
+                backgroundImageError = nil
+            }
+        } message: {
+            Text(backgroundImageError ?? "写真を読み込めませんでした。")
         }
     }
 
@@ -363,6 +400,36 @@ struct DiaryEditorScreen: View {
                                 Capsule()
                                     .stroke(AppColors.accentPink.opacity(0.45), lineWidth: 1)
                             }
+                            .fixedSize(horizontal: true, vertical: false)
+
+                        Menu {
+                            ForEach(DiaryStampDesign.allCases) { design in
+                                Button {
+                                    updateStamp(stampID) { $0.design = design }
+                                } label: {
+                                    Label(
+                                        design.title,
+                                        systemImage: stampDesign(for: stampID) == design
+                                            ? "checkmark.circle.fill"
+                                            : design.systemImage
+                                    )
+                                }
+                            }
+                        } label: {
+                            Label("デザイン", systemImage: "wand.and.sparkles")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AppColors.mainText)
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .padding(.horizontal, 9)
+                                .frame(height: 38)
+                                .background(AppColors.accentPink.opacity(0.16), in: Capsule())
+                                .overlay {
+                                    Capsule()
+                                        .stroke(AppColors.accentPink.opacity(0.45), lineWidth: 1)
+                                }
+                        }
+                        .accessibilityValue(stampDesign(for: stampID).title)
 
                         Spacer(minLength: 0)
 
@@ -391,12 +458,54 @@ struct DiaryEditorScreen: View {
 
         case .background:
             VStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: 8) {
+                    PhotosPicker(
+                        selection: $selectedBackgroundPhotoItem,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        backgroundSourceLabel("写真フォルダ", systemImage: "photo.on.rectangle")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                            backgroundImageError = "この端末ではカメラを使用できません。"
+                            return
+                        }
+                        isShowingBackgroundCamera = true
+                    } label: {
+                        backgroundSourceLabel("カメラ", systemImage: "camera.fill")
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if isUsingCustomBackground {
+                    HStack(spacing: 8) {
+                        Label("写真を背景に使用中", systemImage: "checkmark.circle.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(AppColors.mainText)
+
+                        Spacer(minLength: 4)
+
+                        Button(role: .destructive) {
+                            removeCustomBackground()
+                        } label: {
+                            Label("写真を外す", systemImage: "xmark")
+                                .font(.caption.weight(.bold))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 38)
+                    .background(AppColors.accentPink.opacity(0.14), in: Capsule())
+                }
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(ScrapbookBackground.allCases) { background in
                             Button {
-                                draftDiary?.background = background
+                                selectPresetBackground(background)
                             } label: {
                                 Text(background.title)
                                     .font(.subheadline.weight(.semibold))
@@ -404,7 +513,7 @@ struct DiaryEditorScreen: View {
                                     .frame(height: 42)
                             }
                             .buttonStyle(.bordered)
-                            .tint(draftDiary?.background == background ? AppColors.burntOrange : AppColors.mainText)
+                            .tint(!isUsingCustomBackground && draftDiary?.background == background ? AppColors.burntOrange : AppColors.mainText)
                         }
                     }
                 }
@@ -600,10 +709,77 @@ struct DiaryEditorScreen: View {
             .sorted { $0.zIndex < $1.zIndex }
         draftDiary = page
         localLayouts = layouts
-        await viewModel.saveDiary(page)
+        guard let savedPage = await viewModel.saveDiary(page, backgroundImageData: backgroundImageData) else {
+            isSaving = false
+            backgroundImageError = viewModel.errorMessage ?? "変更を保存できませんでした。もう一度お試しください。"
+            return
+        }
+        draftDiary = savedPage
+        backgroundImageData = nil
+        selectedBackgroundPhotoItem = nil
         isSaving = false
         stopLockHeartbeat()
         dismiss()
+    }
+
+    private var isUsingCustomBackground: Bool {
+        backgroundImageData != nil || draftDiary?.backgroundImageURL?.isEmpty == false
+    }
+
+    private var backgroundImageErrorPresented: Binding<Bool> {
+        Binding(
+            get: { backgroundImageError != nil },
+            set: { isPresented in
+                if !isPresented { backgroundImageError = nil }
+            }
+        )
+    }
+
+    private func backgroundSourceLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(AppColors.mainText)
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                AppColors.accentPink.opacity(0.16),
+                in: RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
+                    .stroke(AppColors.accentPink.opacity(0.45), lineWidth: 1)
+            }
+    }
+
+    private func applyBackgroundImageData(_ data: Data) {
+        let optimizedData = data.petankoOptimizedJPEG(
+            maxDimension: 1_800,
+            quality: 0.82,
+            maximumBytes: 1_500_000
+        )
+        guard UIImage(data: optimizedData) != nil else {
+            backgroundImageError = "選択した写真を読み込めませんでした。"
+            selectedBackgroundPhotoItem = nil
+            return
+        }
+        backgroundImageData = optimizedData
+        selectedBackgroundPhotoItem = nil
+        selectedElement = nil
+        activeElement = nil
+    }
+
+    private func selectPresetBackground(_ background: ScrapbookBackground) {
+        draftDiary?.background = background
+        draftDiary?.backgroundImageURL = nil
+        backgroundImageData = nil
+        selectedBackgroundPhotoItem = nil
+    }
+
+    private func removeCustomBackground() {
+        draftDiary?.backgroundImageURL = nil
+        backgroundImageData = nil
+        selectedBackgroundPhotoItem = nil
     }
 
     private func startLockHeartbeat(user: AppUser) {
@@ -872,6 +1048,10 @@ struct DiaryEditorScreen: View {
         draftDiary = page
     }
 
+    private func stampDesign(for id: String) -> DiaryStampDesign {
+        draftDiary?.stampItems.first(where: { $0.id == id })?.design ?? .normal
+    }
+
     private func deleteStamp(_ id: String) {
         draftDiary?.stampItems.removeAll { $0.id == id }
         activeElement = nil
@@ -973,6 +1153,7 @@ private struct AdaptiveEditableDiaryCanvas: View {
     @Binding var selectedElement: CanvasElementID?
     @Binding var activeElement: CanvasElementID?
     @Binding var canvasSize: CGSize
+    let backgroundImageData: Data?
 
     var body: some View {
         GeometryReader { proxy in
@@ -988,7 +1169,8 @@ private struct AdaptiveEditableDiaryCanvas: View {
                 layouts: $layouts,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
-                canvasSize: $canvasSize
+                canvasSize: $canvasSize,
+                backgroundImageData: backgroundImageData
             )
             .frame(width: logicalSize.width, height: logicalSize.height)
             .scaleEffect(scale, anchor: .center)
@@ -1007,13 +1189,18 @@ struct EditableDiaryCanvas: View {
     @Binding var selectedElement: CanvasElementID?
     @Binding var activeElement: CanvasElementID?
     @Binding var canvasSize: CGSize
+    var backgroundImageData: Data? = nil
 
     @State private var elementFrames: [CanvasElementID: CGRect] = [:]
 
     var body: some View {
         GeometryReader { _ in
             ZStack {
-                DiaryBackgroundView(background: diary.background)
+                DiaryBackgroundView(
+                    background: diary.background,
+                    customImageURL: diary.backgroundImageURL,
+                    customImageData: backgroundImageData
+                )
                     .contentShape(Rectangle())
                     .zIndex(-2_000_000_000_000)
 
@@ -1037,9 +1224,7 @@ struct EditableDiaryCanvas: View {
 
                 ForEach(diary.stampItems) { item in
                     let element = CanvasElementID.stamp(item.id)
-                    Text(item.symbol)
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(Color(uiColor: UIColor(hex: item.colorHex) ?? UIColor(AppColors.mainText)))
+                    DiaryStampVisual(item: item)
                         .padding(8)
                         .overlay {
                             if selectedElement == element {

@@ -7,6 +7,7 @@ struct DiaryPage: Identifiable, Hashable {
     var dateKey: String
     var title: String
     var background: ScrapbookBackground
+    var backgroundImageURL: String?
     var textItems: [DiaryTextItem]
     var stampItems: [DiaryStampItem]
     var stickerLayout: [StickerLayout]
@@ -18,6 +19,7 @@ struct DiaryPage: Identifiable, Hashable {
         dateKey: String,
         title: String,
         background: ScrapbookBackground = .notebook,
+        backgroundImageURL: String? = nil,
         textItems: [DiaryTextItem] = [],
         stampItems: [DiaryStampItem] = [],
         stickerLayout: [StickerLayout] = [],
@@ -28,6 +30,7 @@ struct DiaryPage: Identifiable, Hashable {
         self.dateKey = dateKey
         self.title = title
         self.background = background
+        self.backgroundImageURL = backgroundImageURL
         self.textItems = textItems
         self.stampItems = stampItems
         self.stickerLayout = stickerLayout
@@ -40,6 +43,8 @@ struct DiaryPage: Identifiable, Hashable {
         self.dateKey = data["dateKey"] as? String ?? Date().petankoDateKey
         self.title = data["title"] as? String ?? Date().petankoShortTitle
         self.background = ScrapbookBackground(rawValue: data["background"] as? String ?? "") ?? .notebook
+        let storedBackgroundImageURL = data["backgroundImageURL"] as? String
+        self.backgroundImageURL = storedBackgroundImageURL?.isEmpty == false ? storedBackgroundImageURL : nil
         self.textItems = (data["textItems"] as? [[String: Any]] ?? []).map(DiaryTextItem.init)
         self.stampItems = (data["stampItems"] as? [[String: Any]] ?? []).map(DiaryStampItem.init)
         self.stickerLayout = (data["stickerLayout"] as? [[String: Any]] ?? []).map(StickerLayout.init)
@@ -52,6 +57,7 @@ struct DiaryPage: Identifiable, Hashable {
             "dateKey": dateKey,
             "title": title,
             "background": background.rawValue,
+            "backgroundImageURL": backgroundImageURL ?? "",
             "textItems": textItems.map(\.dictionary),
             "stampItems": stampItems.map(\.dictionary),
             "stickerLayout": stickerLayout.map(\.dictionary),
@@ -123,6 +129,36 @@ struct DiaryTextItem: Identifiable, Hashable {
     }
 }
 
+enum DiaryStampDesign: String, PetankoOption {
+    case normal
+    case sparkle
+    case layered
+    case neon
+    case shadow
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .normal: "ノーマル"
+        case .sparkle: "キラキラ"
+        case .layered: "レイヤード"
+        case .neon: "ネオン"
+        case .shadow: "シャドウ"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .normal: "circle"
+        case .sparkle: "sparkles"
+        case .layered: "square.3.layers.3d"
+        case .neon: "bolt.fill"
+        case .shadow: "circle.lefthalf.filled"
+        }
+    }
+}
+
 struct DiaryStampItem: Identifiable, Hashable {
     static let defaultColorHex = "#1F1B18"
     static let legacyZIndex = -1_000_000
@@ -130,6 +166,7 @@ struct DiaryStampItem: Identifiable, Hashable {
     let id: String
     var symbol: String
     var colorHex: String
+    var design: DiaryStampDesign
     var x: Double
     var y: Double
     var rotation: Double
@@ -140,6 +177,7 @@ struct DiaryStampItem: Identifiable, Hashable {
         id: String = UUID().uuidString,
         symbol: String,
         colorHex: String = DiaryStampItem.defaultColorHex,
+        design: DiaryStampDesign = .normal,
         x: Double = 40,
         y: Double = 80,
         rotation: Double = -8,
@@ -149,6 +187,7 @@ struct DiaryStampItem: Identifiable, Hashable {
         self.id = id
         self.symbol = symbol
         self.colorHex = colorHex
+        self.design = design
         self.x = x
         self.y = y
         self.rotation = rotation
@@ -160,6 +199,7 @@ struct DiaryStampItem: Identifiable, Hashable {
         self.id = data["id"] as? String ?? UUID().uuidString
         self.symbol = data["symbol"] as? String ?? "★"
         self.colorHex = data["colorHex"] as? String ?? DiaryStampItem.defaultColorHex
+        self.design = DiaryStampDesign(rawValue: data["design"] as? String ?? "") ?? .normal
         self.x = data["x"] as? Double ?? 40
         self.y = data["y"] as? Double ?? 80
         self.rotation = data["rotation"] as? Double ?? -8
@@ -172,6 +212,7 @@ struct DiaryStampItem: Identifiable, Hashable {
             "id": id,
             "symbol": symbol,
             "colorHex": colorHex,
+            "design": design.rawValue,
             "x": x,
             "y": y,
             "rotation": rotation,

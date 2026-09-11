@@ -1,9 +1,34 @@
+import UIKit
 import SwiftUI
 
 struct DiaryBackgroundView: View {
     let background: ScrapbookBackground
+    var customImageURL: String? = nil
+    var customImageData: Data? = nil
 
     var body: some View {
+        ZStack {
+            presetBackground
+
+            if let customImageData,
+               let image = UIImage(data: customImageData) {
+                backgroundPhoto(Image(uiImage: image))
+            } else if let customImageURL,
+                      !customImageURL.isEmpty {
+                GeometryReader { proxy in
+                    RemoteImageView(urlString: customImageURL, contentMode: .fill) {
+                        Color.clear
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
+                }
+            }
+        }
+        .clipped()
+    }
+
+    @ViewBuilder
+    private var presetBackground: some View {
         switch background {
         case .notebook:
             NotebookBackground()
@@ -19,6 +44,16 @@ struct DiaryBackgroundView: View {
             LinearGradient(colors: [Color(red: 0.06, green: 0.09, blue: 0.18), Color(red: 0.16, green: 0.19, blue: 0.36)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .check:
             CheckBackground()
+        }
+    }
+
+    private func backgroundPhoto(_ image: Image) -> some View {
+        GeometryReader { proxy in
+            image
+                .resizable()
+                .scaledToFill()
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
         }
     }
 }
