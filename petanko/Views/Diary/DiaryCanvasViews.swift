@@ -62,14 +62,14 @@ struct DiaryCanvasView: View {
                     .zIndex(Double(item.zIndex))
             }
 
-            if stickers.isEmpty && diary.textItems.isEmpty && diary.stampItems.isEmpty {
+            if shouldShowEmptyMessage {
                 VStack(spacing: 10) {
                     Image(systemName: "sparkles")
                         .font(.largeTitle)
-                        .foregroundStyle(AppColors.mainText)
+                        .foregroundStyle(emptyMessageColor)
                     Text("ステッカーを貼るとここに集まります")
                         .font(.headline)
-                        .foregroundStyle(AppColors.mainText)
+                        .foregroundStyle(emptyMessageColor)
                 }
                 .zIndex(-1_500_000_000_000)
             }
@@ -106,6 +106,17 @@ struct DiaryCanvasView: View {
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
+    }
+
+    private var shouldShowEmptyMessage: Bool {
+        stickers.isEmpty
+            && diary.textItems.isEmpty
+            && diary.stampItems.isEmpty
+            && diary.backgroundImageURL?.isEmpty != false
+    }
+
+    private var emptyMessageColor: Color {
+        diary.background == .stars ? .white : AppColors.mainText
     }
 
     private func isIntentionalStickerTap(_ value: DragGesture.Value) -> Bool {
