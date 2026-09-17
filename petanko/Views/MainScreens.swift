@@ -251,7 +251,7 @@ private struct GroupListSection: View {
             SectionHeader(title: "グループ")
 
             if appState.groups.isEmpty {
-                EmptyStateView(systemImage: "person.3", title: "まだグループがありません", message: "")
+                EmptyStateView(systemImage: "person.3", title: "まだグループがありません", message: "", size: 44)
             } else {
                 VStack(spacing: 0) {
                     ForEach(appState.groups) { group in
@@ -541,29 +541,11 @@ private struct MemoryListCard: View {
 
 struct ProfileScreen: View {
     @EnvironmentObject private var appState: AppState
-    @State private var displayName = ""
-    @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var selectedPhotoData: Data?
-    @State private var isSavingProfile = false
-    @State private var currentAvatarURL: String?
     @State private var isShowingMyQR = false
     @State private var selectedFriendProfile: AppUser?
-    @State private var isDeletingAccount = false
-    @State private var isShowingReauthentication = false
-    @State private var isReauthenticatingForAccountDeletion = false
-    @State private var accountDeletionPassword = ""
-    @State private var accountDeletionMessage: String?
-    @State private var isAccountDeletionFlowActive = false
-    @State private var isChoosingAccountDeletionPostPolicy = false
-    @State private var isPreparingAccountDeletionChoice = false
-    @State private var hasRecentLoginForAccountDeletion = false
-    @State private var verifiedAccountDeletionPassword: String?
-    @State private var accountDeletionStep: AccountDeletionStep?
-    @FocusState private var isDisplayNameFocused: Bool
     var showsRootTabBar = false
 
     var body: some View {
-        ScrollViewReader { proxy in
         ScrollView {
             VStack(spacing: 30) {
                 HStack {
@@ -573,19 +555,33 @@ struct ProfileScreen: View {
                         .tracking(0.4)
 
                     Spacer()
+
+                    NavigationLink {
+                        ProfileEditScreen()
+                    } label: {
+                        Label("編集", systemImage: "pencil")
+                            .font(.system(size: 14, weight: .semibold))
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AppColors.mainText)
+                    .padding(.horizontal, 12)
+                    .frame(height: 36)
+                    .background(AppColors.elevatedSurface.opacity(0.96), in: Capsule())
+                    .overlay {
+                        Capsule().stroke(AppColors.border, lineWidth: 0.8)
+                    }
                 }
 
                 VStack(spacing: 18) {
-                    PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
-                        ProfilePhotoPickerLabel(
-                            imageData: selectedPhotoData,
-                            imageURLString: currentAvatarURL
-                        )
-                    }
-                    .buttonStyle(.plain)
-
+                    ProfileAvatarView(user: appState.currentUser, size: 132)
 
                     if let currentUser = appState.currentUser {
+                        Text(currentUser.displayName)
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                            .foregroundStyle(AppColors.mainText)
+                            .multilineTextAlignment(.center)
+
                         VStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("ユーザーID")
@@ -612,9 +608,88 @@ struct ProfileScreen: View {
                                 Label("My QRコード", systemImage: "qrcode")
                                     .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(SecondaryActionButtonStyle())
+                            .buttonStyle(PrimaryActionButtonStyle())
+                            
+                            
                         }
+                        
+                        NavigationLink {
+                            BlockedUsersScreen()
+                        } label: {
+                            Label("ブロックしたユーザー", systemImage: "hand.raised")
+                                .frame(maxWidth: .infinity)
+                                .foregroundStyle(AppColors.destructiveRed)
+                        }
+                        .buttonStyle(SecondaryActionButtonStyle())
                     }
+                }
+            }
+            .padding(.horizontal, AppSpacing.screenHorizontal)
+            .padding(.top, AppSpacing.screenTop + 18)
+            .padding(.bottom, 16)
+        }
+        .background {
+            PetankoMetalBackground()
+        }
+        .rootTabBar(shows: showsRootTabBar, selection: $appState.selectedTab)
+        .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $isShowingMyQR) {
+            if let currentUser = appState.currentUser {
+                MyQRCodeSheet(playerId: currentUser.playerId) { scannedId in
+                    Task { await loadScannedProfile(scannedId) }
+                }
+                .environmentObject(appState)
+            }
+        }
+        .navigationDestination(item: $selectedFriendProfile) { user in
+            FriendProfileScreen(user: user)
+        }
+    }
+
+    private func loadScannedProfile(_ playerId: String) async {
+        let user = await appState.findUser(playerId: playerId)
+        if let user {
+            selectedFriendProfile = user
+        } else if appState.errorMessage == nil {
+            appState.errorMessage = "QRコードのユーザーが見つかりません。"
+        }
+    }
+}
+
+struct ProfileEditScreen: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var displayName = ""
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedPhotoData: Data?
+    @State private var isSavingProfile = false
+    @State private var currentAvatarURL: String?
+    @State private var isDeletingAccount = false
+    @State private var isShowingReauthentication = false
+    @State private var isReauthenticatingForAccountDeletion = false
+    @State private var accountDeletionPassword = ""
+    @State private var accountDeletionMessage: String?
+    @State private var isAccountDeletionFlowActive = false
+    @State private var isChoosingAccountDeletionPostPolicy = false
+    @State private var isPreparingAccountDeletionChoice = false
+    @State private var hasRecentLoginForAccountDeletion = false
+    @State private var verifiedAccountDeletionPassword: String?
+    @State private var accountDeletionStep: AccountDeletionStep?
+    @FocusState private var isDisplayNameFocused: Bool
+
+    var body: some View {
+        ScrollViewReader { proxy in
+        ScrollView {
+            VStack(spacing: 30) {
+
+                VStack(spacing: 18) {
+                    PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                        ProfilePhotoPickerLabel(
+                            imageData: selectedPhotoData,
+                            imageURLString: currentAvatarURL
+                        )
+                    }
+                    .buttonStyle(.plain)
+
 
                     MetalCard(padding: 16) {
                         VStack(alignment: .leading, spacing: 10) {
@@ -667,14 +742,6 @@ struct ProfileScreen: View {
                 .disabled(isSavingProfile)
 
                 VStack(spacing: 10) {
-                    NavigationLink {
-                        BlockedUsersScreen()
-                    } label: {
-                        Label("ブロックしたユーザー", systemImage: "hand.raised")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(SecondaryActionButtonStyle())
-
                     Button(role: .destructive) {
                         appState.signOut()
                     } label: {
@@ -711,7 +778,6 @@ struct ProfileScreen: View {
         .background {
             PetankoMetalBackground()
         }
-        .rootTabBar(shows: showsRootTabBar, selection: $appState.selectedTab, isDisabled: isAccountDeletionFlowActive)
         .disabled(isAccountDeletionFlowActive)
         .overlay {
             if isDeletingAccount {
@@ -731,20 +797,11 @@ struct ProfileScreen: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("プロフィール編集")
+        .navigationBarBackButtonHidden(isAccountDeletionFlowActive)
         .onAppear {
             displayName = appState.currentUser?.displayName ?? ""
             currentAvatarURL = appState.currentUser?.avatarURL
-        }
-        .sheet(isPresented: $isShowingMyQR) {
-            if let currentUser = appState.currentUser {
-                MyQRCodeSheet(playerId: currentUser.playerId) { scannedId in
-                    Task { await loadScannedProfile(scannedId) }
-                }
-                .environmentObject(appState)
-            }
-        }
-        .navigationDestination(item: $selectedFriendProfile) { user in
-            FriendProfileScreen(user: user)
         }
         .alert("ログイン確認", isPresented: $isShowingReauthentication) {
             SecureField("パスワード", text: $accountDeletionPassword)
@@ -765,15 +822,6 @@ struct ProfileScreen: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(accountDeletionMessage ?? "")
-        }
-    }
-
-    private func loadScannedProfile(_ playerId: String) async {
-        let user = await appState.findUser(playerId: playerId)
-        if let user {
-            selectedFriendProfile = user
-        } else if appState.errorMessage == nil {
-            appState.errorMessage = "QRコードのユーザーが見つかりません。"
         }
     }
 
@@ -1075,6 +1123,41 @@ private struct BlockedUserAvatar: View {
     private var placeholder: some View {
         Image(systemName: "person.fill")
             .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(AppColors.mainText.opacity(0.72))
+    }
+}
+
+private struct ProfileAvatarView: View {
+    let user: AppUser?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let avatarURL = user?.avatarURL, !avatarURL.isEmpty {
+                RemoteImageView(urlString: avatarURL) {
+                    placeholder
+                }
+            } else if let avatar = user?.avatar, !avatar.isEmpty {
+                Text(avatar)
+                    .font(.system(size: size * 0.48))
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .background {
+            Circle()
+                .fill(AppColors.elevatedSurface)
+        }
+        .clipShape(Circle())
+        .overlay {
+            Circle().stroke(AppColors.border, lineWidth: 0.8)
+        }
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "person.crop.circle.fill")
+            .font(.system(size: size * 0.55, weight: .regular))
             .foregroundStyle(AppColors.mainText.opacity(0.72))
     }
 }

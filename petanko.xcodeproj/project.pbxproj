@@ -268,12 +268,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
-				DEVELOPMENT_TEAM = 7ZVS97JTRJ;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = 5PBPP7JKP7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = petanko;
-				INFOPLIST_KEY_NSCameraUsageDescription = "ステッカーや絵日記の背景に使う写真を撮影するため、カメラを使用します。";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
+				INFOPLIST_KEY_NSCameraUsageDescription = "写真からステッカーを作るためにカメラを使用します。";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "作成したステッカーを写真に保存するために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -285,7 +286,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = jp.kaikei.photosns.petank;
+				PRODUCT_BUNDLE_IDENTIFIER = jp.kaikei.photosns.petanko;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -303,12 +304,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
-				DEVELOPMENT_TEAM = 7ZVS97JTRJ;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = 7U8TXVHCH2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = petanko;
-				INFOPLIST_KEY_NSCameraUsageDescription = "ステッカーや絵日記の背景に使う写真を撮影するため、カメラを使用します。";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
+				INFOPLIST_KEY_NSCameraUsageDescription = "写真からステッカーを作るためにカメラを使用します。";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "作成したステッカーを写真に保存するために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -320,7 +322,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = jp.kaikei.photosns.petank;
+				PRODUCT_BUNDLE_IDENTIFIER = jp.kaikei.photosns.petanko;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

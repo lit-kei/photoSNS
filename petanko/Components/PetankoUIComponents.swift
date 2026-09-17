@@ -499,41 +499,100 @@ struct MemberAvatarStack: View {
         }
     }
 }
-
 struct EmptyStateView: View {
     let systemImage: String
     let title: String
+    let size: CGFloat
+    let xOffset: CGFloat
+    let yOffset: CGFloat
     let message: String?
 
+    init(
+        systemImage: String,
+        title: String,
+        message: String? = nil,
+        size: CGFloat = 48,
+        xOffset: CGFloat = 0,
+        yOffset: CGFloat = 0
+    ) {
+        self.systemImage = systemImage
+        self.title = title
+        self.message = message
+        self.size = size
+        self.xOffset = xOffset
+        self.yOffset = yOffset
+    }
+
+    static let stickerBorder = Color(
+        red: 0.95,
+        green: 0.94,
+        blue: 0.92
+    )
+
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 32, weight: .semibold))
-                .foregroundStyle(AppColors.mainText)
+        VStack(spacing: 0) {
+            stickerIcon
+
             Text(title)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(AppColors.mainText)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText)
+                .padding(.top, 18)
+
             if let message {
                 Text(message)
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
+                    .foregroundStyle(AppColors.secondaryText.opacity(0.75))
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(AppColors.secondaryText)
-                    .lineSpacing(3)
+                    .lineSpacing(2)
+                    .padding(.top, 6)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(24)
-        .background {
-            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                .fill(AppColors.surface.opacity(0.94))
+        .padding(.vertical, 32)
+    }
+
+    private var stickerIcon: some View {
+        ZStack {
+            // 背景のやわらかい丸
+            Circle()
+                .fill(AppColors.accentPink.opacity(0.08))
+                .frame(width: 110, height: 110)
+            Circle()
+                .stroke(
+                    AppColors.accentPink,
+                    style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+                )
+                .frame(width: 106, height: 106)
+
+
+            // 左上のテープ
+//            RoundedRectangle(cornerRadius: 4, style: .continuous)
+//                .fill(AppColors.tape.opacity(0.75))
+//                .frame(width: 60, height: 18)
+//                .overlay {
+//                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+//                        .stroke(AppColors.tape.opacity(0.35), lineWidth: 0.6)
+//                }
+//                .rotationEffect(.degrees(-15))
+//                .offset(x: -18, y: -42)
+
+            // 本体
+            Image(systemName: systemImage)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(AppColors.accentPink)
+                .offset(x: xOffset, y: yOffset)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .rotationEffect(.degrees(-4))
         }
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                .stroke(AppColors.border, lineWidth: 0.8)
-        }
+        .frame(width: 120, height: 110)
     }
 }
-
 extension AppTab: CaseIterable, Identifiable {
     var id: Self { self }
 

@@ -133,7 +133,7 @@ struct FriendAddScreen: View {
 
             ControlSection(title: "送信中") {
                 if appState.outgoingFriendRequests.isEmpty {
-                    EmptyStateView(systemImage: "paperplane", title: "送信中の申請はありません", message: nil)
+                    EmptyStateView(systemImage: "paperplane", title: "送信中の申請はありません", message: nil, xOffset: -3, yOffset: 3)
                 } else {
                     VStack(spacing: 10) {
                         ForEach(appState.outgoingFriendRequests) { request in
