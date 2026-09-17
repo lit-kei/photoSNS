@@ -278,11 +278,6 @@ struct HomeNotificationScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("通知")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundStyle(AppColors.mainText)
-                }
 
                 if appState.incomingFriendRequests.isEmpty {
                     EmptyStateView(systemImage: "bell", title: "新しい通知はありません", message: nil)
@@ -301,6 +296,7 @@ struct HomeNotificationScreen: View {
         .background {
             PetankoMetalBackground()
         }
+        .navigationTitle("通知")
         .navigationBarTitleDisplayMode(.inline)
     }
 

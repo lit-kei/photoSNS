@@ -9,10 +9,10 @@ struct FriendAddScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                header
-                searchCard
+            VStack(alignment: .leading, spacing: 0) {
+                searchSection
                 requestSections
+                    .padding(.top, 56)
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -21,6 +21,7 @@ struct FriendAddScreen: View {
         .background {
             PetankoMetalBackground()
         }
+        .navigationTitle("友達追加")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $selectedProfile) { user in
             FriendProfileScreen(user: user)
@@ -35,93 +36,91 @@ struct FriendAddScreen: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("友達追加")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(AppColors.mainText)
-        }
-    }
+    private var searchSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            
+            Text("ユーザーIDで探す")
+                .font(.title3.bold())
 
-    private var searchCard: some View {
-        MetalCard(padding: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                if let currentUser = appState.currentUser {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("ユーザーID")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(AppColors.secondaryText)
-                        Text(currentUser.playerId)
-                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(AppColors.mainText)
-                            .lineLimit(2)
-                            .textSelection(.enabled)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(AppColors.accentBlue.opacity(0.26))
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
-                            .stroke(AppColors.border, lineWidth: 0.8)
-                    }
+            TextField("ユーザーIDを入力", text: Binding(
+                get: { playerId },
+                set: { playerId = $0.uppercased() }
+            ))
+                .keyboardType(.asciiCapable)
+                .textInputAutocapitalization(.characters)
+                .textCase(.uppercase)
+                .autocorrectionDisabled()
+                .textFieldStyle(.plain)
+                .metalTextField()
+
+            
+            Button {
+                Task { await searchUser() }
+            } label: {
+                if isSearching {
+                    ProgressView()
+                        .tint(AppColors.mainText)
+                } else {
+                    Label("プロフィールを見る", systemImage: "person.text.rectangle")
                 }
-
-                Label("ユーザーIDで探す", systemImage: "number")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(AppColors.secondaryText)
-
-                Button {
-                    isShowingMyQR = true
-                } label: {
-                    Label("My QRコードを表示", systemImage: "qrcode")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(AppColors.mainText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(AppColors.elevatedSurface.opacity(0.96), in: RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
-                                .stroke(AppColors.border, lineWidth: 0.8)
-                        }
-                }
-                .buttonStyle(.plain)
-                .disabled(appState.currentUser == nil)
-
-                TextField("ユーザーIDを入力", text: Binding(
-                    get: { playerId },
-                    set: { playerId = $0.uppercased() }
-                ))
-                    .keyboardType(.asciiCapable)
-                    .textInputAutocapitalization(.characters)
-                    .textCase(.uppercase)
-                    .autocorrectionDisabled()
-                    .textFieldStyle(.plain)
-                    .metalTextField()
-
-                Button {
-                    Task { await searchUser() }
-                } label: {
-                    if isSearching {
-                        ProgressView()
-                            .tint(AppColors.mainText)
-                    } else {
-                        Label("プロフィールを見る", systemImage: "person.text.rectangle")
-                    }
-                }
-                .buttonStyle(PrimaryActionButtonStyle())
-                .disabled(playerId.trimmedForPetanko.isEmpty || isSearching)
-                .opacity(playerId.trimmedForPetanko.isEmpty ? 0.48 : 1)
-
             }
+            .buttonStyle(PrimaryActionButtonStyle())
+            .disabled(playerId.trimmedForPetanko.isEmpty || isSearching)
+            .opacity(playerId.trimmedForPetanko.isEmpty ? 0.48 : 1)
+            
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            if let currentUser = appState.currentUser {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("ユーザーID")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AppColors.secondaryText)
+                    Text(currentUser.playerId)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(AppColors.mainText)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(AppColors.accentBlue.opacity(0.26))
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                        .stroke(AppColors.border, lineWidth: 0.8)
+                }
+            }
+            
+            Button {
+                isShowingMyQR = true
+            } label: {
+                Label("My QRコードを表示", systemImage: "qrcode")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppColors.mainText)
+            }
+            .buttonStyle(SecondaryActionButtonStyle())
+            .disabled(appState.currentUser == nil)
+
+
+            
         }
     }
 
     private var requestSections: some View {
-        VStack(spacing: 18) {
-            ControlSection(title: "届いた申請") {
+        VStack(alignment: .leading, spacing: 28) {
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("届いた申請")
+                    .font(.title3.bold())
+
                 if appState.incomingFriendRequests.isEmpty {
-                    EmptyStateView(systemImage: "tray", title: "申請はありません", message: nil)
+                    EmptyStateView(
+                        systemImage: "tray",
+                        title: "申請はありません",
+                        message: nil
+                    )
                 } else {
                     VStack(spacing: 10) {
                         ForEach(appState.incomingFriendRequests) { request in
@@ -131,9 +130,20 @@ struct FriendAddScreen: View {
                 }
             }
 
-            ControlSection(title: "送信中") {
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("送信中")
+                    .font(.title3.bold())
+
                 if appState.outgoingFriendRequests.isEmpty {
-                    EmptyStateView(systemImage: "paperplane", title: "送信中の申請はありません", message: nil, xOffset: -3, yOffset: 3)
+                    EmptyStateView(
+                        systemImage: "paperplane",
+                        title: "送信中の申請はありません",
+                        message: nil,
+                        xOffset: -3,
+                        yOffset: 3
+                    )
                 } else {
                     VStack(spacing: 10) {
                         ForEach(appState.outgoingFriendRequests) { request in
