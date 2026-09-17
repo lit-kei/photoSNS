@@ -319,7 +319,7 @@ struct FriendProfileScreen: View {
     @ViewBuilder
     private var profileAction: some View {
         if isCurrentUser {
-            Label("自分のプロフィール", systemImage: "person.crop.circle")
+            Label("あなた", systemImage: "person.crop.circle")
                 .profileStatusStyle()
         } else if isBlocked {
             VStack(spacing: 10) {

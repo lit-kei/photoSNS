@@ -20,6 +20,7 @@ final class AppState: ObservableObject {
     @Published var outgoingFriendRequests: [FriendRequest] = []
     @Published private(set) var unreadPostCounts: [String: Int] = [:]
     @Published var selectedTab: AppTab = .home
+    @Published var signedInSessionResetID = UUID()
     @Published var memoriesNavigationResetID = UUID()
     @Published var authState: AuthState = .bootstrapping
     @Published var errorMessage: String?
@@ -113,6 +114,7 @@ final class AppState: ObservableObject {
             self.pendingAccount = nil
             pendingTermsAcceptedAt = nil
             currentUser = user
+            resetSignedInNavigation()
             authState = .signedIn
             observeSignedInData(for: user.id)
         } catch {
@@ -647,6 +649,7 @@ final class AppState: ObservableObject {
                 pendingAccount = nil
                 pendingTermsAcceptedAt = nil
                 currentUser = user
+                resetSignedInNavigation()
                 authState = .signedIn
                 observeSignedInData(for: user.id)
             } else {
@@ -665,9 +668,16 @@ final class AppState: ObservableObject {
             pendingAccount = nil
             pendingTermsAcceptedAt = nil
             currentUser = fallbackUser
+            resetSignedInNavigation()
             authState = .signedIn
             observeSignedInData(for: fallbackUser.id)
         }
+    }
+
+    private func resetSignedInNavigation() {
+        selectedTab = .home
+        isShowingNotifications = false
+        signedInSessionResetID = UUID()
     }
 
     private func clearSignedInState() {
@@ -705,6 +715,7 @@ final class AppState: ObservableObject {
         incomingFriendRequests = []
         outgoingFriendRequests = []
         unreadPostCounts = [:]
+        selectedTab = .home
         isShowingNotifications = false
         hasLoadedIncomingFriendRequests = false
         knownIncomingFriendRequestIds = []

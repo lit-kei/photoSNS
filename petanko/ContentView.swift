@@ -55,6 +55,7 @@ struct ContentView: View {
         Group {
             tabContent(for: appState.selectedTab)
         }
+        .id(appState.signedInSessionResetID)
         .overlay(alignment: .bottom) {
             StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
                 .padding(.horizontal, 16)
