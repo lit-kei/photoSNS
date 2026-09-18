@@ -228,9 +228,13 @@ final class AccountDeletionService {
         for document in assetSnapshot.documents {
             let data = document.data()
             storagePaths.insert(data["storagePath"] as? String ?? "stickerAssets/\(userId)/\(document.documentID).png")
+            if let originalStoragePath = data["originalStoragePath"] as? String {
+                storagePaths.insert(originalStoragePath)
+            }
         }
         for sticker in stickers {
             storagePaths.insert("stickerAssets/\(userId)/\(sticker.assetId).png")
+            storagePaths.insert("stickerAssets/\(userId)/\(sticker.assetId)-original.png")
         }
 
         var batch = db.batch()
@@ -340,6 +344,7 @@ final class AccountDeletionService {
         for assetId in assetIds {
             try? await db.collection("stickerAssets").document(assetId).delete()
             try? await storage.reference(withPath: "stickerAssets/\(group.ownerId)/\(assetId).png").delete()
+            try? await storage.reference(withPath: "stickerAssets/\(group.ownerId)/\(assetId)-original.png").delete()
         }
         if let iconURL = group.iconURL {
             try? await storage.reference(forURL: iconURL).delete()

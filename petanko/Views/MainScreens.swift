@@ -209,37 +209,43 @@ private struct GroupActionCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(AppColors.mainText)
-                    .frame(width: 48, height: 48)
-                    .background(tint.opacity(0.86), in: Circle())
-                    .overlay {
-                        Circle().stroke(AppColors.border, lineWidth: 0.8)
+            VStack(spacing: 0) {
+                HStack(spacing: 14) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
+                        .frame(width: 48, height: 48)
+                        .background(tint.opacity(0.86), in: Circle())
+                        .overlay {
+                            Circle().stroke(AppColors.border, lineWidth: 0.8)
+                        }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(AppColors.mainText)
                     }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(AppColors.mainText)
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppColors.darkSilver)
                 }
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity)
 
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppColors.darkSilver)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity)
-            .background(AppColors.elevatedSurface.opacity(0.96), in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                    .stroke(AppColors.border, lineWidth: 0.8)
+                actionDivider
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private var actionDivider: some View {
+        Rectangle()
+            .fill(AppColors.border)
+            .frame(height: 0.8)
+        .accessibilityHidden(true)
     }
 }
 

@@ -6,12 +6,14 @@ enum CanvasElementID: Hashable, Identifiable {
     case sticker(String)
     case text(String)
     case stamp(String)
+    case design(String)
 
     var id: String {
         switch self {
         case .sticker(let id): "sticker:\(id)"
         case .text(let id): "text:\(id)"
         case .stamp(let id): "stamp:\(id)"
+        case .design(let id): "design:\(id)"
         }
     }
 }
@@ -27,6 +29,7 @@ private enum DiaryEditorTab: String, CaseIterable, Identifiable {
     case autoArrange = "自動生成"
     case text = "文字"
     case stamp = "スタンプ"
+    case design = "デザイン"
     case background = "背景"
 
     var id: String { rawValue }
@@ -88,6 +91,8 @@ struct DiaryEditorScreen: View {
                     backgroundImageData: backgroundImageData
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.bottom, isDesignSelected ? editorBottomSheetHeight : 0)
+                .animation(.easeInOut(duration: 0.2), value: editorBottomSheetHeight)
             } else {
                 ProgressView("絵日記を読み込み中")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -187,6 +192,8 @@ struct DiaryEditorScreen: View {
                 selectedEditorTab = .text
             case .stamp:
                 selectedEditorTab = .stamp
+            case .design:
+                selectedEditorTab = .design
             case .sticker, nil:
                 break
             }
@@ -238,6 +245,13 @@ struct DiaryEditorScreen: View {
         return false
     }
 
+    private var isDesignSelected: Bool {
+        if case .design = selectedElement {
+            return true
+        }
+        return false
+    }
+
 
     @ViewBuilder
     private var editorBottomSheet: some View {
@@ -247,6 +261,9 @@ struct DiaryEditorScreen: View {
                     textEditingControls(textID: textID)
                     selectedObjectSummary
                 } else if case .stamp = selectedElement {
+                    editorTabContent
+                    selectedObjectSummary
+                } else if case .design = selectedElement {
                     editorTabContent
                     selectedObjectSummary
                 } else {
@@ -452,6 +469,171 @@ struct DiaryEditorScreen: View {
                                 }
                         }
                         .buttonStyle(.plain)
+                    }
+                }
+            }
+
+        case .design:
+            VStack(alignment: .leading, spacing: 10) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(DiaryDesignEffect.allCases) { effect in
+                            Button {
+                                if case .design(let designID) = selectedElement {
+                                    updateDesign(designID) { $0.effect = effect }
+                                } else {
+                                    addDesign(effect)
+                                }
+                            } label: {
+                                Label(effect.title, systemImage: effect.systemImage)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(AppColors.mainText)
+                                    .padding(.horizontal, 12)
+                                    .frame(height: 42)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
+                                            .fill(
+                                                selectedDesign?.effect == effect
+                                                    ? AppColors.accentPink.opacity(0.28)
+                                                    : AppColors.elevatedSurface
+                                            )
+                                    }
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
+                                            .stroke(
+                                                selectedDesign?.effect == effect
+                                                    ? AppColors.accentPink
+                                                    : AppColors.border,
+                                                lineWidth: 1
+                                            )
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                if case .design(let designID) = selectedElement {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            if selectedDesign?.effect == .translucent {
+                                ColorPicker("カラー", selection: selectedDesignColorBinding, supportsOpacity: false)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(AppColors.mainText)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 9)
+                                    .frame(height: 36)
+                                    .background(AppColors.accentPink.opacity(0.16), in: Capsule())
+                            }
+
+                            Menu {
+                                ForEach(DiaryDesignShape.allCases) { shape in
+                                    Button {
+                                        updateDesign(designID) { $0.shape = shape }
+                                    } label: {
+                                        Label(
+                                            shape.title,
+                                            systemImage: selectedDesign?.shape == shape
+                                                ? "checkmark"
+                                                : shape.systemImage
+                                        )
+                                    }
+                                }
+                            } label: {
+                                Label(
+                                    selectedDesign?.shape.title ?? "形",
+                                    systemImage: selectedDesign?.shape.systemImage ?? "square"
+                                )
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AppColors.mainText)
+                                .padding(.horizontal, 9)
+                                .frame(height: 36)
+                                .background(AppColors.accentPink.opacity(0.16), in: Capsule())
+                            }
+
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.left.and.right")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(AppColors.secondaryText)
+
+                                Slider(value: selectedDesignWidthBinding, in: 44...320)
+                                    .tint(AppColors.accentPink)
+                                    .frame(width: 72)
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("横幅")
+
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.up.and.down")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(AppColors.secondaryText)
+
+                                Slider(value: selectedDesignHeightBinding, in: 44...400)
+                                    .tint(AppColors.accentPink)
+                                    .frame(width: 72)
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("高さ")
+
+                            if selectedDesign?.effect != .eightBit {
+                                HStack(spacing: 6) {
+                                    Text("透明度")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(AppColors.mainText)
+
+                                    Slider(value: selectedDesignOpacityBinding, in: 0.08...1)
+                                        .tint(AppColors.accentPink)
+                                        .frame(width: 82)
+                                }
+                            } else {
+                                Label("枠内を低画質化", systemImage: "square.grid.3x3.fill")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(AppColors.secondaryText)
+                            }
+
+                            Button {
+                                selectedDesignHasBorderBinding.wrappedValue.toggle()
+                            } label: {
+                                Label(
+                                    "縁",
+                                    systemImage: selectedDesign?.hasBorder == true
+                                        ? "checkmark.square.fill"
+                                        : "square"
+                                )
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AppColors.mainText)
+                                .padding(.horizontal, 9)
+                                .frame(height: 36)
+                                .background(AppColors.accentPink.opacity(0.16), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityValue(selectedDesign?.hasBorder == true ? "オン" : "オフ")
+
+                            if selectedDesign?.hasBorder == true {
+                                ColorPicker(
+                                    "縁色",
+                                    selection: selectedDesignBorderColorBinding,
+                                    supportsOpacity: false
+                                )
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AppColors.mainText)
+                                .lineLimit(1)
+                                .padding(.horizontal, 9)
+                                .frame(height: 36)
+                                .background(AppColors.accentPink.opacity(0.16), in: Capsule())
+                            }
+
+                            Button(role: .destructive) {
+                                deleteDesign(designID)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.subheadline.weight(.bold))
+                                    .frame(width: 36, height: 36)
+                                    .background(AppColors.destructiveRed.opacity(0.09), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("デザインを削除")
+                        }
                     }
                 }
             }
@@ -680,7 +862,13 @@ struct DiaryEditorScreen: View {
         let activeStickerIDs = Set(viewModel.stickers.map(\.id))
         next = next.filter { activeStickerIDs.contains($0.key) }
         for sticker in viewModel.stickers where next[sticker.id] == nil {
-            next[sticker.id] = diary.stickerLayout.first(where: { $0.stickerId == sticker.id }) ?? sticker.layout
+            let layout = diary.stickerLayout.first(where: { $0.stickerId == sticker.id }) ?? sticker.layout
+            next[sticker.id] = DiaryCanvasMetrics.sanitizedStickerLayout(layout)
+        }
+        for stickerID in Array(next.keys) {
+            if let layout = next[stickerID] {
+                next[stickerID] = DiaryCanvasMetrics.sanitizedStickerLayout(layout)
+            }
         }
         localLayouts = next
     }
@@ -701,11 +889,13 @@ struct DiaryEditorScreen: View {
         var page = diary
         inputBuffer.apply(to: &page)
         var layouts = localLayouts
+        layouts = layouts.mapValues(DiaryCanvasMetrics.sanitizedStickerLayout)
         let order = diaryLayerEntries(diary: page, stickers: viewModel.stickers, layouts: layouts).map(\.element)
         applyDiaryLayerOrder(order, diary: &page, stickers: viewModel.stickers, layouts: &layouts)
         let stickerIDs = Set(viewModel.stickers.map(\.id))
         page.stickerLayout = layouts.values
             .filter { stickerIDs.contains($0.stickerId) }
+            .map(DiaryCanvasMetrics.sanitizedStickerLayout)
             .sorted { $0.zIndex < $1.zIndex }
         draftDiary = page
         localLayouts = layouts
@@ -851,6 +1041,11 @@ struct DiaryEditorScreen: View {
         return draftDiary?.stampItems.first { $0.id == id }
     }
 
+    private var selectedDesign: DiaryDesignItem? {
+        guard case .design(let id) = selectedElement else { return nil }
+        return draftDiary?.designItems.first { $0.id == id }
+    }
+
     private var selectedFontDisplayName: String {
         guard let fontName = selectedText?.fontName, !fontName.isEmpty else { return "システム" }
         return UIFont(name: fontName, size: 24)?.familyName ?? fontName
@@ -893,6 +1088,74 @@ struct DiaryEditorScreen: View {
             set: { color in
                 guard case .stamp(let id) = selectedElement else { return }
                 updateStamp(id) { $0.colorHex = UIColor(color).petankoHexString }
+            }
+        )
+    }
+
+    private var selectedDesignColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Color(uiColor: UIColor(hex: selectedDesign?.colorHex ?? DiaryDesignItem.defaultColorHex) ?? UIColor.systemPink)
+            },
+            set: { color in
+                guard case .design(let id) = selectedElement else { return }
+                updateDesign(id) { $0.colorHex = UIColor(color).petankoHexString }
+            }
+        )
+    }
+
+    private var selectedDesignOpacityBinding: Binding<Double> {
+        Binding(
+            get: { selectedDesign?.opacity ?? 0.48 },
+            set: { value in
+                guard case .design(let id) = selectedElement else { return }
+                updateDesign(id) { $0.opacity = value }
+            }
+        )
+    }
+
+    private var selectedDesignHasBorderBinding: Binding<Bool> {
+        Binding(
+            get: { selectedDesign?.hasBorder ?? false },
+            set: { value in
+                guard case .design(let id) = selectedElement else { return }
+                updateDesign(id) { $0.hasBorder = value }
+            }
+        )
+    }
+
+    private var selectedDesignWidthBinding: Binding<Double> {
+        Binding(
+            get: { selectedDesign?.width ?? 140 },
+            set: { value in
+                guard case .design(let id) = selectedElement else { return }
+                updateDesign(id) { $0.width = value }
+            }
+        )
+    }
+
+    private var selectedDesignHeightBinding: Binding<Double> {
+        Binding(
+            get: { selectedDesign?.height ?? 140 },
+            set: { value in
+                guard case .design(let id) = selectedElement else { return }
+                updateDesign(id) { $0.height = value }
+            }
+        )
+    }
+
+    private var selectedDesignBorderColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Color(
+                    uiColor: UIColor(
+                        hex: selectedDesign?.borderColorHex ?? DiaryDesignItem.defaultBorderColorHex
+                    ) ?? .white
+                )
+            },
+            set: { color in
+                guard case .design(let id) = selectedElement else { return }
+                updateDesign(id) { $0.borderColorHex = UIColor(color).petankoHexString }
             }
         )
     }
@@ -980,6 +1243,22 @@ struct DiaryEditorScreen: View {
         selectedElement = .stamp(item.id)
     }
 
+    private func addDesign(_ effect: DiaryDesignEffect) {
+        let item = DiaryDesignItem(
+            effect: effect,
+            colorHex: randomDiaryAccentColorHex,
+            opacity: effect == .invert ? 1 : 0.48,
+            x: insertionPoint.x,
+            y: insertionPoint.y,
+            width: 140,
+            height: 140,
+            zIndex: nextZIndex
+        )
+        draftDiary?.designItems.append(item)
+        activeElement = nil
+        selectedElement = .design(item.id)
+    }
+
     private var randomDiaryAccentColorHex: String {
         [
             "#1F1B18",
@@ -1054,6 +1333,19 @@ struct DiaryEditorScreen: View {
 
     private func deleteStamp(_ id: String) {
         draftDiary?.stampItems.removeAll { $0.id == id }
+        activeElement = nil
+        selectedElement = nil
+    }
+
+    private func updateDesign(_ id: String, mutate: (inout DiaryDesignItem) -> Void) {
+        guard var page = draftDiary,
+              let index = page.designItems.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&page.designItems[index])
+        draftDiary = page
+    }
+
+    private func deleteDesign(_ id: String) {
+        draftDiary?.designItems.removeAll { $0.id == id }
         activeElement = nil
         selectedElement = nil
     }
@@ -1204,6 +1496,33 @@ struct EditableDiaryCanvas: View {
                     .contentShape(Rectangle())
                     .zIndex(-2_000_000_000_000)
 
+                ForEach(diary.designItems) { item in
+                    let element = CanvasElementID.design(item.id)
+                    ZStack {
+                        DiaryDesignVisual(item: item)
+
+                        if !item.hasBorder {
+                            DiaryDesignShapePath(shape: item.shape)
+                                .stroke(
+                                    selectedElement == element
+                                        ? AppColors.accentPink
+                                        : AppColors.accentPink.opacity(0.62),
+                                    style: StrokeStyle(
+                                        lineWidth: selectedElement == element ? 1.8 : 1.1,
+                                        dash: [6, 4]
+                                    )
+                                )
+                                .frame(width: item.width, height: item.height)
+                        }
+                    }
+                    .scaleEffect(item.scale)
+                    .rotationEffect(.degrees(item.rotation))
+                    .diaryElementFrame(element)
+                    .position(x: item.x, y: item.y)
+                    .allowsHitTesting(false)
+                    .zIndex(Double(item.zIndex))
+                }
+
                 ForEach(diary.textItems) { item in
                     let element = CanvasElementID.text(item.id)
                     DiaryTextVisual(item: item)
@@ -1242,7 +1561,12 @@ struct EditableDiaryCanvas: View {
                 ForEach(stickers) { sticker in
                     let layout = layouts[sticker.id] ?? sticker.layout
                     let element = CanvasElementID.sticker(sticker.id)
-                    RemoteStickerView(sticker: sticker, size: DiaryCanvasMetrics.stickerBaseSize)
+                    DiaryStickerVisual(
+                        sticker: sticker,
+                        size: DiaryCanvasMetrics.stickerBaseSize,
+                        layout: layout,
+                        designItems: diary.designItems
+                    )
                         .overlay {
                             if selectedElement == element {
                                 RoundedRectangle(cornerRadius: AppRadius.card)
@@ -1427,6 +1751,34 @@ struct EditableDiaryCanvas: View {
                 }
             )
 
+        case .design(let id):
+            let item = diary.designItems.first { $0.id == id }
+
+            return DiaryElementInteractionModifier(
+                element: element,
+                zIndex: zIndex,
+                x: item?.x ?? 0,
+                y: item?.y ?? 0,
+                scale: item?.scale ?? 1,
+                rotation: item?.rotation ?? 0,
+                scaleRange: 0.35...3.5,
+                selectedElement: $selectedElement,
+                activeElement: $activeElement,
+                allowsDirectHitTesting: true,
+                updatePosition: { x, y in
+                    updateDesign(id) {
+                        $0.x = x
+                        $0.y = y
+                    }
+                },
+                updateScale: { scale in
+                    updateDesign(id) { $0.scale = scale }
+                },
+                updateRotation: { rotation in
+                    updateDesign(id) { $0.rotation = rotation }
+                }
+            )
+
         case .sticker(let id):
             let sticker = stickers.first { $0.id == id }
 
@@ -1445,7 +1797,7 @@ struct EditableDiaryCanvas: View {
                 y: layout?.y ?? 0,
                 scale: layout?.scale ?? 1,
                 rotation: layout?.rotation ?? 0,
-                scaleRange: 0.55...1.8,
+                scaleRange: DiaryCanvasMetrics.stickerScaleRange,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
                 allowsDirectHitTesting: true,
@@ -1453,15 +1805,19 @@ struct EditableDiaryCanvas: View {
                     guard let sticker else { return }
 
                     updateSticker(sticker) {
-                        $0.x = x
-                        $0.y = y
+                        var next = $0
+                        next.x = x
+                        next.y = y
+                        $0 = DiaryCanvasMetrics.sanitizedStickerLayout(next)
                     }
                 },
                 updateScale: { scale in
                     guard let sticker else { return }
 
                     updateSticker(sticker) {
-                        $0.scale = scale
+                        var next = $0
+                        next.scale = scale
+                        $0 = DiaryCanvasMetrics.sanitizedStickerLayout(next)
                     }
                 },
                 updateRotation: { rotation in
@@ -1550,6 +1906,11 @@ struct EditableDiaryCanvas: View {
         mutate(&diary.stampItems[index])
     }
 
+    private func updateDesign(_ id: String, mutate: (inout DiaryDesignItem) -> Void) {
+        guard let index = diary.designItems.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&diary.designItems[index])
+    }
+
     private func updateSticker(_ sticker: StickerPost, mutate: (inout StickerLayout) -> Void) {
         var layout = layouts[sticker.id] ?? sticker.layout
         mutate(&layout)
@@ -1563,6 +1924,9 @@ struct EditableDiaryCanvas: View {
             return CGPoint(x: item.x, y: item.y)
         case .stamp(let id):
             guard let item = diary.stampItems.first(where: { $0.id == id }) else { return nil }
+            return CGPoint(x: item.x, y: item.y)
+        case .design(let id):
+            guard let item = diary.designItems.first(where: { $0.id == id }) else { return nil }
             return CGPoint(x: item.x, y: item.y)
         case .sticker(let id):
             guard let sticker = stickers.first(where: { $0.id == id }) else { return nil }
@@ -1579,6 +1943,9 @@ struct EditableDiaryCanvas: View {
         case .stamp(let id):
             guard let item = diary.stampItems.first(where: { $0.id == id }) else { return nil }
             return item.scale
+        case .design(let id):
+            guard let item = diary.designItems.first(where: { $0.id == id }) else { return nil }
+            return item.scale
         case .sticker(let id):
             guard let sticker = stickers.first(where: { $0.id == id }) else { return nil }
             let layout = layouts[id] ?? diary.stickerLayout.first(where: { $0.stickerId == id }) ?? sticker.layout
@@ -1591,8 +1958,10 @@ struct EditableDiaryCanvas: View {
         switch element {
         case .text, .stamp:
             range = 0.5...3
+        case .design:
+            range = 0.35...3.5
         case .sticker:
-            range = 0.55...1.8
+            range = DiaryCanvasMetrics.stickerScaleRange
         }
         return min(range.upperBound, max(range.lowerBound, scale))
     }
@@ -1603,9 +1972,15 @@ struct EditableDiaryCanvas: View {
             updateText(id) { $0.scale = scale }
         case .stamp(let id):
             updateStamp(id) { $0.scale = scale }
+        case .design(let id):
+            updateDesign(id) { $0.scale = scale }
         case .sticker(let id):
             guard let sticker = stickers.first(where: { $0.id == id }) else { return }
-            updateSticker(sticker) { $0.scale = scale }
+            updateSticker(sticker) {
+                var next = $0
+                next.scale = scale
+                $0 = DiaryCanvasMetrics.sanitizedStickerLayout(next)
+            }
         }
     }
 
@@ -1621,11 +1996,18 @@ struct EditableDiaryCanvas: View {
                 $0.x = x
                 $0.y = y
             }
+        case .design(let id):
+            updateDesign(id) {
+                $0.x = x
+                $0.y = y
+            }
         case .sticker(let id):
             guard let sticker = stickers.first(where: { $0.id == id }) else { return }
             updateSticker(sticker) {
-                $0.x = x
-                $0.y = y
+                var next = $0
+                next.x = x
+                next.y = y
+                $0 = DiaryCanvasMetrics.sanitizedStickerLayout(next)
             }
         }
     }
@@ -1714,7 +2096,15 @@ private struct DiaryElementInteractionModifier: ViewModifier {
             coordinateSpace: .named("diaryCanvas")
         )
         .onChanged { value in
+            guard !isScaling, !isRotating,
+                  value.translation.width.isFinite,
+                  value.translation.height.isFinite else { return }
+
             let origin = dragOrigin ?? CGSize(width: x, height: y)
+            guard origin.width.isFinite, origin.height.isFinite else {
+                dragOrigin = nil
+                return
+            }
 
             if dragOrigin == nil {
                 dragOrigin = origin
@@ -1736,10 +2126,14 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     private var scaleGesture: some Gesture {
         MagnificationGesture()
             .onChanged { value in
+                guard value.isFinite else { return }
+                cancelDragForTransformIfNeeded()
                 beginInteraction(.scale)
-                let origin = scaleOrigin ?? scale
+                let origin = scaleOrigin ?? (scale.isFinite ? scale : 1)
                 if scaleOrigin == nil { scaleOrigin = origin }
-                updateScale(min(scaleRange.upperBound, max(scaleRange.lowerBound, origin * value)))
+                let candidate = origin * value
+                guard candidate.isFinite else { return }
+                updateScale(min(scaleRange.upperBound, max(scaleRange.lowerBound, candidate)))
             }
             .onEnded { _ in
                 scaleOrigin = nil
@@ -1750,14 +2144,18 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     private var rotationGesture: some Gesture {
         RotationGesture()
             .onChanged { value in
+                guard value.degrees.isFinite else { return }
+                cancelDragForTransformIfNeeded()
                 beginInteraction(.rotation)
-                let origin = rotationOrigin ?? rotation
+                let origin = rotationOrigin ?? (rotation.isFinite ? rotation : 0)
                 if rotationOrigin == nil { rotationOrigin = origin }
                 updateRotation(origin + value.degrees)
             }
             .onEnded { value in
-                let origin = rotationOrigin ?? rotation
-                updateRotation(normalizedAngle(origin + value.degrees))
+                let origin = rotationOrigin ?? (rotation.isFinite ? rotation : 0)
+                if value.degrees.isFinite {
+                    updateRotation(normalizedAngle(origin + value.degrees))
+                }
                 rotationOrigin = nil
                 endInteraction(.rotation)
             }
@@ -1767,6 +2165,17 @@ private struct DiaryElementInteractionModifier: ViewModifier {
         case drag
         case scale
         case rotation
+    }
+
+    private func cancelDragForTransformIfNeeded() {
+        guard isDragging else { return }
+        if let origin = dragOrigin,
+           origin.width.isFinite,
+           origin.height.isFinite {
+            updatePosition(origin.width, origin.height)
+        }
+        dragOrigin = nil
+        isDragging = false
     }
 
     private func beginInteraction(_ kind: InteractionKind) {
@@ -1893,6 +2302,18 @@ private func diaryLayerEntries(
         sequence += 1
     }
 
+    for item in diary.designItems {
+        entries.append(DiaryLayerEntry(
+            element: .design(item.id),
+            title: item.effect.title,
+            detail: "デザイン",
+            systemImage: item.effect.systemImage,
+            zIndex: item.zIndex,
+            sequence: sequence
+        ))
+        sequence += 1
+    }
+
     for sticker in stickers {
         let layout = layouts[sticker.id] ?? diary.stickerLayout.first(where: { $0.stickerId == sticker.id }) ?? sticker.layout
         entries.append(DiaryLayerEntry(
@@ -1927,6 +2348,9 @@ private func applyDiaryLayerOrder(
         case .stamp(let id):
             guard let itemIndex = diary.stampItems.firstIndex(where: { $0.id == id }) else { continue }
             diary.stampItems[itemIndex].zIndex = zIndex
+        case .design(let id):
+            guard let itemIndex = diary.designItems.firstIndex(where: { $0.id == id }) else { continue }
+            diary.designItems[itemIndex].zIndex = zIndex
         case .sticker(let id):
             guard let sticker = stickers.first(where: { $0.id == id }) else { continue }
             var layout = layouts[id] ?? diary.stickerLayout.first(where: { $0.stickerId == id }) ?? sticker.layout
@@ -2538,6 +2962,8 @@ private enum DiaryAutoArranger {
                 page.stampItems[index].rotation = element.rotation
                 page.stampItems[index].scale = element.scale
                 page.stampItems[index].zIndex = element.zIndex
+            case .design:
+                continue
             case .sticker(let id):
                 guard let sticker = stickers.first(where: { $0.id == id }) else { continue }
                 var layout = nextLayouts[id]

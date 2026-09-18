@@ -23,8 +23,17 @@ struct FriendTodayFeedSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            header
-            feedContent
+            if appState.friendTodayStickers.isEmpty {
+                EmptyStateView(
+                    systemImage: "photo.stack",
+                    title: "投稿まち...",
+                    message: "",
+                    sectionTitle: "今日のタイムライン"
+                )
+            } else {
+                header
+                feedContent
+            }
         }
     }
 
@@ -38,23 +47,16 @@ struct FriendTodayFeedSection: View {
 
     @ViewBuilder
     private var feedContent: some View {
-        if appState.friendTodayStickers.isEmpty {
-            EmptyStateView(
-                systemImage: "text.bubble",
-                title: "タイムライン投稿はありません",
-                message: nil
-            )
-        } else {
-            LazyVStack(spacing: 16) {
-                ForEach(appState.friendTodayStickers) { sticker in
-                    FriendFeedCard(
-                        sticker: sticker,
-                        latestProfile: appState.observedUserProfiles[sticker.authorId]
-                    )
-                }
+        LazyVStack(spacing: 16) {
+            ForEach(appState.friendTodayStickers) { sticker in
+                FriendFeedCard(
+                    sticker: sticker,
+                    latestProfile: appState.observedUserProfiles[sticker.authorId]
+                )
             }
         }
     }
+
 }
 
 private struct FriendFeedCard: View {

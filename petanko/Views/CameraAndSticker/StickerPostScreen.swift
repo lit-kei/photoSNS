@@ -5,6 +5,7 @@ struct StickerPostScreen: View {
     @EnvironmentObject private var appState: AppState
 
     let stickerPNG: Data
+    var originalStickerPNG: Data? = nil
     let draft: StickerDraft
     @State private var selectedGroupIDs: Set<String> = []
     @State private var publishToBlog = true
@@ -148,6 +149,7 @@ struct StickerPostScreen: View {
         let selectedGroups = appState.groups.filter { selectedGroupIDs.contains($0.id) }
         let error = appState.stickerUploadCoordinator.submit(
             stickerPNG: stickerPNG,
+            originalStickerPNG: originalStickerPNG,
             draft: draft,
             groups: selectedGroups,
             publishToBlog: publishToBlog,

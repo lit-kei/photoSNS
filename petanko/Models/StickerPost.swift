@@ -24,6 +24,7 @@ struct StickerPost: Identifiable, Hashable {
     var creationMode: StickerCreationMode
     var effect: StickerEffect
     var stickerImageURL: String
+    var originalStickerImageURL: String
     var layout: StickerLayout
     var createdAt: Date
 
@@ -44,6 +45,7 @@ struct StickerPost: Identifiable, Hashable {
         creationMode: StickerCreationMode = .crop,
         effect: StickerEffect = .original,
         stickerImageURL: String = "",
+        originalStickerImageURL: String = "",
         layout: StickerLayout,
         createdAt: Date = Date()
     ) {
@@ -63,6 +65,7 @@ struct StickerPost: Identifiable, Hashable {
         self.creationMode = creationMode
         self.effect = effect
         self.stickerImageURL = stickerImageURL
+        self.originalStickerImageURL = originalStickerImageURL
         self.layout = layout
         self.createdAt = createdAt
     }
@@ -84,6 +87,7 @@ struct StickerPost: Identifiable, Hashable {
         self.creationMode = StickerCreationMode(rawValue: data["creationMode"] as? String ?? "") ?? .crop
         self.effect = StickerEffect(rawValue: data["effect"] as? String ?? "") ?? .original
         self.stickerImageURL = data["stickerImageURL"] as? String ?? ""
+        self.originalStickerImageURL = data["originalStickerImageURL"] as? String ?? ""
         self.layout = StickerLayout(data["layout"] as? [String: Any] ?? ["stickerId": id])
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
     }
@@ -105,6 +109,7 @@ struct StickerPost: Identifiable, Hashable {
             "creationMode": creationMode.rawValue,
             "effect": effect.rawValue,
             "stickerImageURL": stickerImageURL,
+            "originalStickerImageURL": originalStickerImageURL,
             "layout": layout.dictionary,
             "createdAt": Timestamp(date: createdAt)
         ]

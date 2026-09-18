@@ -102,6 +102,7 @@ final class StickerService {
 
     func uploadSticker(
         stickerPNG: Data,
+        originalStickerPNG: Data? = nil,
         draft: StickerDraft,
         groups: [PetankoGroup],
         publishToBlog: Bool,
@@ -118,11 +119,37 @@ final class StickerService {
               cgImage.height == 512 else {
             throw PetankoError.message("ステッカー画像を512pxで作成できませんでした。")
         }
+        if let originalStickerPNG {
+            guard !originalStickerPNG.isEmpty,
+                  originalStickerPNG.count <= Self.maximumStickerBytes,
+                  let originalImage = UIImage(data: originalStickerPNG),
+                  let originalCGImage = originalImage.cgImage,
+                  originalCGImage.width == 512,
+                  originalCGImage.height == 512 else {
+                throw PetankoError.message("色戻し用の画像を512pxで作成できませんでした。")
+            }
+        }
 
         let assetId = UUID().uuidString
         let dateKey = Date().petankoDateKey
         let storagePath = "stickerAssets/\(user.id)/\(assetId).png"
+        let originalStoragePath = "stickerAssets/\(user.id)/\(assetId)-original.png"
         let stickerURL = try await upload(data: stickerPNG, path: storagePath, onStageChange: onStageChange)
+        let originalStickerURL: URL?
+        if let originalStickerPNG {
+            do {
+                originalStickerURL = try await upload(
+                    data: originalStickerPNG,
+                    path: originalStoragePath,
+                    onStageChange: { _ in }
+                )
+            } catch {
+                try? await storage.reference(withPath: storagePath).delete()
+                throw error
+            }
+        } else {
+            originalStickerURL = nil
+        }
         onStageChange(.savingPost)
         let createdAt = Date()
         var posts: [StickerPost] = []
@@ -155,6 +182,7 @@ final class StickerService {
                     creationMode: draft.creationMode,
                     effect: draft.effect,
                     stickerImageURL: stickerURL.absoluteString,
+                    originalStickerImageURL: originalStickerURL?.absoluteString ?? "",
                     layout: layout,
                     createdAt: createdAt
                 )
@@ -189,6 +217,7 @@ final class StickerService {
                 creationMode: draft.creationMode,
                 effect: draft.effect,
                 stickerImageURL: stickerURL.absoluteString,
+                originalStickerImageURL: originalStickerURL?.absoluteString ?? "",
                 layout: layout,
                 createdAt: createdAt
             )
@@ -196,14 +225,19 @@ final class StickerService {
         posts.append(contentsOf: groupPosts)
 
         let batch = db.batch()
+        var assetData: [String: Any] = [
+            "ownerId": user.id,
+            "storagePath": storagePath,
+            "downloadURL": stickerURL.absoluteString,
+            "referenceCount": posts.count,
+            "createdAt": Timestamp(date: createdAt)
+        ]
+        if let originalStickerURL {
+            assetData["originalStoragePath"] = originalStoragePath
+            assetData["originalDownloadURL"] = originalStickerURL.absoluteString
+        }
         batch.setData(
-            [
-                "ownerId": user.id,
-                "storagePath": storagePath,
-                "downloadURL": stickerURL.absoluteString,
-                "referenceCount": posts.count,
-                "createdAt": Timestamp(date: createdAt)
-            ],
+            assetData,
             forDocument: db.collection("stickerAssets").document(assetId)
         )
         if publishToBlog, let blogPost = posts.first(where: { $0.target == .blog }) {
@@ -228,6 +262,9 @@ final class StickerService {
             try await batch.commit()
         } catch {
             try? await storage.reference(withPath: storagePath).delete()
+            if originalStickerURL != nil {
+                try? await storage.reference(withPath: originalStoragePath).delete()
+            }
             throw error
         }
 
@@ -235,6 +272,9 @@ final class StickerService {
         // continue without delaying the transition back to the home screen.
         Task {
             await RemoteImageCache.shared.store(data: stickerPNG, for: stickerURL)
+            if let originalStickerPNG, let originalStickerURL {
+                await RemoteImageCache.shared.store(data: originalStickerPNG, for: originalStickerURL)
+            }
         }
         return posts
     }
@@ -281,8 +321,14 @@ final class StickerService {
 
         if result as? Bool == true {
             let storagePath = "stickerAssets/\(sticker.authorId)/\(sticker.assetId).png"
+            let originalStoragePath = "stickerAssets/\(sticker.authorId)/\(sticker.assetId)-original.png"
             try? await storage.reference(withPath: storagePath).delete()
+            try? await storage.reference(withPath: originalStoragePath).delete()
             if let url = URL(string: sticker.stickerImageURL) {
+                await RemoteImageCache.shared.remove(for: url)
+            }
+            if let url = URL(string: sticker.originalStickerImageURL),
+               !sticker.originalStickerImageURL.isEmpty {
                 await RemoteImageCache.shared.remove(for: url)
             }
         }

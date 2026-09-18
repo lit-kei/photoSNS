@@ -51,7 +51,7 @@ struct FriendAddScreen: View {
                 .textCase(.uppercase)
                 .autocorrectionDisabled()
                 .textFieldStyle(.plain)
-                .metalTextField()
+                .metalTextField(radius: 0)
 
             
             Button {
@@ -64,7 +64,7 @@ struct FriendAddScreen: View {
                     Label("プロフィールを見る", systemImage: "person.text.rectangle")
                 }
             }
-            .buttonStyle(PrimaryActionButtonStyle())
+            .buttonStyle(PrimaryActionButtonStyle(radius: 0))
             .disabled(playerId.trimmedForPetanko.isEmpty || isSearching)
             .opacity(playerId.trimmedForPetanko.isEmpty ? 0.48 : 1)
             
@@ -86,9 +86,8 @@ struct FriendAddScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
                 .background(AppColors.accentBlue.opacity(0.26))
-                .clipShape(RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                    Rectangle()
                         .stroke(AppColors.border, lineWidth: 0.8)
                 }
             }
@@ -99,8 +98,15 @@ struct FriendAddScreen: View {
                 Label("My QRコードを表示", systemImage: "qrcode")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(AppColors.elevatedSurface.opacity(0.96))
+                    .overlay {
+                        Rectangle()
+                            .stroke(AppColors.border, lineWidth: 0.8)
+                    }
             }
-            .buttonStyle(SecondaryActionButtonStyle())
+            .buttonStyle(.plain)
             .disabled(appState.currentUser == nil)
 
 
@@ -109,19 +115,16 @@ struct FriendAddScreen: View {
     }
 
     private var requestSections: some View {
-        VStack(alignment: .leading, spacing: 28) {
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("届いた申請")
-                    .font(.title3.bold())
-
-                if appState.incomingFriendRequests.isEmpty {
-                    EmptyStateView(
-                        systemImage: "tray",
-                        title: "申請はありません",
-                        message: nil
-                    )
-                } else {
+        VStack(spacing: 18) {
+            if appState.incomingFriendRequests.isEmpty {
+                EmptyStateView(
+                    systemImage: "tray",
+                    title: "申請はありません",
+                    message: nil,
+                    sectionTitle: "届いた申請"
+                )
+            } else {
+                ControlSection(title: "届いた申請", radius: 0) {
                     VStack(spacing: 10) {
                         ForEach(appState.incomingFriendRequests) { request in
                             IncomingRequestRow(request: request)
@@ -130,21 +133,17 @@ struct FriendAddScreen: View {
                 }
             }
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("送信中")
-                    .font(.title3.bold())
-
-                if appState.outgoingFriendRequests.isEmpty {
-                    EmptyStateView(
-                        systemImage: "paperplane",
-                        title: "送信中の申請はありません",
-                        message: nil,
-                        xOffset: -3,
-                        yOffset: 3
-                    )
-                } else {
+            if appState.outgoingFriendRequests.isEmpty {
+                EmptyStateView(
+                    systemImage: "paperplane",
+                    title: "送信中の申請はありません",
+                    message: nil,
+                    sectionTitle: "送信中",
+                    xOffset: -3,
+                    yOffset: 3
+                )
+            } else {
+                ControlSection(title: "送信中", radius: 0) {
                     VStack(spacing: 10) {
                         ForEach(appState.outgoingFriendRequests) { request in
                             OutgoingRequestRow(request: request)
@@ -447,21 +446,20 @@ private struct IncomingRequestRow: View {
                 } label: {
                     Label("承認", systemImage: "checkmark")
                 }
-                .buttonStyle(PrimaryActionButtonStyle())
+                .buttonStyle(PrimaryActionButtonStyle(radius: 0))
 
                 Button {
                     Task { await appState.rejectFriendRequest(request) }
                 } label: {
                     Label("拒否", systemImage: "xmark")
                 }
-                .buttonStyle(SecondaryActionButtonStyle())
+                .buttonStyle(SecondaryActionButtonStyle(radius: 0))
             }
         }
         .padding(12)
         .background(AppColors.surface.opacity(0.94))
-        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+            Rectangle()
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
     }
@@ -480,9 +478,8 @@ private struct OutgoingRequestRow: View {
         }
         .padding(12)
         .background(AppColors.surface.opacity(0.94))
-        .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+            Rectangle()
                 .stroke(AppColors.border, lineWidth: 0.8)
         }
     }

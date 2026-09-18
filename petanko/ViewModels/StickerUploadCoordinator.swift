@@ -23,6 +23,7 @@ enum BackgroundStickerUploadState: Equatable {
 
 private struct PendingStickerUpload {
     let stickerPNG: Data
+    let originalStickerPNG: Data?
     let draft: StickerDraft
     let groups: [PetankoGroup]
     let publishToBlog: Bool
@@ -46,7 +47,14 @@ final class StickerUploadCoordinator: ObservableObject {
         self.networkMonitor = networkMonitor
     }
 
-    func submit(stickerPNG: Data, draft: StickerDraft, groups: [PetankoGroup], publishToBlog: Bool, user: AppUser) -> String? {
+    func submit(
+        stickerPNG: Data,
+        originalStickerPNG: Data? = nil,
+        draft: StickerDraft,
+        groups: [PetankoGroup],
+        publishToBlog: Bool,
+        user: AppUser
+    ) -> String? {
         guard networkMonitor.status == .online else {
             return networkMonitor.status == .checking
                 ? "通信状態を確認しています。少し待ってからもう一度お試しください。"
@@ -57,7 +65,14 @@ final class StickerUploadCoordinator: ObservableObject {
         }
         guard publishToBlog || !groups.isEmpty else { return "ブログまたは投稿先のグループを選択してください。" }
 
-        let upload = PendingStickerUpload(stickerPNG: stickerPNG, draft: draft, groups: groups, publishToBlog: publishToBlog, user: user)
+        let upload = PendingStickerUpload(
+            stickerPNG: stickerPNG,
+            originalStickerPNG: originalStickerPNG,
+            draft: draft,
+            groups: groups,
+            publishToBlog: publishToBlog,
+            user: user
+        )
         failedUpload = nil
         start(upload)
         return nil
@@ -111,6 +126,7 @@ final class StickerUploadCoordinator: ObservableObject {
             do {
                 _ = try await services.stickers.uploadSticker(
                     stickerPNG: upload.stickerPNG,
+                    originalStickerPNG: upload.originalStickerPNG,
                     draft: upload.draft,
                     groups: upload.groups,
                     publishToBlog: upload.publishToBlog,

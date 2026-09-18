@@ -261,6 +261,8 @@ struct SecondaryButton<Label: View>: View {
 }
 
 struct PrimaryActionButtonStyle: ButtonStyle {
+    var radius: CGFloat = AppRadius.button
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
@@ -271,11 +273,11 @@ struct PrimaryActionButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .frame(height: 54)
             .background {
-                RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .fill(AppColors.accentPink)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.button, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
@@ -287,10 +289,16 @@ struct PrimaryActionButtonStyle: ButtonStyle {
 struct SecondaryActionButtonStyle: ButtonStyle {
     let backgroundColor: Color?
     let foregroundColor: Color
+    let radius: CGFloat
 
-    init(backgroundColor: Color? = nil, foregroundColor: Color = AppColors.mainText) {
+    init(
+        backgroundColor: Color? = nil,
+        foregroundColor: Color = AppColors.mainText,
+        radius: CGFloat = AppRadius.button
+    ) {
         self.backgroundColor = backgroundColor
         self.foregroundColor = foregroundColor
+        self.radius = radius
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -302,7 +310,7 @@ struct SecondaryActionButtonStyle: ButtonStyle {
             .frame(height: 52)
             .background {
                 RoundedRectangle(
-                    cornerRadius: AppRadius.button,
+                    cornerRadius: radius,
                     style: .continuous
                 )
                 .fill(
@@ -313,7 +321,7 @@ struct SecondaryActionButtonStyle: ButtonStyle {
             .overlay {
                 if backgroundColor == nil {
                     RoundedRectangle(
-                        cornerRadius: AppRadius.button,
+                        cornerRadius: radius,
                         style: .continuous
                     )
                     .stroke(AppColors.border, lineWidth: 0.8)
@@ -342,15 +350,21 @@ struct ListRowButtonStyle: ButtonStyle {
 
 struct ControlSection<Content: View>: View {
     let title: String
+    let radius: CGFloat
     let content: Content
 
-    init(title: String, @ViewBuilder content: () -> Content) {
+    init(
+        title: String,
+        radius: CGFloat = AppRadius.card,
+        @ViewBuilder content: () -> Content
+    ) {
         self.title = title
+        self.radius = radius
         self.content = content()
     }
 
     var body: some View {
-        MetalCard {
+        MetalCard(radius: radius) {
             VStack(alignment: .leading, spacing: 16) {
                 SectionHeader(title: title)
                 content
@@ -392,6 +406,8 @@ struct IconButton: View {
 }
 
 private struct MetalTextFieldModifier: ViewModifier {
+    let radius: CGFloat
+
     func body(content: Content) -> some View {
         content
             .font(.system(size: 16))
@@ -399,19 +415,19 @@ private struct MetalTextFieldModifier: ViewModifier {
             .padding(.horizontal, 16)
             .frame(minHeight: 54)
             .background {
-                RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .fill(AppColors.elevatedSurface.opacity(0.98))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
     }
 }
 
 extension View {
-    func metalTextField() -> some View {
-        modifier(MetalTextFieldModifier())
+    func metalTextField(radius: CGFloat = AppRadius.field) -> some View {
+        modifier(MetalTextFieldModifier(radius: radius))
     }
 }
 
@@ -506,11 +522,13 @@ struct EmptyStateView: View {
     let xOffset: CGFloat
     let yOffset: CGFloat
     let message: String?
+    let sectionTitle: String?
 
     init(
         systemImage: String,
         title: String,
         message: String? = nil,
+        sectionTitle: String? = nil,
         size: CGFloat = 48,
         xOffset: CGFloat = 0,
         yOffset: CGFloat = 0
@@ -518,79 +536,112 @@ struct EmptyStateView: View {
         self.systemImage = systemImage
         self.title = title
         self.message = message
+        self.sectionTitle = sectionTitle
         self.size = size
         self.xOffset = xOffset
         self.yOffset = yOffset
     }
 
-    static let stickerBorder = Color(
-        red: 0.95,
-        green: 0.94,
-        blue: 0.92
-    )
-
     var body: some View {
-        VStack(spacing: 0) {
-            stickerIcon
-
-            Text(title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(AppColors.secondaryText)
-                .padding(.top, 18)
-
-            if let message {
-                Text(message)
-                    .font(.system(size: 13))
-                    .foregroundStyle(AppColors.secondaryText.opacity(0.75))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .padding(.top, 6)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 32)
+        hardShadowCard
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
     }
 
-    private var stickerIcon: some View {
+    private var hardShadowCard: some View {
         ZStack {
-            // 背景のやわらかい丸
-            Circle()
-                .fill(AppColors.accentPink.opacity(0.08))
-                .frame(width: 110, height: 110)
-            Circle()
-                .stroke(
-                    AppColors.accentPink,
-                    style: StrokeStyle(lineWidth: 1, dash: [4, 4])
-                )
-                .frame(width: 106, height: 106)
+            Rectangle()
+                .fill(Color.black)
+                .offset(x: 9, y: 10)
 
+            Rectangle()
+                .fill(Color(red: 1, green: 0.99, blue: 0.97))
+                .overlay {
+                    Rectangle()
+                        .stroke(Color.black, lineWidth: 2.4)
+                }
 
-            // 左上のテープ
-//            RoundedRectangle(cornerRadius: 4, style: .continuous)
-//                .fill(AppColors.tape.opacity(0.75))
-//                .frame(width: 60, height: 18)
-//                .overlay {
-//                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-//                        .stroke(AppColors.tape.opacity(0.35), lineWidth: 0.6)
-//                }
-//                .rotationEffect(.degrees(-15))
-//                .offset(x: -18, y: -42)
+            VStack(spacing: hasMessage ? 10 : 14) {
+                if let sectionTitle, !sectionTitle.isEmpty {
+                    Text(sectionTitle)
+                        .font(.system(size: 21, weight: .black, design: .rounded))
+                        .foregroundStyle(Color.black.opacity(0.92))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, 2)
+                }
 
-            // 本体
-            Image(systemName: systemImage)
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(AppColors.accentPink)
-                .offset(x: xOffset, y: yOffset)
-                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
-                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
-                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
-                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
-                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
-                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
-                .rotationEffect(.degrees(-4))
+                ZStack {
+                    Rectangle()
+                        .fill(Color.black)
+                        .frame(width: 62, height: 58)
+                        .offset(x: 7, y: 7)
+                        .zIndex(0)
+
+                    ZStack {
+                        Rectangle()
+                            .fill(AppColors.accentPink)
+                            .overlay {
+                                Rectangle()
+                                    .stroke(Color.black, lineWidth: 2)
+                            }
+
+                        Image(systemName: systemImage)
+                            .symbolRenderingMode(.monochrome)
+                            .font(.system(size: min(size, 37), weight: .bold))
+                            .foregroundStyle(Color.black.opacity(0.90))
+                            .offset(x: xOffset, y: yOffset)
+                            .zIndex(2)
+                    }
+                    .frame(width: 62, height: 58)
+                    .zIndex(1)
+                }
+
+                Text(title)
+                    .font(.system(size: 18, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.black.opacity(0.90))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+
+                if let message, !message.isEmpty {
+                    Text(message)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.black.opacity(0.62))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .lineLimit(3)
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
         }
-        .frame(width: 120, height: 110)
+        .frame(
+            width: 300,
+            height: hasSectionTitle
+                ? (hasMessage ? 218 : 194)
+                : (hasMessage ? 172 : 148)
+        )
+        .padding(.trailing, 9)
+        .padding(.bottom, 10)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var hasMessage: Bool {
+        message?.isEmpty == false
+    }
+
+    private var hasSectionTitle: Bool {
+        sectionTitle?.isEmpty == false
+    }
+
+    private var accessibilityText: String {
+        [sectionTitle, title, message]
+            .compactMap { value in
+                guard let value, !value.isEmpty else { return nil }
+                return value
+            }
+            .joined(separator: "。")
     }
 }
 extension AppTab: CaseIterable, Identifiable {

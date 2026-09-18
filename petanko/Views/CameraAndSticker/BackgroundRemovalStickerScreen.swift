@@ -41,6 +41,7 @@ struct BackgroundRemovalStickerScreen: View {
     @State private var isPreparingPreview = false
     @State private var preparationError: String?
     @State private var generatedPNG: Data?
+    @State private var generatedOriginalPNG: Data?
     @State private var isShowingPostScreen = false
     @State private var isInteracting = false
 
@@ -59,7 +60,11 @@ struct BackgroundRemovalStickerScreen: View {
         .navigationTitle("背景透過ステッカー")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isShowingPostScreen) {
-            StickerPostScreen(stickerPNG: generatedPNG ?? Data(), draft: draft)
+            StickerPostScreen(
+                stickerPNG: generatedPNG ?? Data(),
+                originalStickerPNG: generatedOriginalPNG,
+                draft: draft
+            )
         }
         .task(id: extractionAttempt) {
             await viewModel.extract(from: originalImage)
@@ -193,7 +198,7 @@ struct BackgroundRemovalStickerScreen: View {
                 }
 
                 Button {
-                    completeSticker()
+                    completeSticker(from: foreground)
                 } label: {
                     Label("完成", systemImage: "checkmark.circle.fill")
                 }
@@ -279,7 +284,7 @@ struct BackgroundRemovalStickerScreen: View {
         isPreparingPreview = false
     }
 
-    private func completeSticker() {
+    private func completeSticker(from foreground: UIImage) {
         guard let preparedForeground else { return }
         do {
             draft.creationMode = .backgroundRemoval
@@ -287,6 +292,21 @@ struct BackgroundRemovalStickerScreen: View {
                 preparedForeground: preparedForeground,
                 draft: draft
             )
+
+            if draft.effect == .original {
+                generatedOriginalPNG = nil
+            } else {
+                let originalForeground = try BackgroundStickerRenderer.prepareForeground(
+                    foreground,
+                    effect: .original,
+                    decoration: draft.decoration,
+                    outlineColor: UIColor(hex: draft.outlineColorHex) ?? .white
+                )
+                generatedOriginalPNG = try BackgroundStickerRenderer.renderPNG(
+                    preparedForeground: originalForeground,
+                    draft: draft
+                )
+            }
             isShowingPostScreen = true
         } catch {
             preparationError = error.localizedDescription

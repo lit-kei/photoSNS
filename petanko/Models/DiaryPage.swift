@@ -10,6 +10,7 @@ struct DiaryPage: Identifiable, Hashable {
     var backgroundImageURL: String?
     var textItems: [DiaryTextItem]
     var stampItems: [DiaryStampItem]
+    var designItems: [DiaryDesignItem]
     var stickerLayout: [StickerLayout]
     var updatedAt: Date
 
@@ -22,6 +23,7 @@ struct DiaryPage: Identifiable, Hashable {
         backgroundImageURL: String? = nil,
         textItems: [DiaryTextItem] = [],
         stampItems: [DiaryStampItem] = [],
+        designItems: [DiaryDesignItem] = [],
         stickerLayout: [StickerLayout] = [],
         updatedAt: Date = Date()
     ) {
@@ -33,6 +35,7 @@ struct DiaryPage: Identifiable, Hashable {
         self.backgroundImageURL = backgroundImageURL
         self.textItems = textItems
         self.stampItems = stampItems
+        self.designItems = designItems
         self.stickerLayout = stickerLayout
         self.updatedAt = updatedAt
     }
@@ -47,6 +50,7 @@ struct DiaryPage: Identifiable, Hashable {
         self.backgroundImageURL = storedBackgroundImageURL?.isEmpty == false ? storedBackgroundImageURL : nil
         self.textItems = (data["textItems"] as? [[String: Any]] ?? []).map(DiaryTextItem.init)
         self.stampItems = (data["stampItems"] as? [[String: Any]] ?? []).map(DiaryStampItem.init)
+        self.designItems = (data["designItems"] as? [[String: Any]] ?? []).map(DiaryDesignItem.init)
         self.stickerLayout = (data["stickerLayout"] as? [[String: Any]] ?? []).map(StickerLayout.init)
         self.updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
     }
@@ -60,8 +64,152 @@ struct DiaryPage: Identifiable, Hashable {
             "backgroundImageURL": backgroundImageURL ?? "",
             "textItems": textItems.map(\.dictionary),
             "stampItems": stampItems.map(\.dictionary),
+            "designItems": designItems.map(\.dictionary),
             "stickerLayout": stickerLayout.map(\.dictionary),
             "updatedAt": FieldValue.serverTimestamp()
+        ]
+    }
+}
+
+enum DiaryDesignEffect: String, PetankoOption {
+    case invert
+    case tint
+    case translucent
+    case eightBit
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .invert: "部分反転"
+        case .tint: "カラーフィルター"
+        case .translucent: "半透明カラー"
+        case .eightBit: "8ビット"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .invert: "circle.lefthalf.filled.inverse"
+        case .tint: "camera.filters"
+        case .translucent: "rectangle.fill"
+        case .eightBit: "square.grid.3x3.fill"
+        }
+    }
+}
+
+enum DiaryDesignShape: String, PetankoOption {
+    case rectangle
+    case circle
+    case star
+    case heart
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .rectangle: "四角"
+        case .circle: "丸"
+        case .star: "星"
+        case .heart: "ハート"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .rectangle: "square"
+        case .circle: "circle"
+        case .star: "star"
+        case .heart: "heart"
+        }
+    }
+}
+
+struct DiaryDesignItem: Identifiable, Hashable {
+    static let defaultColorHex = "#E11D48"
+    static let defaultBorderColorHex = "#FFFFFF"
+    static let legacyZIndex = -500_000
+
+    let id: String
+    var effect: DiaryDesignEffect
+    var colorHex: String
+    var opacity: Double
+    var hasBorder: Bool
+    var borderColorHex: String
+    var shape: DiaryDesignShape
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+    var rotation: Double
+    var scale: Double
+    var zIndex: Int
+
+    init(
+        id: String = UUID().uuidString,
+        effect: DiaryDesignEffect,
+        colorHex: String = DiaryDesignItem.defaultColorHex,
+        opacity: Double = 0.48,
+        hasBorder: Bool = false,
+        borderColorHex: String = DiaryDesignItem.defaultBorderColorHex,
+        shape: DiaryDesignShape = .rectangle,
+        x: Double = 180,
+        y: Double = 240,
+        width: Double = 170,
+        height: Double = 92,
+        rotation: Double = 0,
+        scale: Double = 1,
+        zIndex: Int = 0
+    ) {
+        self.id = id
+        self.effect = effect
+        self.colorHex = colorHex
+        self.opacity = opacity
+        self.hasBorder = hasBorder
+        self.borderColorHex = borderColorHex
+        self.shape = shape
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.rotation = rotation
+        self.scale = scale
+        self.zIndex = zIndex
+    }
+
+    init(_ data: [String: Any]) {
+        self.id = data["id"] as? String ?? UUID().uuidString
+        self.effect = DiaryDesignEffect(rawValue: data["effect"] as? String ?? "") ?? .translucent
+        self.colorHex = data["colorHex"] as? String ?? DiaryDesignItem.defaultColorHex
+        self.opacity = data["opacity"] as? Double ?? 0.48
+        self.hasBorder = data["hasBorder"] as? Bool ?? false
+        self.borderColorHex = data["borderColorHex"] as? String ?? DiaryDesignItem.defaultBorderColorHex
+        self.shape = DiaryDesignShape(rawValue: data["shape"] as? String ?? "") ?? .rectangle
+        self.x = data["x"] as? Double ?? 180
+        self.y = data["y"] as? Double ?? 240
+        self.width = data["width"] as? Double ?? 170
+        self.height = data["height"] as? Double ?? 92
+        self.rotation = data["rotation"] as? Double ?? 0
+        self.scale = data["scale"] as? Double ?? 1
+        self.zIndex = data["zIndex"] as? Int ?? DiaryDesignItem.legacyZIndex
+    }
+
+    var dictionary: [String: Any] {
+        [
+            "id": id,
+            "effect": effect.rawValue,
+            "colorHex": colorHex,
+            "opacity": opacity,
+            "hasBorder": hasBorder,
+            "borderColorHex": borderColorHex,
+            "shape": shape.rawValue,
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "rotation": rotation,
+            "scale": scale,
+            "zIndex": zIndex
         ]
     }
 }

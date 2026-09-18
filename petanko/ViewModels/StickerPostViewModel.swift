@@ -18,7 +18,14 @@ final class StickerPostViewModel: ObservableObject {
         self.services = services
     }
 
-    func upload(stickerPNG: Data, draft: StickerDraft, groups: [PetankoGroup], publishToBlog: Bool = false, user: AppUser) async -> [StickerPost] {
+    func upload(
+        stickerPNG: Data,
+        originalStickerPNG: Data? = nil,
+        draft: StickerDraft,
+        groups: [PetankoGroup],
+        publishToBlog: Bool = false,
+        user: AppUser
+    ) async -> [StickerPost] {
         guard publishToBlog || !groups.isEmpty else { return [] }
         isUploading = true
         uploadProgress = 0
@@ -29,6 +36,7 @@ final class StickerPostViewModel: ObservableObject {
         do {
             let posts = try await services.stickers.uploadSticker(
                 stickerPNG: stickerPNG,
+                originalStickerPNG: originalStickerPNG,
                 draft: draft,
                 groups: groups,
                 publishToBlog: publishToBlog,
