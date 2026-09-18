@@ -436,14 +436,7 @@ struct MemoriesScreen: View {
         NavigationStack(path: $navigationPath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    HStack(alignment: .center) {
-                        Text("絵日記")
-                            .font(.system(size: 38, weight: .heavy, design: .rounded))
-                            .foregroundStyle(AppColors.accentPink)
-                            .tracking(0.4)
-
-                        Spacer()
-
+                    RootTabNavigationHeader(title: "絵日記") {
                         Button {
                             isShowingGroupOptions = true
                         } label: {
@@ -456,7 +449,7 @@ struct MemoriesScreen: View {
                     GroupListSection()
                 }
                 .padding(.horizontal, AppSpacing.screenHorizontal)
-                .padding(.top, AppSpacing.screenTop + 18)
+                .padding(.top, AppSpacing.screenTop)
                 .padding(.bottom, 16)
             }
             .background {
@@ -487,6 +480,43 @@ struct MemoriesScreen: View {
                 isShowingGroupOptions = false
             }
         }
+    }
+}
+
+struct RootTabNavigationHeader<Trailing: View>: View {
+    let title: String
+    let fontSize: CGFloat
+    let fontWeight: Font.Weight
+    let trailing: Trailing
+
+    init(
+        title: String,
+        fontSize: CGFloat = 28,
+        fontWeight: Font.Weight = .heavy,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.title = title
+        self.fontSize = fontSize
+        self.fontWeight = fontWeight
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack {
+            
+            Text(title)
+                .font(.system(size: fontSize, weight: fontWeight, design: .rounded))
+                .foregroundStyle(AppColors.accentPink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+            
+            
+            Spacer()
+            trailing
+            
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 46)
     }
 }
 
@@ -544,14 +574,7 @@ struct ProfileScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 30) {
-                HStack {
-                    Text("プロフィール")
-                        .font(.system(size: 38, weight: .heavy, design: .rounded))
-                        .foregroundStyle(AppColors.accentPink)
-                        .tracking(0.4)
-
-                    Spacer()
-
+                RootTabNavigationHeader(title: "プロフィール") {
                     NavigationLink {
                         ProfileEditScreen()
                     } label: {
@@ -627,7 +650,7 @@ struct ProfileScreen: View {
                 }
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
-            .padding(.top, AppSpacing.screenTop + 18)
+            .padding(.top, AppSpacing.screenTop)
             .padding(.bottom, 16)
         }
         .background {
