@@ -604,9 +604,15 @@ struct ProfileScreen: View {
                                 Label("My QRコード", systemImage: "qrcode")
                                     .frame(maxWidth: .infinity)
                             }
+                            .buttonStyle(SecondaryActionButtonStyle())
+
+                            NavigationLink {
+                                StickerCollectionScreen()
+                            } label: {
+                                Label("コレクション", systemImage: "square.grid.3x3.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
                             .buttonStyle(PrimaryActionButtonStyle())
-                            
-                            
                         }
                         
                         NavigationLink {
@@ -648,6 +654,175 @@ struct ProfileScreen: View {
             selectedFriendProfile = user
         } else if appState.errorMessage == nil {
             appState.errorMessage = "QRコードのユーザーが見つかりません。"
+        }
+    }
+}
+
+struct StickerCollectionScreen: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var stickers: [StickerPost] = []
+    @State private var selectedSticker: StickerPost?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
+
+    var body: some View {
+        ScrollView {
+            content
+                .padding(.horizontal, AppSpacing.screenHorizontal)
+                .padding(.top, AppSpacing.screenTop)
+                .padding(.bottom, 20)
+        }
+        .background {
+            PetankoMetalBackground()
+        }
+        .navigationTitle("コレクション")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: appState.currentUser?.id) {
+            await loadCollection()
+        }
+        .refreshable {
+            await loadCollection(showLoading: false)
+        }
+        .sheet(item: $selectedSticker) { sticker in
+            CollectionStickerDetailSheet(sticker: sticker)
+                .presentationDetents([.medium])
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if isLoading {
+            VStack {
+                ProgressView()
+                    .tint(AppColors.mainText)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 80)
+        } else if let errorMessage {
+            VStack(spacing: 14) {
+                EmptyStateView(
+                    systemImage: "exclamationmark.triangle.fill",
+                    title: "読み込めませんでした",
+                    message: errorMessage
+                )
+
+                Button {
+                    Task { await loadCollection() }
+                } label: {
+                    Label("再読み込み", systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
+            }
+        } else if stickers.isEmpty {
+            EmptyStateView(
+                systemImage: "square.grid.3x3.fill",
+                title: "まだステッカーがありません",
+                message: "作成したステッカーがここに集まります。"
+            )
+            .frame(maxWidth: .infinity)
+            .padding(.top, 48)
+        } else {
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(stickers) { sticker in
+                    Button {
+                        selectedSticker = sticker
+                    } label: {
+                        CollectionStickerTile(sticker: sticker)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func loadCollection(showLoading: Bool = true) async {
+        if showLoading {
+            isLoading = true
+        }
+        errorMessage = nil
+        do {
+            stickers = try await appState.fetchMyCollectionStickers()
+        } catch {
+            stickers = []
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+}
+
+private struct CollectionStickerTile: View {
+    let sticker: StickerPost
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .fill(AppColors.elevatedSurface.opacity(0.96))
+
+            RemoteStickerView(sticker: sticker, size: 86)
+                .padding(10)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(AppColors.border, lineWidth: 0.8)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+    }
+}
+
+private struct CollectionStickerDetailSheet: View {
+    let sticker: StickerPost
+    @State private var photoSaveMessage: String?
+    @State private var isSavingToPhotos = false
+
+    var body: some View {
+        VStack(spacing: 18) {
+            RemoteStickerView(sticker: sticker, size: 180)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Label(sticker.createdAt.petankoDateTimeText, systemImage: "clock.fill")
+
+                Label(sticker.comment.isEmpty ? "コメントなし" : sticker.comment, systemImage: "bubble.left.fill")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.headline)
+            .foregroundStyle(AppColors.mainText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                saveStickerToPhotos()
+            } label: {
+                Label(isSavingToPhotos ? "保存中…" : "写真を保存", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryActionButtonStyle())
+            .disabled(isSavingToPhotos || sticker.stickerImageURL.isEmpty)
+        }
+        .padding(24)
+        .alert("写真への保存", isPresented: Binding(
+            get: { photoSaveMessage != nil },
+            set: { if !$0 { photoSaveMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(photoSaveMessage ?? "")
+        }
+    }
+
+    private func saveStickerToPhotos() {
+        guard !isSavingToPhotos else { return }
+        isSavingToPhotos = true
+        Task {
+            do {
+                try await StickerPhotoLibraryService.saveSticker(from: sticker.stickerImageURL)
+                photoSaveMessage = "ステッカーを写真に保存しました。"
+            } catch {
+                photoSaveMessage = error.localizedDescription
+            }
+            isSavingToPhotos = false
         }
     }
 }
@@ -1005,9 +1180,6 @@ struct BlockedUsersScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("ブロックしたユーザー")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(AppColors.mainText)
 
                 if appState.blockedUsers.isEmpty {
                     EmptyStateView(systemImage: "hand.raised", title: "ブロック中のユーザーはいません", message: nil)
@@ -1026,6 +1198,7 @@ struct BlockedUsersScreen: View {
         .background {
             PetankoMetalBackground()
         }
+        .navigationTitle("ブロックしたユーザー")
         .navigationBarTitleDisplayMode(.inline)
         .alert("ブロック解除", isPresented: Binding(
             get: { message != nil },

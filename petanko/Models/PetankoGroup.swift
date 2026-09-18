@@ -17,7 +17,7 @@ struct PetankoGroup: Identifiable, Hashable {
     init(
         id: String = UUID().uuidString,
         name: String,
-        icon: String = "📘",
+        icon: String = "petanko",
         iconURL: String? = nil,
         inviteCode: String,
         ownerId: String,
@@ -43,7 +43,7 @@ struct PetankoGroup: Identifiable, Hashable {
     init(id: String, data: [String: Any]) {
         self.id = id
         self.name = data["name"] as? String ?? "グループ"
-        self.icon = data["icon"] as? String ?? "📘"
+        self.icon = data["icon"] as? String ?? "petanko"
         self.iconURL = data["iconURL"] as? String
         self.inviteCode = data["inviteCode"] as? String ?? ""
         self.ownerId = data["ownerId"] as? String ?? ""

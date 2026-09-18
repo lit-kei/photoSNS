@@ -124,6 +124,12 @@ final class GroupService {
         return PetankoGroup(id: document.documentID, data: document.data())
     }
 
+    func fetchGroup(id: String) async throws -> PetankoGroup? {
+        let document = try await db.collection("groups").document(id).getDocument()
+        guard document.exists, let data = document.data() else { return nil }
+        return PetankoGroup(id: document.documentID, data: data)
+    }
+
     func joinGroup(inviteCode: String, currentUser: AppUser) async throws {
         guard let authUserId = Auth.auth().currentUser?.uid else {
             throw PetankoError.message("ログイン情報を確認できませんでした。")
@@ -237,7 +243,13 @@ final class GroupService {
         try await batch.commit()
     }
 
-    func updateGroup(group: PetankoGroup, name: String, icon: String, iconImageData: Data? = nil) async throws {
+    func updateGroup(
+        group: PetankoGroup,
+        name: String,
+        icon: String,
+        iconImageData: Data? = nil,
+        removeIconImage: Bool = false
+    ) async throws {
         let trimmedName = name.trimmedForPetanko
         guard !trimmedName.isEmpty else {
             throw PetankoError.message("グループ名を入力してください。")
@@ -253,6 +265,8 @@ final class GroupService {
             let iconURL = try await uploadGroupIcon(groupId: group.id, imageData: iconImageData)
             uploadedIconURL = iconURL
             data["iconURL"] = iconURL.absoluteString
+        } else if removeIconImage {
+            data["iconURL"] = FieldValue.delete()
         }
 
         do {
@@ -264,10 +278,11 @@ final class GroupService {
             throw error
         }
 
-        if let oldIconURL = group.iconURL,
-           let uploadedIconURL,
-           oldIconURL != uploadedIconURL.absoluteString {
-            await deleteGroupIcon(at: oldIconURL)
+        if let oldIconURL = group.iconURL {
+            let uploadedURLString = uploadedIconURL?.absoluteString
+            if removeIconImage || (uploadedURLString != nil && oldIconURL != uploadedURLString) {
+                await deleteGroupIcon(at: oldIconURL)
+            }
         }
     }
 
