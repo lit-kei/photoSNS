@@ -28,7 +28,8 @@ struct FriendTodayFeedSection: View {
                     systemImage: "photo.stack",
                     title: "投稿まち...",
                     message: "",
-                    sectionTitle: "今日のタイムライン"
+                    sectionTitle: "今日のタイムライン",
+                    style: .collage(.timeline)
                 )
             } else {
                 header

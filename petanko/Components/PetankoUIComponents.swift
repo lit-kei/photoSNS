@@ -515,6 +515,19 @@ struct MemberAvatarStack: View {
         }
     }
 }
+enum EmptyStateStyle {
+    case hardShadow
+    case collage(EmptyStateCollageStyle)
+}
+
+enum EmptyStateCollageStyle {
+    case incomingRequests
+    case outgoingRequests
+    case groups
+    case friends
+    case timeline
+}
+
 struct EmptyStateView: View {
     let systemImage: String
     let title: String
@@ -523,12 +536,14 @@ struct EmptyStateView: View {
     let yOffset: CGFloat
     let message: String?
     let sectionTitle: String?
+    let style: EmptyStateStyle
 
     init(
         systemImage: String,
         title: String,
         message: String? = nil,
         sectionTitle: String? = nil,
+        style: EmptyStateStyle = .hardShadow,
         size: CGFloat = 48,
         xOffset: CGFloat = 0,
         yOffset: CGFloat = 0
@@ -537,15 +552,96 @@ struct EmptyStateView: View {
         self.title = title
         self.message = message
         self.sectionTitle = sectionTitle
+        self.style = style
         self.size = size
         self.xOffset = xOffset
         self.yOffset = yOffset
     }
 
     var body: some View {
-        hardShadowCard
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
+        Group {
+            switch style {
+            case .hardShadow:
+                hardShadowCard
+            case .collage(let collageStyle):
+                collageCard(collageStyle)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, collageVerticalPadding)
+    }
+
+    private var collageVerticalPadding: CGFloat {
+        switch style {
+        case .hardShadow, .collage(.groups), .collage(.friends), .collage(.timeline): 24
+        case .collage(.incomingRequests), .collage(.outgoingRequests): 6
+        }
+    }
+
+    @ViewBuilder
+    private func collageCard(_ collageStyle: EmptyStateCollageStyle) -> some View {
+        switch collageStyle {
+        case .incomingRequests:
+            incomingRequestCollage
+        case .outgoingRequests:
+            outgoingRequestCollage
+        case .groups:
+            groupCollage
+        case .friends:
+            friendCollage
+        case .timeline:
+            timelineCollage
+        }
+    }
+
+    private var incomingRequestCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: sectionTitle ?? "届いた申請",
+            title: "０件です",
+            variant: .incoming
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var outgoingRequestCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: sectionTitle ?? "送信中",
+            title: "０件です",
+            variant: .outgoing
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var groupCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: "PETANKO GROUP",
+            title: "グループは\nまだない",
+            variant: .groups
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var friendCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: "PETANKO FRIENDS",
+            title: "今はまだ\nひとり",
+            variant: .friends
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var timelineCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: sectionTitle ?? "今日のタイムライン",
+            title: title,
+            variant: .timeline
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
     }
 
     private var hardShadowCard: some View {
@@ -644,6 +740,370 @@ struct EmptyStateView: View {
             .joined(separator: "。")
     }
 }
+
+private enum PixelPlaqueVariant {
+    case incoming
+    case outgoing
+    case groups
+    case friends
+    case timeline
+}
+
+private struct PixelEmptyStateLogo: View {
+    let kicker: String
+    let title: String
+    let variant: PixelPlaqueVariant
+
+    private let accent = AppColors.accentPink
+    private let deepAccent = Color(red: 0.56, green: 0.28, blue: 0.02)
+
+    var body: some View {
+        ZStack {
+            PixelPlaqueShape(variant: variant)
+                .fill(deepAccent)
+                .frame(width: 252, height: 116)
+                .offset(x: 5, y: 11)
+
+            PixelPlaqueShape(variant: variant)
+                .fill(accent)
+                .frame(width: 252, height: 116)
+                .offset(y: 5)
+
+            PixelPlaqueShape(variant: variant)
+                .fill(Color.white)
+                .overlay {
+                    PixelPlaqueShape(variant: variant)
+                        .stroke(accent, style: StrokeStyle(lineWidth: 5, lineJoin: .miter))
+                }
+                .frame(width: 252, height: 116)
+
+            VStack(spacing: 1) {
+                Text(kicker)
+                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                    .foregroundStyle(accent)
+                    .tracking(1)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .frame(width: 190)
+
+                PixelStatusText(
+                    text: title,
+                    color: accent,
+                    shadowColor: deepAccent
+                )
+            }
+            .offset(y: 2)
+
+        }
+        .frame(width: 312, height: 174)
+    }
+}
+
+private struct PixelStatusText: View {
+    let text: String
+    let color: Color
+    let shadowColor: Color
+
+    var body: some View {
+        ZStack {
+            label
+                .foregroundStyle(shadowColor)
+                .offset(x: 1.25, y: 1.75)
+
+            label
+                .foregroundStyle(color)
+        }
+    }
+
+    private var label: some View {
+        Text(text)
+            .font(.system(size: 25, weight: .black, design: .monospaced))
+            .tracking(-0.8)
+            .multilineTextAlignment(.center)
+            .lineSpacing(-5)
+            .lineLimit(2)
+            .minimumScaleFactor(0.78)
+            .frame(width: 222, height: 69)
+    }
+}
+
+private struct PixelPlaqueShape: Shape {
+    let variant: PixelPlaqueVariant
+
+    func path(in rect: CGRect) -> Path {
+        let points = points(for: variant)
+
+        var path = Path()
+        guard let first = points.first else { return path }
+        path.move(to: CGPoint(x: rect.minX + first.x * rect.width, y: rect.minY + first.y * rect.height))
+        for point in points.dropFirst() {
+            path.addLine(to: CGPoint(x: rect.minX + point.x * rect.width, y: rect.minY + point.y * rect.height))
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    private func points(for variant: PixelPlaqueVariant) -> [CGPoint] {
+        switch variant {
+        case .incoming:
+            return [
+                CGPoint(x: 0.08, y: 0.05), CGPoint(x: 0.24, y: 0.05), CGPoint(x: 0.24, y: 0),
+                CGPoint(x: 0.42, y: 0), CGPoint(x: 0.42, y: 0.07), CGPoint(x: 0.70, y: 0.07),
+                CGPoint(x: 0.70, y: 0.02), CGPoint(x: 0.86, y: 0.02), CGPoint(x: 0.86, y: 0.11),
+                CGPoint(x: 0.95, y: 0.11), CGPoint(x: 0.95, y: 0.27), CGPoint(x: 1, y: 0.27),
+                CGPoint(x: 1, y: 0.72), CGPoint(x: 0.94, y: 0.72), CGPoint(x: 0.94, y: 0.90),
+                CGPoint(x: 0.77, y: 0.90), CGPoint(x: 0.77, y: 0.98), CGPoint(x: 0.54, y: 0.98),
+                CGPoint(x: 0.54, y: 0.92), CGPoint(x: 0.31, y: 0.92), CGPoint(x: 0.31, y: 1),
+                CGPoint(x: 0.14, y: 1), CGPoint(x: 0.14, y: 0.91), CGPoint(x: 0.04, y: 0.91),
+                CGPoint(x: 0.04, y: 0.73), CGPoint(x: 0, y: 0.73), CGPoint(x: 0, y: 0.29),
+                CGPoint(x: 0.05, y: 0.29), CGPoint(x: 0.05, y: 0.13), CGPoint(x: 0.08, y: 0.13)
+            ]
+        case .outgoing:
+            return [
+                CGPoint(x: 0.04, y: 0.12), CGPoint(x: 0.29, y: 0.12), CGPoint(x: 0.29, y: 0.04),
+                CGPoint(x: 0.52, y: 0.04), CGPoint(x: 0.52, y: 0), CGPoint(x: 0.73, y: 0),
+                CGPoint(x: 0.73, y: 0.10), CGPoint(x: 0.90, y: 0.10), CGPoint(x: 0.90, y: 0.25),
+                CGPoint(x: 0.96, y: 0.25), CGPoint(x: 0.96, y: 0.39), CGPoint(x: 1, y: 0.39),
+                CGPoint(x: 1, y: 0.62), CGPoint(x: 0.94, y: 0.62), CGPoint(x: 0.94, y: 0.82),
+                CGPoint(x: 0.82, y: 0.82), CGPoint(x: 0.82, y: 0.94), CGPoint(x: 0.57, y: 0.94),
+                CGPoint(x: 0.57, y: 1), CGPoint(x: 0.34, y: 1), CGPoint(x: 0.34, y: 0.92),
+                CGPoint(x: 0.12, y: 0.92), CGPoint(x: 0.12, y: 0.82), CGPoint(x: 0.03, y: 0.82),
+                CGPoint(x: 0.03, y: 0.65), CGPoint(x: 0, y: 0.65), CGPoint(x: 0, y: 0.28),
+                CGPoint(x: 0.04, y: 0.28)
+            ]
+        case .groups:
+            return [
+                CGPoint(x: 0.09, y: 0.09), CGPoint(x: 0.18, y: 0.09), CGPoint(x: 0.18, y: 0.02),
+                CGPoint(x: 0.36, y: 0.02), CGPoint(x: 0.36, y: 0.10), CGPoint(x: 0.62, y: 0.10),
+                CGPoint(x: 0.62, y: 0), CGPoint(x: 0.80, y: 0), CGPoint(x: 0.80, y: 0.06),
+                CGPoint(x: 0.93, y: 0.06), CGPoint(x: 0.93, y: 0.20), CGPoint(x: 1, y: 0.20),
+                CGPoint(x: 1, y: 0.69), CGPoint(x: 0.96, y: 0.69), CGPoint(x: 0.96, y: 0.88),
+                CGPoint(x: 0.84, y: 0.88), CGPoint(x: 0.84, y: 0.96), CGPoint(x: 0.63, y: 0.96),
+                CGPoint(x: 0.63, y: 0.90), CGPoint(x: 0.40, y: 0.90), CGPoint(x: 0.40, y: 1),
+                CGPoint(x: 0.22, y: 1), CGPoint(x: 0.22, y: 0.94), CGPoint(x: 0.07, y: 0.94),
+                CGPoint(x: 0.07, y: 0.82), CGPoint(x: 0, y: 0.82), CGPoint(x: 0, y: 0.34),
+                CGPoint(x: 0.04, y: 0.34), CGPoint(x: 0.04, y: 0.16), CGPoint(x: 0.09, y: 0.16)
+            ]
+        case .friends:
+            return [
+                CGPoint(x: 0.05, y: 0.17), CGPoint(x: 0.13, y: 0.17), CGPoint(x: 0.13, y: 0.06),
+                CGPoint(x: 0.31, y: 0.06), CGPoint(x: 0.31, y: 0), CGPoint(x: 0.54, y: 0),
+                CGPoint(x: 0.54, y: 0.07), CGPoint(x: 0.76, y: 0.07), CGPoint(x: 0.76, y: 0.02),
+                CGPoint(x: 0.91, y: 0.02), CGPoint(x: 0.91, y: 0.15), CGPoint(x: 0.97, y: 0.15),
+                CGPoint(x: 0.97, y: 0.32), CGPoint(x: 1, y: 0.32), CGPoint(x: 1, y: 0.76),
+                CGPoint(x: 0.92, y: 0.76), CGPoint(x: 0.92, y: 0.93), CGPoint(x: 0.73, y: 0.93),
+                CGPoint(x: 0.73, y: 1), CGPoint(x: 0.48, y: 1), CGPoint(x: 0.48, y: 0.94),
+                CGPoint(x: 0.26, y: 0.94), CGPoint(x: 0.26, y: 0.88), CGPoint(x: 0.09, y: 0.88),
+                CGPoint(x: 0.09, y: 0.78), CGPoint(x: 0.02, y: 0.78), CGPoint(x: 0.02, y: 0.58),
+                CGPoint(x: 0, y: 0.58), CGPoint(x: 0, y: 0.29), CGPoint(x: 0.05, y: 0.29)
+            ]
+        case .timeline:
+            return [
+                CGPoint(x: 0.06, y: 0.10), CGPoint(x: 0.27, y: 0.10), CGPoint(x: 0.27, y: 0.02),
+                CGPoint(x: 0.45, y: 0.02), CGPoint(x: 0.45, y: 0), CGPoint(x: 0.59, y: 0),
+                CGPoint(x: 0.59, y: 0.08), CGPoint(x: 0.84, y: 0.08), CGPoint(x: 0.84, y: 0.14),
+                CGPoint(x: 0.95, y: 0.14), CGPoint(x: 0.95, y: 0.30), CGPoint(x: 1, y: 0.30),
+                CGPoint(x: 1, y: 0.74), CGPoint(x: 0.95, y: 0.74), CGPoint(x: 0.95, y: 0.87),
+                CGPoint(x: 0.81, y: 0.87), CGPoint(x: 0.81, y: 0.95), CGPoint(x: 0.59, y: 0.95),
+                CGPoint(x: 0.59, y: 1), CGPoint(x: 0.43, y: 1), CGPoint(x: 0.43, y: 0.93),
+                CGPoint(x: 0.21, y: 0.93), CGPoint(x: 0.21, y: 0.98), CGPoint(x: 0.08, y: 0.98),
+                CGPoint(x: 0.08, y: 0.84), CGPoint(x: 0.02, y: 0.84), CGPoint(x: 0.02, y: 0.68),
+                CGPoint(x: 0, y: 0.68), CGPoint(x: 0, y: 0.27), CGPoint(x: 0.06, y: 0.27)
+            ]
+        }
+    }
+}
+
+private struct StickerOutlinedText: View {
+    let text: String
+    let fontSize: CGFloat
+    let width: CGFloat
+
+    private let outlineOffsets: [CGSize] = [
+        CGSize(width: -3.5, height: -3.5),
+        CGSize(width: 0, height: -4),
+        CGSize(width: 3.5, height: -3.5),
+        CGSize(width: -4, height: 0),
+        CGSize(width: 4, height: 0),
+        CGSize(width: -3.5, height: 3.5),
+        CGSize(width: 0, height: 4),
+        CGSize(width: 3.5, height: 3.5)
+    ]
+
+    var body: some View {
+        ZStack {
+            ForEach(outlineOffsets.indices, id: \.self) { index in
+                label
+                    .foregroundStyle(Color.black)
+                    .offset(outlineOffsets[index])
+            }
+
+            label
+                .foregroundStyle(Color.white)
+        }
+    }
+
+    private var label: some View {
+        Text(text)
+            .font(.system(size: fontSize, weight: .black, design: .rounded))
+            .tracking(0.4)
+            .multilineTextAlignment(.center)
+            .lineSpacing(-5)
+            .lineLimit(2)
+            .minimumScaleFactor(0.82)
+            .frame(width: width)
+    }
+}
+
+private struct StickerCloudShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.61))
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.20, y: rect.minY + rect.height * 0.30),
+            control1: CGPoint(x: rect.minX - rect.width * 0.02, y: rect.minY + rect.height * 0.48),
+            control2: CGPoint(x: rect.minX + rect.width * 0.06, y: rect.minY + rect.height * 0.28)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.42, y: rect.minY + rect.height * 0.18),
+            control1: CGPoint(x: rect.minX + rect.width * 0.26, y: rect.minY + rect.height * 0.06),
+            control2: CGPoint(x: rect.minX + rect.width * 0.35, y: rect.minY + rect.height * 0.09)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.63, y: rect.minY + rect.height * 0.23),
+            control1: CGPoint(x: rect.minX + rect.width * 0.50, y: rect.minY - rect.height * 0.02),
+            control2: CGPoint(x: rect.minX + rect.width * 0.59, y: rect.minY + rect.height * 0.05)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.89, y: rect.minY + rect.height * 0.36),
+            control1: CGPoint(x: rect.minX + rect.width * 0.75, y: rect.minY + rect.height * 0.08),
+            control2: CGPoint(x: rect.minX + rect.width * 0.91, y: rect.minY + rect.height * 0.17)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.91, y: rect.minY + rect.height * 0.70),
+            control1: CGPoint(x: rect.maxX + rect.width * 0.02, y: rect.minY + rect.height * 0.48),
+            control2: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.66)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.67, y: rect.minY + rect.height * 0.83),
+            control1: CGPoint(x: rect.minX + rect.width * 0.86, y: rect.minY + rect.height * 0.91),
+            control2: CGPoint(x: rect.minX + rect.width * 0.74, y: rect.minY + rect.height * 0.91)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.38, y: rect.minY + rect.height * 0.86),
+            control1: CGPoint(x: rect.minX + rect.width * 0.56, y: rect.maxY),
+            control2: CGPoint(x: rect.minX + rect.width * 0.47, y: rect.minY + rect.height * 0.79)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.61),
+            control1: CGPoint(x: rect.minX + rect.width * 0.25, y: rect.maxY),
+            control2: CGPoint(x: rect.minX + rect.width * 0.04, y: rect.minY + rect.height * 0.87)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct StickerArrowShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let points: [CGPoint] = [
+            CGPoint(x: 0.04, y: 0.31), CGPoint(x: 0.22, y: 0.25),
+            CGPoint(x: 0.27, y: 0.08), CGPoint(x: 0.43, y: 0.20),
+            CGPoint(x: 0.58, y: 0.06), CGPoint(x: 0.68, y: 0.23),
+            CGPoint(x: 0.87, y: 0.18), CGPoint(x: 0.82, y: 0.37),
+            CGPoint(x: 0.98, y: 0.50), CGPoint(x: 0.80, y: 0.64),
+            CGPoint(x: 0.85, y: 0.84), CGPoint(x: 0.65, y: 0.76),
+            CGPoint(x: 0.55, y: 0.95), CGPoint(x: 0.41, y: 0.78),
+            CGPoint(x: 0.23, y: 0.88), CGPoint(x: 0.20, y: 0.69),
+            CGPoint(x: 0.04, y: 0.62), CGPoint(x: 0.12, y: 0.47)
+        ]
+
+        var path = Path()
+        guard let first = points.first else { return path }
+        path.move(to: CGPoint(x: rect.minX + first.x * rect.width, y: rect.minY + first.y * rect.height))
+        for point in points.dropFirst() {
+            path.addLine(to: CGPoint(x: rect.minX + point.x * rect.width, y: rect.minY + point.y * rect.height))
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct StickerOrganicShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.28))
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.34, y: rect.minY + rect.height * 0.08),
+            control1: CGPoint(x: rect.minX - rect.width * 0.01, y: rect.minY + rect.height * 0.12),
+            control2: CGPoint(x: rect.minX + rect.width * 0.17, y: rect.minY - rect.height * 0.02)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.66, y: rect.minY + rect.height * 0.14),
+            control1: CGPoint(x: rect.minX + rect.width * 0.44, y: rect.minY + rect.height * 0.18),
+            control2: CGPoint(x: rect.minX + rect.width * 0.56, y: rect.minY - rect.height * 0.02)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.91, y: rect.minY + rect.height * 0.31),
+            control1: CGPoint(x: rect.minX + rect.width * 0.79, y: rect.minY + rect.height * 0.05),
+            control2: CGPoint(x: rect.maxX + rect.width * 0.03, y: rect.minY + rect.height * 0.16)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.88, y: rect.minY + rect.height * 0.75),
+            control1: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.46),
+            control2: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.69)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.57, y: rect.minY + rect.height * 0.88),
+            control1: CGPoint(x: rect.minX + rect.width * 0.78, y: rect.maxY + rect.height * 0.02),
+            control2: CGPoint(x: rect.minX + rect.width * 0.68, y: rect.minY + rect.height * 0.78)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.28, y: rect.minY + rect.height * 0.92),
+            control1: CGPoint(x: rect.minX + rect.width * 0.48, y: rect.maxY),
+            control2: CGPoint(x: rect.minX + rect.width * 0.39, y: rect.minY + rect.height * 0.84)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.08, y: rect.minY + rect.height * 0.68),
+            control1: CGPoint(x: rect.minX + rect.width * 0.13, y: rect.maxY + rect.height * 0.05),
+            control2: CGPoint(x: rect.minX - rect.width * 0.01, y: rect.minY + rect.height * 0.84)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.28),
+            control1: CGPoint(x: rect.minX - rect.width * 0.03, y: rect.minY + rect.height * 0.54),
+            control2: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.45)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct StickerBurstShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let points: [CGPoint] = [
+            CGPoint(x: 0.08, y: 0.34), CGPoint(x: 0.20, y: 0.27),
+            CGPoint(x: 0.23, y: 0.09), CGPoint(x: 0.39, y: 0.20),
+            CGPoint(x: 0.51, y: 0.04), CGPoint(x: 0.61, y: 0.22),
+            CGPoint(x: 0.79, y: 0.14), CGPoint(x: 0.82, y: 0.31),
+            CGPoint(x: 0.97, y: 0.40), CGPoint(x: 0.88, y: 0.55),
+            CGPoint(x: 0.94, y: 0.76), CGPoint(x: 0.75, y: 0.73),
+            CGPoint(x: 0.67, y: 0.95), CGPoint(x: 0.50, y: 0.80),
+            CGPoint(x: 0.34, y: 0.93), CGPoint(x: 0.27, y: 0.76),
+            CGPoint(x: 0.08, y: 0.74), CGPoint(x: 0.13, y: 0.56),
+            CGPoint(x: 0.02, y: 0.46)
+        ]
+
+        var path = Path()
+        guard let first = points.first else { return path }
+        path.move(to: CGPoint(x: rect.minX + first.x * rect.width, y: rect.minY + first.y * rect.height))
+        for point in points.dropFirst() {
+            path.addLine(to: CGPoint(x: rect.minX + point.x * rect.width, y: rect.minY + point.y * rect.height))
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
 extension AppTab: CaseIterable, Identifiable {
     var id: Self { self }
 

@@ -121,7 +121,8 @@ struct FriendAddScreen: View {
                     systemImage: "tray",
                     title: "申請はありません",
                     message: nil,
-                    sectionTitle: "届いた申請"
+                    sectionTitle: "届いた申請",
+                    style: .collage(.incomingRequests)
                 )
             } else {
                 ControlSection(title: "届いた申請", radius: 0) {
@@ -139,6 +140,7 @@ struct FriendAddScreen: View {
                     title: "送信中の申請はありません",
                     message: nil,
                     sectionTitle: "送信中",
+                    style: .collage(.outgoingRequests),
                     xOffset: -3,
                     yOffset: 3
                 )
@@ -152,6 +154,9 @@ struct FriendAddScreen: View {
                 }
             }
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity)
     }
 
     private func searchUser() async {

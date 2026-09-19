@@ -257,7 +257,13 @@ private struct GroupListSection: View {
             SectionHeader(title: "グループ")
 
             if appState.groups.isEmpty {
-                EmptyStateView(systemImage: "person.3", title: "まだグループがありません", message: "", size: 44)
+                EmptyStateView(
+                    systemImage: "person.3",
+                    title: "まだグループがありません",
+                    message: "",
+                    style: .collage(.groups),
+                    size: 44
+                )
             } else {
                 VStack(spacing: 0) {
                     ForEach(appState.groups) { group in
