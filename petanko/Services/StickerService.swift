@@ -100,6 +100,25 @@ final class StickerService {
         }
     }
 
+    func fetchUserCollectionStickers(userId: String, limit: Int = 240) async throws -> [StickerPost] {
+        let snapshot = try await db.collection("stickers")
+            .whereField("authorId", isEqualTo: userId)
+            .getDocuments()
+
+        let sortedStickers = snapshot.documents
+            .map { StickerPost(id: $0.documentID, data: $0.data()) }
+            .sorted { $0.createdAt > $1.createdAt }
+
+        var seenAssetIds: Set<String> = []
+        let uniqueStickers = sortedStickers.filter { sticker in
+            let dedupeKey = sticker.assetId.isEmpty ? sticker.id : sticker.assetId
+            guard !seenAssetIds.contains(dedupeKey) else { return false }
+            seenAssetIds.insert(dedupeKey)
+            return true
+        }
+        return Array(uniqueStickers.prefix(limit))
+    }
+
     func uploadSticker(
         stickerPNG: Data,
         originalStickerPNG: Data? = nil,

@@ -172,10 +172,33 @@ final class AppState: ObservableObject {
         }
     }
 
-    func updateGroup(group: PetankoGroup, name: String, icon: String, iconImageData: Data? = nil) async {
+    func updateGroup(
+        group: PetankoGroup,
+        name: String,
+        icon: String,
+        iconImageData: Data? = nil,
+        removeIconImage: Bool = false
+    ) async {
         do {
-            try await services.groups.updateGroup(group: group, name: name, icon: icon, iconImageData: iconImageData)
+            try await services.groups.updateGroup(
+                group: group,
+                name: name,
+                icon: icon,
+                iconImageData: iconImageData,
+                removeIconImage: removeIconImage
+            )
+            await refreshGroup(group.id)
         } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func refreshGroup(_ groupId: String) async {
+        do {
+            guard let refreshedGroup = try await services.groups.fetchGroup(id: groupId) else { return }
+            upsertGroup(refreshedGroup)
+        } catch {
+            guard !error.isPetankoOfflineFirestoreError else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -364,6 +387,15 @@ final class AppState: ObservableObject {
         }
     }
 
+    func fetchMyCollectionStickers(limit: Int = 240) async throws -> [StickerPost] {
+        guard let currentUser else { return [] }
+        do {
+            return try await services.stickers.fetchUserCollectionStickers(userId: currentUser.id, limit: limit)
+        } catch {
+            throw PetankoError.message(userFriendlyMessage(for: error, fallback: "コレクションを読み込めませんでした。"))
+        }
+    }
+
     func openNotifications() {
         selectedTab = .home
         isShowingNotifications = true
@@ -442,6 +474,15 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    private func upsertGroup(_ group: PetankoGroup) {
+        if let index = groups.firstIndex(where: { $0.id == group.id }) {
+            groups[index] = group
+        } else {
+            groups.insert(group, at: 0)
+        }
+        groups.sort { $0.createdAt > $1.createdAt }
     }
 
     private func observeGroupReadStates(for userId: String) {

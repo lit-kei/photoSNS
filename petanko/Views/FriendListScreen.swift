@@ -8,14 +8,7 @@ struct FriendListScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                HStack(alignment: .center) {
-                    Text("友達一覧")
-                        .font(.system(size: 38, weight: .heavy, design: .rounded))
-                        .foregroundStyle(AppColors.accentPink)
-                        .tracking(0.4)
-
-                    Spacer()
-
+                RootTabNavigationHeader(title: "友達一覧") {
                     NavigationLink {
                         FriendAddScreen()
                     } label: {
@@ -56,7 +49,7 @@ struct FriendListScreen: View {
                 }
             }
             .padding(.horizontal, AppSpacing.screenHorizontal)
-            .padding(.top, AppSpacing.screenTop + 18)
+            .padding(.top, AppSpacing.screenTop)
             .padding(.bottom, 16)
         }
         .background {

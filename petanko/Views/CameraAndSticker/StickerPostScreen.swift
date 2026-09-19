@@ -60,7 +60,7 @@ struct StickerPostScreen: View {
                                 toggleAllGroups()
                             } label: {
                                 HStack {
-                                    Text(areAllGroupsSelected ? "グループをすべて解除" : "グループをすべて選択")
+                                    Text("グループをすべて選択")
                                         .font(.subheadline.weight(.semibold))
                                     Spacer()
                                     Image(systemName: areAllGroupsSelected ? "checkmark.circle.fill" : "circle")

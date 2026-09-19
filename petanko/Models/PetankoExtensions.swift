@@ -24,6 +24,13 @@ extension Date {
         formatter.dateFormat = "M/d"
         return "\(formatter.string(from: self)) の絵日記"
     }
+
+    nonisolated var petankoDateTimeText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy年M月d日 HH:mm"
+        return formatter.string(from: self)
+    }
 }
 
 extension String {

@@ -58,6 +58,7 @@ struct DiaryEditorScreen: View {
     @State private var editorBottomSheetHeight: CGFloat = 0
     @State private var lockRenewalTask: Task<Void, Never>?
     @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
+    @State private var isShowingBackgroundPhotoPicker = false
     @State private var backgroundImageData: Data?
     @State private var isShowingBackgroundCamera = false
     @State private var backgroundImageError: String?
@@ -212,6 +213,12 @@ struct DiaryEditorScreen: View {
                 }
             }
         }
+        .photosPicker(
+            isPresented: $isShowingBackgroundPhotoPicker,
+            selection: $selectedBackgroundPhotoItem,
+            matching: .images,
+            photoLibrary: .shared()
+        )
         .sheet(isPresented: $isShowingFontPicker) {
             DiaryFontPicker(
                 selectedFontName: selectedFontNameBinding,
@@ -383,6 +390,7 @@ struct DiaryEditorScreen: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(["★", "♥", "!!", "→", "✦", "♪"], id: \.self) { stamp in
+                            let isSelectedStampSymbol = selectedStamp?.symbol == stamp
                             Button {
                                 if case .stamp(let stampID) = selectedElement {
                                     // 選択中のスタンプを書き換える
@@ -399,7 +407,7 @@ struct DiaryEditorScreen: View {
                                     .frame(width: 50, height: 42)
                             }
                             .buttonStyle(.bordered)
-                            .tint(AppColors.mainText)
+                            .tint(isSelectedStampSymbol ? AppColors.burntOrange : AppColors.mainText)
                         }
                     }
                 }
@@ -640,62 +648,31 @@ struct DiaryEditorScreen: View {
 
         case .background:
             VStack(alignment: .leading, spacing: 9) {
-                HStack(spacing: 8) {
-                    PhotosPicker(
-                        selection: $selectedBackgroundPhotoItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        backgroundSourceLabel("写真フォルダ", systemImage: "photo.on.rectangle")
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-                            backgroundImageError = "この端末ではカメラを使用できません。"
-                            return
-                        }
-                        isShowingBackgroundCamera = true
-                    } label: {
-                        backgroundSourceLabel("カメラ", systemImage: "camera.fill")
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if isUsingCustomBackground {
-                    HStack(spacing: 8) {
-                        Label("写真を背景に使用中", systemImage: "checkmark.circle.fill")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(AppColors.mainText)
-
-                        Spacer(minLength: 4)
-
-                        Button(role: .destructive) {
-                            removeCustomBackground()
-                        } label: {
-                            Label("写真を外す", systemImage: "xmark")
-                                .font(.caption.weight(.bold))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(height: 38)
-                    .background(AppColors.accentPink.opacity(0.14), in: Capsule())
-                }
-
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(ScrapbookBackground.allCases) { background in
-                            Button {
-                                selectPresetBackground(background)
-                            } label: {
-                                Text(background.title)
-                                    .font(.subheadline.weight(.semibold))
-                                    .padding(.horizontal, 14)
-                                    .frame(height: 42)
+                        Menu {
+                            Button("カメラ") {
+                                openBackgroundCamera()
                             }
-                            .buttonStyle(.bordered)
-                            .tint(!isUsingCustomBackground && draftDiary?.background == background ? AppColors.burntOrange : AppColors.mainText)
+                            Button("写真フォルダ") {
+                                isShowingBackgroundPhotoPicker = true
+                            }
+                        } label: {
+                            Text("オリジナル")
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 14)
+                                .frame(height: 42)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(isUsingCustomBackground ? AppColors.burntOrange : AppColors.mainText)
+
+                        ForEach(ScrapbookBackground.allCases) { background in
+                            backgroundOptionButton(
+                                title: background.title,
+                                isSelected: !isUsingCustomBackground && draftDiary?.background == background
+                            ) {
+                                selectPresetBackground(background)
+                            }
                         }
                     }
                 }
@@ -925,21 +902,27 @@ struct DiaryEditorScreen: View {
         )
     }
 
-    private func backgroundSourceLabel(_ title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.subheadline.weight(.bold))
-            .foregroundStyle(AppColors.mainText)
-            .lineLimit(1)
-            .minimumScaleFactor(0.78)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(
-                AppColors.accentPink.opacity(0.16),
-                in: RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
-                    .stroke(AppColors.accentPink.opacity(0.45), lineWidth: 1)
-            }
+    private func backgroundOptionButton(
+        title: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 14)
+                .frame(height: 42)
+        }
+        .buttonStyle(.bordered)
+        .tint(isSelected ? AppColors.burntOrange : AppColors.mainText)
+    }
+
+    private func openBackgroundCamera() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            backgroundImageError = "この端末ではカメラを使用できません。"
+            return
+        }
+        isShowingBackgroundCamera = true
     }
 
     private func applyBackgroundImageData(_ data: Data) {
@@ -961,12 +944,6 @@ struct DiaryEditorScreen: View {
 
     private func selectPresetBackground(_ background: ScrapbookBackground) {
         draftDiary?.background = background
-        draftDiary?.backgroundImageURL = nil
-        backgroundImageData = nil
-        selectedBackgroundPhotoItem = nil
-    }
-
-    private func removeCustomBackground() {
         draftDiary?.backgroundImageURL = nil
         backgroundImageData = nil
         selectedBackgroundPhotoItem = nil

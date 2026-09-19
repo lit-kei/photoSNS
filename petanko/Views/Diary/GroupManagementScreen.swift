@@ -13,12 +13,13 @@ struct GroupManagementScreen: View {
     @Environment(\.dismiss) private var dismiss
     let initialMode: Mode
     @State private var groupName = ""
-    @State private var groupIcon = "📘"
+    @State private var groupIcon = GroupIconPreset.petankoValue
     @State private var selectedIconItem: PhotosPickerItem?
     @State private var selectedIconData: Data?
     @State private var inviteCode = ""
     @State private var candidateGroup: PetankoGroup?
     @State private var lookupTask: Task<Void, Never>?
+    @State private var isCreating = false
     @State private var isJoining = false
     @State private var groupToLeave: PetankoGroup?
 
@@ -54,69 +55,46 @@ struct GroupManagementScreen: View {
                 if initialMode != .join {
                     ControlSection(title: "グループを作る") {
                         VStack(spacing: 12) {
+                            GroupIconPicker(
+                                icon: $groupIcon,
+                                selectedIconItem: $selectedIconItem,
+                                selectedIconData: $selectedIconData,
+                                existingIconURL: nil,
+                                previewSize: 118,
+                                onPresetSelected: {},
+                                onPhotoSelected: {}
+                            )
+
                             TextField("グループ名", text: $groupName)
                                 .textFieldStyle(.plain)
                                 .metalTextField()
 
-                            PhotosPicker(selection: $selectedIconItem, matching: .images, photoLibrary: .shared()) {
-                                HStack(spacing: 12) {
-                                    GroupIconView(icon: groupIcon, iconURL: nil, imageData: selectedIconData, size: 52, fontSize: 24)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text("写真からアイコンを選ぶ")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundStyle(AppColors.mainText)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "photo")
-                                        .foregroundStyle(AppColors.secondaryText)
-                                }
-                                .padding(12)
-                                .background(AppColors.surface.opacity(0.94))
-                                .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                                        .stroke(AppColors.border, lineWidth: 0.8)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .onChange(of: selectedIconItem) { _, item in
-                                Task {
-                                    guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
-                                    selectedIconData = data
-                                }
-                            }
-
-                            HStack(spacing: 8) {
-                                ForEach(["📘", "🏖", "🎒", "🎪", "🎂", "🎤"], id: \.self) { icon in
-                                    Button(icon) {
-                                        groupIcon = icon
-                                        selectedIconData = nil
-                                        selectedIconItem = nil
-                                    }
-                                        .font(.title2)
-                                        .frame(width: 42, height: 42)
-                                        .background(icon == groupIcon ? AppColors.silver.opacity(0.34) : AppColors.surface.opacity(0.94))
-                                        .clipShape(Circle())
-                                }
-                            }
-
                             Button {
                                 Task {
+                                    isCreating = true
                                     let didCreate = await appState.createGroup(name: groupName, icon: groupIcon, iconImageData: selectedIconData)
+                                    isCreating = false
                                     if didCreate, initialMode == .create {
                                         dismiss()
                                         return
                                     }
                                     guard didCreate else { return }
                                     groupName = ""
+                                    groupIcon = GroupIconPreset.petankoValue
                                     selectedIconData = nil
                                     selectedIconItem = nil
                                 }
                             } label: {
-                                Label("グループを作る", systemImage: "person.badge.plus")
+                                if isCreating {
+                                    ProgressView()
+                                        .tint(AppColors.mainText)
+                                } else {
+                                    Label("グループを作る", systemImage: "person.badge.plus")
+                                }
                             }
                             .buttonStyle(PrimaryActionButtonStyle())
-                            .disabled(groupName.trimmedForPetanko.isEmpty)
+                            .disabled(groupName.trimmedForPetanko.isEmpty || isCreating)
+                            .opacity(groupName.trimmedForPetanko.isEmpty || isCreating ? 0.48 : 1)
                         }
                     }
                 }
@@ -218,6 +196,7 @@ struct GroupEditScreen: View {
     @State private var groupIcon: String
     @State private var selectedIconItem: PhotosPickerItem?
     @State private var selectedIconData: Data?
+    @State private var isRemovingExistingIconImage = false
     @State private var isSaving = false
     @State private var isConfirmingLeave = false
     @State private var selectedMemberProfile: AppUser?
@@ -226,58 +205,30 @@ struct GroupEditScreen: View {
     init(group: PetankoGroup) {
         self.group = group
         _groupName = State(initialValue: group.name)
-        _groupIcon = State(initialValue: group.icon)
+        _groupIcon = State(initialValue: GroupIconPreset.normalizedValue(group.icon))
+    }
+
+    private var currentGroup: PetankoGroup {
+        appState.groups.first(where: { $0.id == group.id }) ?? group
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("グループ編集")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(AppColors.mainText)
-
                 ControlSection(title: "アイコン") {
-                    VStack(spacing: 12) {
-                        PhotosPicker(selection: $selectedIconItem, matching: .images, photoLibrary: .shared()) {
-                            HStack(spacing: 12) {
-                                GroupIconView(icon: groupIcon, iconURL: group.iconURL, imageData: selectedIconData, size: 56, fontSize: 25)
-                                Text("写真から選ぶ")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(AppColors.mainText)
-                                Spacer()
-                                Image(systemName: "photo")
-                                    .foregroundStyle(AppColors.secondaryText)
-                            }
-                            .padding(12)
-                            .background(AppColors.surface.opacity(0.94))
-                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                                    .stroke(AppColors.border, lineWidth: 0.8)
-                            }
+                    GroupIconPicker(
+                        icon: $groupIcon,
+                        selectedIconItem: $selectedIconItem,
+                        selectedIconData: $selectedIconData,
+                        existingIconURL: isRemovingExistingIconImage ? nil : currentGroup.iconURL,
+                        previewSize: 118,
+                        onPresetSelected: {
+                            isRemovingExistingIconImage = true
+                        },
+                        onPhotoSelected: {
+                            isRemovingExistingIconImage = false
                         }
-                        .buttonStyle(.plain)
-                        .onChange(of: selectedIconItem) { _, item in
-                            Task {
-                                guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
-                                selectedIconData = data
-                            }
-                        }
-
-                        HStack(spacing: 8) {
-                            ForEach(["📘", "🏖", "🎒", "🎪", "🎂", "🎤"], id: \.self) { icon in
-                                Button(icon) {
-                                    groupIcon = icon
-                                    selectedIconData = nil
-                                    selectedIconItem = nil
-                                }
-                                .font(.title2)
-                                .frame(width: 42, height: 42)
-                                .background(icon == groupIcon && selectedIconData == nil ? AppColors.silver.opacity(0.34) : AppColors.surface.opacity(0.94))
-                                .clipShape(Circle())
-                            }
-                        }
-                    }
+                    )
                 }
 
                 ControlSection(title: "グループ名") {
@@ -289,7 +240,13 @@ struct GroupEditScreen: View {
                 Button {
                     Task {
                         isSaving = true
-                        await appState.updateGroup(group: group, name: groupName, icon: groupIcon, iconImageData: selectedIconData)
+                        await appState.updateGroup(
+                            group: currentGroup,
+                            name: groupName,
+                            icon: groupIcon,
+                            iconImageData: selectedIconData,
+                            removeIconImage: isRemovingExistingIconImage && selectedIconData == nil
+                        )
                         isSaving = false
                         dismiss()
                     }
@@ -303,6 +260,7 @@ struct GroupEditScreen: View {
                 }
                 .buttonStyle(PrimaryActionButtonStyle())
                 .disabled(groupName.trimmedForPetanko.isEmpty || isSaving)
+                .opacity(groupName.trimmedForPetanko.isEmpty || isSaving ? 0.48 : 1)
 
                 ControlSection(title: "メンバー") {
                     VStack(spacing: 0) {
@@ -310,7 +268,7 @@ struct GroupEditScreen: View {
                             GroupMemberRow(
                                 member: member,
                                 isCurrentUser: member.id == appState.currentUser?.id,
-                                isOwner: member.id == group.ownerId,
+                                isOwner: member.id == currentGroup.ownerId,
                                 isLoading: loadingMemberIds.contains(member.id)
                             ) {
                                 Task { await openMemberProfile(member) }
@@ -334,14 +292,19 @@ struct GroupEditScreen: View {
         .background {
             PetankoMetalBackground()
         }
+        .navigationTitle("グループ編集")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $selectedMemberProfile) { user in
             FriendProfileScreen(user: user)
         }
+        .task {
+            await appState.refreshGroup(group.id)
+            syncFormWithCurrentGroup()
+        }
         .confirmationDialog("グループから脱退しますか？", isPresented: $isConfirmingLeave, titleVisibility: .visible) {
             Button("脱退", role: .destructive) {
                 Task {
-                    let didLeave = await appState.leaveGroup(group)
+                    let didLeave = await appState.leaveGroup(currentGroup)
                     if didLeave {
                         dismiss()
                     }
@@ -349,14 +312,14 @@ struct GroupEditScreen: View {
             }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("\(group.name)から脱退します。")
+            Text("\(currentGroup.name)から脱退します。")
         }
     }
 
     private var memberSummaries: [GroupMemberSummary] {
-        group.memberIds.enumerated().map { index, id in
-            let name = group.memberNames.indices.contains(index) ? group.memberNames[index] : ""
-            let avatar = group.memberAvatars.indices.contains(index) ? group.memberAvatars[index] : ""
+        currentGroup.memberIds.enumerated().map { index, id in
+            let name = currentGroup.memberNames.indices.contains(index) ? currentGroup.memberNames[index] : ""
+            let avatar = currentGroup.memberAvatars.indices.contains(index) ? currentGroup.memberAvatars[index] : ""
             return GroupMemberSummary(
                 id: id,
                 name: name.isEmpty ? "petanko user" : name,
@@ -370,6 +333,14 @@ struct GroupEditScreen: View {
         let profile = await appState.loadUserProfile(userId: member.id)
         loadingMemberIds.remove(member.id)
         selectedMemberProfile = profile ?? member.fallbackUser
+    }
+
+    private func syncFormWithCurrentGroup() {
+        groupName = currentGroup.name
+        groupIcon = GroupIconPreset.normalizedValue(currentGroup.icon)
+        selectedIconItem = nil
+        selectedIconData = nil
+        isRemovingExistingIconImage = false
     }
 }
 
@@ -401,6 +372,144 @@ private struct GroupMemberSummary: Identifiable, Hashable {
 
     var displayAvatar: String {
         isSystemImage ? "" : avatarValue
+    }
+}
+
+private struct GroupIconPreset: Identifiable, Hashable {
+    static let petankoValue = "petanko"
+
+    let value: String
+    let color: Color?
+
+    var id: String { value }
+
+    static let colorOptions: [GroupIconPreset] = [
+        GroupIconPreset(value: "color:#C477A2", color: Color(red: 0.77, green: 0.47, blue: 0.64)),
+        GroupIconPreset(value: "color:#F7B267", color: Color(red: 0.97, green: 0.70, blue: 0.40)),
+        GroupIconPreset(value: "color:#91C27C", color: Color(red: 0.57, green: 0.76, blue: 0.49)),
+        GroupIconPreset(value: "color:#6699E8", color: Color(red: 0.40, green: 0.60, blue: 0.91)),
+        GroupIconPreset(value: "color:#FFB31A", color: Color(red: 1.0, green: 0.70, blue: 0.10))
+    ]
+
+    static func normalizedValue(_ value: String) -> String {
+        if value == petankoValue || value.hasPrefix("color:#") {
+            return value
+        }
+        return petankoValue
+    }
+}
+
+private struct GroupIconPicker: View {
+    @Binding var icon: String
+    @Binding var selectedIconItem: PhotosPickerItem?
+    @Binding var selectedIconData: Data?
+    let existingIconURL: String?
+    let previewSize: CGFloat
+    let onPresetSelected: () -> Void
+    let onPhotoSelected: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            GroupIconView(
+                icon: icon,
+                iconURL: existingIconURL,
+                imageData: selectedIconData,
+                size: previewSize,
+                fontSize: previewSize * 0.44
+            )
+            .frame(maxWidth: .infinity)
+
+            Divider()
+                .padding(.vertical, 2)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    PhotosPicker(selection: $selectedIconItem, matching: .images, photoLibrary: .shared()) {
+                        CircleIconOption(isSelected: selectedIconData != nil) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 26, weight: .medium))
+                                .foregroundStyle(AppColors.secondaryText)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        selectPreset(GroupIconPreset.petankoValue)
+                    } label: {
+                        CircleIconOption(isSelected: selectedIconData == nil && icon == GroupIconPreset.petankoValue) {
+                            Image("BootSplashIcon")
+                                .resizable()
+                                .scaledToFill()
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(GroupIconPreset.colorOptions) { option in
+                        Button {
+                            selectPreset(option.value)
+                        } label: {
+                            CircleIconOption(isSelected: selectedIconData == nil && icon == option.value) {
+                                Circle()
+                                    .fill(option.color ?? AppColors.chromeHighlight)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 1)
+                .padding(.vertical, 2)
+            }
+        }
+        .onChange(of: selectedIconItem) { _, item in
+            Task {
+                guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
+                selectedIconData = data
+                onPhotoSelected()
+            }
+        }
+    }
+
+    private func selectPreset(_ value: String) {
+        icon = value
+        selectedIconData = nil
+        selectedIconItem = nil
+        onPresetSelected()
+    }
+}
+
+private struct CircleIconOption<Content: View>: View {
+    let isSelected: Bool
+    let content: () -> Content
+
+    init(isSelected: Bool, @ViewBuilder content: @escaping () -> Content) {
+        self.isSelected = isSelected
+        self.content = content
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(AppColors.surface.opacity(0.96))
+            content()
+                .clipShape(Circle())
+
+            Circle()
+                .stroke(isSelected ? AppColors.mainText.opacity(0.58) : AppColors.border, lineWidth: isSelected ? 2 : 1)
+
+            if isSelected {
+                Circle()
+                    .fill(AppColors.mainText.opacity(0.72))
+                    .frame(width: 22, height: 22)
+                    .overlay {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .offset(x: 17, y: 17)
+            }
+        }
+        .frame(width: 58, height: 58)
+        .contentShape(Circle())
     }
 }
 
@@ -535,17 +644,36 @@ struct GroupIconView: View {
                     .scaledToFill()
             } else if let iconURL, !iconURL.isEmpty {
                 RemoteImageView(urlString: iconURL) {
-                    Text(icon)
-                        .font(.system(size: fontSize))
+                    fallbackIcon
                 }
+            } else if let color = icon.petankoGroupIconColor {
+                color
             } else {
-                Text(icon)
-                    .font(.system(size: fontSize))
+                fallbackIcon
             }
         }
         .frame(width: size, height: size)
         .background(AppColors.chromeHighlight.opacity(0.78))
         .clipShape(Circle())
         .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+    }
+
+    private var fallbackIcon: some View {
+        Image("BootSplashIcon")
+            .resizable()
+            .scaledToFill()
+    }
+}
+
+private extension String {
+    var petankoGroupIconColor: Color? {
+        guard hasPrefix("color:#") else { return nil }
+        let hex = String(dropFirst("color:#".count))
+        guard hex.count == 6, let value = Int(hex, radix: 16) else { return nil }
+        return Color(
+            red: Double((value >> 16) & 0xFF) / 255.0,
+            green: Double((value >> 8) & 0xFF) / 255.0,
+            blue: Double(value & 0xFF) / 255.0
+        )
     }
 }

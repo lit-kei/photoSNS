@@ -19,6 +19,10 @@ struct DiaryScreen: View {
         _viewModel = StateObject(wrappedValue: DiaryViewModel(group: group))
     }
 
+    private var currentGroup: PetankoGroup {
+        appState.groups.first(where: { $0.id == group.id }) ?? group
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             VStack(spacing: 0) {
@@ -63,7 +67,7 @@ struct DiaryScreen: View {
         .background {
             PetankoMetalBackground()
         }
-        .navigationTitle(group.name)
+        .navigationTitle(currentGroup.name)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
@@ -76,7 +80,7 @@ struct DiaryScreen: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    GroupEditScreen(group: group)
+                    GroupEditScreen(group: currentGroup)
                 } label: {
                     Image(systemName: "person.3")
                 }
@@ -84,6 +88,7 @@ struct DiaryScreen: View {
             }
         }
         .onAppear {
+            Task { await appState.refreshGroup(group.id) }
             appState.markGroupAsRead(group.id)
             viewModel.start()
         }
