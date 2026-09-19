@@ -156,6 +156,9 @@ service cloud.firestore {
 
     match /diaries/{diaryId} {
       allow read, create, update: if signedIn();
+      allow delete: if signedIn()
+        && resource.data.groupId is string
+        && isGroupOwner(resource.data.groupId);
     }
 
     match /stickers/{stickerId} {
