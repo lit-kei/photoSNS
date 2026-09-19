@@ -104,13 +104,25 @@ final class AppState: ObservableObject {
         }
     }
 
-    func completeProfile(displayName: String, avatar: String) async {
+    func completeProfile(displayName: String, avatar: String, avatarImageData: Data? = nil) async {
         guard let pendingAccount else { return }
         isAuthenticating = true
         defer { isAuthenticating = false }
 
+        var uploadedAvatarURL: URL?
+        var didPersistProfile = false
         do {
-            let user = try await services.auth.createProfile(account: pendingAccount, displayName: displayName, avatar: avatar, termsAcceptedAt: pendingTermsAcceptedAt)
+            if let avatarImageData {
+                uploadedAvatarURL = try await services.auth.uploadProfileImage(userId: pendingAccount.uid, imageData: avatarImageData)
+            }
+            let user = try await services.auth.createProfile(
+                account: pendingAccount,
+                displayName: displayName,
+                avatar: avatar,
+                avatarURL: uploadedAvatarURL?.absoluteString,
+                termsAcceptedAt: pendingTermsAcceptedAt
+            )
+            didPersistProfile = true
             self.pendingAccount = nil
             pendingTermsAcceptedAt = nil
             currentUser = user
@@ -118,7 +130,10 @@ final class AppState: ObservableObject {
             authState = .signedIn
             observeSignedInData(for: user.id)
         } catch {
-            errorMessage = error.localizedDescription
+            if let uploadedAvatarURL, !didPersistProfile {
+                await services.auth.deleteProfileImage(at: uploadedAvatarURL.absoluteString)
+            }
+            errorMessage = userFriendlyMessage(for: error, fallback: "プロフィールを作成できませんでした。もう一度お試しください。")
         }
     }
 
@@ -135,7 +150,10 @@ final class AppState: ObservableObject {
     func createGroup(name: String, icon: String, iconImageData: Data? = nil) async -> Bool {
         guard let currentUser else { return false }
         do {
-            _ = try await services.groups.createGroup(name: name, icon: icon, iconImageData: iconImageData, currentUser: currentUser)
+            let group = try await services.groups.createGroup(name: name, icon: icon, iconImageData: iconImageData, currentUser: currentUser)
+            upsertGroup(group)
+            selectedTab = .memories
+            memoriesNavigationResetID = UUID()
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -680,7 +698,7 @@ final class AppState: ObservableObject {
             let account = try await operation()
             try await finishAuthentication(account: account)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = userFriendlyMessage(for: error, fallback: "ログインまたはアカウント作成ができませんでした。入力内容を確認してください。")
         }
     }
 
@@ -849,6 +867,9 @@ final class AppState: ObservableObject {
         }
         if error.isPetankoPermissionDeniedFirestoreError {
             return "Firestoreの権限設定により処理できませんでした。ルールがデプロイ済みか確認してください。"
+        }
+        if let authMessage = error.petankoAuthErrorMessage {
+            return authMessage
         }
         if error.isPetankoInvalidPasswordAuthError {
             return "パスワードが正しくありません。"

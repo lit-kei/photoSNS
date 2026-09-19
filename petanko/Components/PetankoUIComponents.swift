@@ -616,7 +616,7 @@ struct EmptyStateView: View {
 
     private var groupCollage: some View {
         PixelEmptyStateLogo(
-            kicker: "PETANKO GROUP",
+            kicker: nil,
             title: "グループは\nまだない",
             variant: .groups
         )
@@ -626,7 +626,7 @@ struct EmptyStateView: View {
 
     private var friendCollage: some View {
         PixelEmptyStateLogo(
-            kicker: "PETANKO FRIENDS",
+            kicker: nil,
             title: "今はまだ\nひとり",
             variant: .friends
         )
@@ -750,7 +750,7 @@ private enum PixelPlaqueVariant {
 }
 
 private struct PixelEmptyStateLogo: View {
-    let kicker: String
+    let kicker: String?
     let title: String
     let variant: PixelPlaqueVariant
 
@@ -778,13 +778,15 @@ private struct PixelEmptyStateLogo: View {
                 .frame(width: 252, height: 116)
 
             VStack(spacing: 1) {
-                Text(kicker)
-                    .font(.system(size: 12, weight: .black, design: .monospaced))
-                    .foregroundStyle(accent)
-                    .tracking(1)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .frame(width: 190)
+                if let kicker = kicker {
+                    Text(kicker)
+                        .font(.system(size: 12, weight: .black, design: .monospaced))
+                        .foregroundStyle(accent)
+                        .tracking(1)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .frame(width: 190)
+                }
 
                 PixelStatusText(
                     text: title,

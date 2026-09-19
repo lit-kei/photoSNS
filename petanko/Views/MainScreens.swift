@@ -233,12 +233,17 @@ private struct GroupActionCard: View {
                         .foregroundStyle(AppColors.darkSilver)
                 }
                 .padding(.vertical, 14)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
 
                 actionDivider
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private var actionDivider: some View {

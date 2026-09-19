@@ -28,7 +28,10 @@ struct StickerPostScreen: View {
                                 .stroke(AppColors.border, lineWidth: 0.8)
                         }
                 } else {
-                    EmptyStateView(systemImage: "exclamationmark.triangle.fill", title: "ステッカー生成待ち", message: "戻ってもう一度「完成」を押してください。")
+                    compactNotice(
+                        systemImage: "exclamationmark.triangle.fill",
+                        title: "ステッカー生成待ち"
+                    )
                 }
 
                 postingGuidelineMessage
@@ -54,7 +57,10 @@ struct StickerPostScreen: View {
                         .buttonStyle(ListRowButtonStyle())
 
                         if appState.groups.isEmpty {
-                            EmptyStateView(systemImage: "person.3.fill", title: "グループ投稿先がありません", message: "ブログだけでも投稿できます。")
+                            compactNotice(
+                                systemImage: "person.3.fill",
+                                title: "グループ投稿先がありません"
+                            )
                         } else {
                             Button {
                                 toggleAllGroups()
@@ -97,7 +103,7 @@ struct StickerPostScreen: View {
                     networkMonitor: appState.networkMonitor,
                     coordinator: appState.stickerUploadCoordinator,
                     isSelectionValid: (publishToBlog || !selectedGroupIDs.isEmpty) && !stickerPNG.isEmpty,
-                    title: uploadButtonTitle,
+                    title: "投稿",
                     onSubmit: submit
                 )
             }
@@ -117,6 +123,27 @@ struct StickerPostScreen: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(submissionError ?? "")
+        }
+    }
+
+    private func compactNotice(systemImage: String, title: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText)
+
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 42)
+        .background(AppColors.surface.opacity(0.72), in: RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
+                .stroke(AppColors.border.opacity(0.8), lineWidth: 0.8)
         }
     }
 
@@ -162,14 +189,6 @@ struct StickerPostScreen: View {
         }
     }
 
-    private var uploadButtonTitle: String {
-        switch (publishToBlog, selectedGroupIDs.count) {
-        case (false, 0):
-            return "投稿先を選択してください"
-        default:
-            return "投稿"
-        }
-    }
 
     private var areAllGroupsSelected: Bool {
         !appState.groups.isEmpty && selectedGroupIDs.count == appState.groups.count

@@ -3,7 +3,9 @@
 //  petanko
 //
 
+import PhotosUI
 import SwiftUI
+import UIKit
 
 struct AuthScreen: View {
     @EnvironmentObject private var appState: AppState
@@ -36,6 +38,7 @@ struct AuthScreen: View {
                         Spacer(minLength: isCompact ? 10 : 24)
 
                         authForm
+                            .frame(minHeight: authFormMinimumHeight(isCompact: isCompact), alignment: .top)
 
                         Spacer(minLength: isCompact ? 84 : 98)
                     }
@@ -109,6 +112,10 @@ struct AuthScreen: View {
                 .animation(nil, value: mode)
             }
         }
+    }
+
+    private func authFormMinimumHeight(isCompact: Bool) -> CGFloat {
+        mode == .signIn ? (isCompact ? 326 : 366) : 0
     }
 
     @ViewBuilder
@@ -289,6 +296,8 @@ struct UsernameSetupScreen: View {
     @EnvironmentObject private var appState: AppState
     let email: String
     @State private var displayName = ""
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedPhotoData: Data?
 
     var body: some View {
         NavigationStack {
@@ -308,21 +317,16 @@ struct UsernameSetupScreen: View {
                         }
                         .padding(.top, 62)
 
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 70, weight: .regular))
-                            .foregroundStyle(AppColors.mainText.opacity(0.72))
-                            .frame(width: 118, height: 118)
-                            .background {
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [AppColors.elevatedSurface, AppColors.dustyPink.opacity(0.24), AppColors.paperCream],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                            SignupProfilePhotoPickerLabel(imageData: selectedPhotoData)
+                        }
+                        .buttonStyle(.plain)
+                        .onChange(of: selectedPhotoItem) { _, item in
+                            Task {
+                                guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
+                                selectedPhotoData = data
                             }
-                            .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+                        }
 
                         MetalCard(padding: 16) {
                             VStack(alignment: .leading, spacing: 10) {
@@ -345,7 +349,13 @@ struct UsernameSetupScreen: View {
                         }
 
                         Button {
-                            Task { await appState.completeProfile(displayName: displayName, avatar: "") }
+                            Task {
+                                await appState.completeProfile(
+                                    displayName: displayName,
+                                    avatar: "",
+                                    avatarImageData: selectedPhotoData
+                                )
+                            }
                         } label: {
                             if appState.isAuthenticating {
                                 ProgressView()
@@ -364,6 +374,51 @@ struct UsernameSetupScreen: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+}
+
+private struct SignupProfilePhotoPickerLabel: View {
+    let imageData: Data?
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            avatarContent
+                .frame(width: 118, height: 118)
+                .background {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [AppColors.elevatedSurface, AppColors.dustyPink.opacity(0.24), AppColors.paperCream],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                .clipShape(Circle())
+                .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+
+            Image(systemName: "camera.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppColors.mainText)
+                .frame(width: 34, height: 34)
+                .background(AppColors.elevatedSurface.opacity(0.96))
+                .clipShape(Circle())
+                .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+        }
+        .accessibilityLabel("プロフィール画像を選ぶ")
+    }
+
+    @ViewBuilder
+    private var avatarContent: some View {
+        if let imageData, let uiImage = UIImage(data: imageData) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+        } else {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 70, weight: .regular))
+                .foregroundStyle(AppColors.mainText.opacity(0.72))
         }
     }
 }

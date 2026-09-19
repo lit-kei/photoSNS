@@ -408,6 +408,10 @@ private struct GroupIconPicker: View {
     let onPresetSelected: () -> Void
     let onPhotoSelected: () -> Void
 
+    private var isShowingPhotoIcon: Bool {
+        selectedIconData != nil || (existingIconURL?.isEmpty == false)
+    }
+
     var body: some View {
         VStack(spacing: 18) {
             GroupIconView(
@@ -425,7 +429,7 @@ private struct GroupIconPicker: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     PhotosPicker(selection: $selectedIconItem, matching: .images, photoLibrary: .shared()) {
-                        CircleIconOption(isSelected: selectedIconData != nil) {
+                        CircleIconOption(isSelected: isShowingPhotoIcon) {
                             Image(systemName: "plus")
                                 .font(.system(size: 26, weight: .medium))
                                 .foregroundStyle(AppColors.secondaryText)
@@ -436,7 +440,7 @@ private struct GroupIconPicker: View {
                     Button {
                         selectPreset(GroupIconPreset.petankoValue)
                     } label: {
-                        CircleIconOption(isSelected: selectedIconData == nil && icon == GroupIconPreset.petankoValue) {
+                        CircleIconOption(isSelected: !isShowingPhotoIcon && icon == GroupIconPreset.petankoValue) {
                             Image("BootSplashIcon")
                                 .resizable()
                                 .scaledToFill()
@@ -448,7 +452,7 @@ private struct GroupIconPicker: View {
                         Button {
                             selectPreset(option.value)
                         } label: {
-                            CircleIconOption(isSelected: selectedIconData == nil && icon == option.value) {
+                            CircleIconOption(isSelected: !isShowingPhotoIcon && icon == option.value) {
                                 Circle()
                                     .fill(option.color ?? AppColors.chromeHighlight)
                             }
