@@ -515,17 +515,14 @@ struct RootTabNavigationHeader<Trailing: View>: View {
 
     var body: some View {
         HStack {
-            
             Text(title)
                 .font(.system(size: fontSize, weight: fontWeight, design: .rounded))
                 .foregroundStyle(AppColors.accentPink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
-            
-            
+
             Spacer()
             trailing
-            
         }
         .frame(maxWidth: .infinity)
         .frame(height: 46)
