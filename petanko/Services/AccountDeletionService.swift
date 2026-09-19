@@ -307,9 +307,12 @@ final class AccountDeletionService {
             batch.deleteDocument(db.collection("groupMembers").document("\(group.id)_\(userId)"))
 
             if remainingMemberIds.isEmpty {
+                // Delete group-owned data while the group document still exists.
+                // Firestore Rules use the existing group to verify that the
+                // signed-in user is the owner before allowing diary deletion.
+                try await deleteGroupOwnedData(group: group)
                 batch.deleteDocument(document.reference)
                 try await batch.commit()
-                try await deleteGroupOwnedData(group: group)
                 continue
             }
 
