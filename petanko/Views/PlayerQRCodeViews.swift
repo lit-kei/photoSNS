@@ -3,6 +3,18 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 
+private enum PlayerQRPayload {
+    static func normalizedPlayerId(from value: String) -> String? {
+        let playerId = value.trimmedForPetanko.uppercased()
+        guard playerId.hasPrefix("P"),
+              (2...32).contains(playerId.count),
+              playerId.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else {
+            return nil
+        }
+        return playerId
+    }
+}
+
 struct MyQRCodeSheet: View {
     let playerId: String
     let onScan: (String) -> Void
@@ -260,7 +272,11 @@ private final class PlayerQRScannerViewController: UIViewController, AVCaptureMe
     func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
         guard let object = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
               let value = object.stringValue else { return }
+        guard let playerId = PlayerQRPayload.normalizedPlayerId(from: value) else {
+            guideLabel.text = "petankoのQRコードではありません"
+            return
+        }
         session.stopRunning()
-        onScan?(value)
+        onScan?(playerId)
     }
 }

@@ -431,11 +431,20 @@ final class AppState: ObservableObject {
 
     func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) {
         guard userInfo["petankoDestination"] != nil else { return }
-        guard authState == .signedIn, currentUser != nil else {
+        guard authState == .signedIn, let currentUser else {
             pendingRemoteNotificationUserInfo = userInfo
             return
         }
+        guard isRemoteNotification(userInfo, intendedFor: currentUser.id) else { return }
         openRemoteNotification(userInfo)
+    }
+
+    private func isRemoteNotification(_ userInfo: [AnyHashable: Any], intendedFor userId: String) -> Bool {
+        guard let recipientUserId = userInfo["recipientUserId"] as? String,
+              !recipientUserId.isEmpty else {
+            return true
+        }
+        return recipientUserId == userId
     }
 
     private func openRemoteNotification(_ userInfo: [AnyHashable: Any]) {

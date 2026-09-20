@@ -108,6 +108,7 @@ export const onFriendRequestCreated = onDocumentCreated(
       data: {
         petankoDestination: "friendRequests",
         friendRequestId: event.params.requestId,
+        recipientUserId: toUserId,
       },
     });
   }
@@ -360,6 +361,7 @@ async function sendStickerNotifications(job: FinalizedStickerJob): Promise<void>
       dateKey: primaryGroupPost?.dateKey ?? "",
       stickerId: primaryGroupPost?.id ?? "",
       jobId: job.jobId,
+      recipientUserId: job.userId,
     },
   });
 
@@ -383,6 +385,7 @@ async function sendStickerNotifications(job: FinalizedStickerJob): Promise<void>
             dateKey: post.dateKey,
             stickerId: post.id,
             jobId: job.jobId,
+            recipientUserId: recipientId,
           },
         })
       )

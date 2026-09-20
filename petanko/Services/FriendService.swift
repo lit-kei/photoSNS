@@ -73,8 +73,10 @@ final class FriendService {
     }
 
     func findUser(playerId: String) async throws -> AppUser? {
-        let normalizedPlayerId = playerId.trimmedForPetanko.uppercased()
-        guard !normalizedPlayerId.isEmpty else { return nil }
+        let trimmedPlayerId = playerId.trimmedForPetanko
+        let normalizedPlayerId = trimmedPlayerId.uppercased()
+        guard !normalizedPlayerId.isEmpty,
+              normalizedPlayerId.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
 
         let snapshot = try await db.collection("users")
             .whereField("playerId", isEqualTo: normalizedPlayerId)
@@ -84,7 +86,8 @@ final class FriendService {
             return AppUser(id: document.documentID, data: document.data())
         }
 
-        return try await fetchUser(userId: playerId.trimmedForPetanko)
+        guard !trimmedPlayerId.contains("/") else { return nil }
+        return try await fetchUser(userId: trimmedPlayerId)
     }
 
     func fetchUser(userId: String) async throws -> AppUser? {
