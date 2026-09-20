@@ -199,15 +199,18 @@ struct SectionHeader: View {
 struct MetalCard<Content: View>: View {
     var padding: CGFloat = AppSpacing.card
     var radius: CGFloat = AppRadius.card
+    var color: Color = AppColors.surface.opacity(0.98)
     let content: Content
 
     init(
         padding: CGFloat = AppSpacing.card,
         radius: CGFloat = AppRadius.card,
+        color: Color = AppColors.surface.opacity(0.98),
         @ViewBuilder content: () -> Content
     ) {
         self.padding = padding
         self.radius = radius
+        self.color = color
         self.content = content()
     }
 
@@ -217,7 +220,7 @@ struct MetalCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(AppColors.surface.opacity(0.98))
+                    .fill(color)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -351,20 +354,23 @@ struct ListRowButtonStyle: ButtonStyle {
 struct ControlSection<Content: View>: View {
     let title: String
     let radius: CGFloat
+    let color: Color
     let content: Content
 
     init(
         title: String,
         radius: CGFloat = AppRadius.card,
+        color: Color = AppColors.surface.opacity(0.98),
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.radius = radius
+        self.color = color
         self.content = content()
     }
 
     var body: some View {
-        MetalCard(radius: radius) {
+        MetalCard(radius: radius, color: color) {
             VStack(alignment: .leading, spacing: 16) {
                 SectionHeader(title: title)
                 content

@@ -379,7 +379,7 @@ private struct SettingsRowIcon: View {
     var body: some View {
         Image(systemName: systemImage)
             .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(AppColors.accentPink)
+            .foregroundStyle(AppColors.mainText)
             .frame(width: 24, height: 24)
     }
 }

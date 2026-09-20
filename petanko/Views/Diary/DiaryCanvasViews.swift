@@ -66,6 +66,7 @@ struct DiaryCanvasView: View {
                     .scaleEffect(item.scale)
                     .rotationEffect(.degrees(item.rotation))
                     .position(x: item.x, y: item.y)
+                    .allowsHitTesting(false)
                     .zIndex(Double(item.zIndex))
             }
 
@@ -74,6 +75,7 @@ struct DiaryCanvasView: View {
                     .scaleEffect(item.scale)
                     .rotationEffect(.degrees(item.rotation))
                     .position(x: item.x, y: item.y)
+                    .allowsHitTesting(false)
                     .zIndex(Double(item.zIndex))
             }
 
@@ -82,6 +84,7 @@ struct DiaryCanvasView: View {
                     .scaleEffect(item.scale)
                     .rotationEffect(.degrees(item.rotation))
                     .position(x: item.x, y: item.y)
+                    .allowsHitTesting(false)
                     .zIndex(Double(item.zIndex))
             }
 
@@ -94,6 +97,7 @@ struct DiaryCanvasView: View {
                         .font(.headline)
                         .foregroundStyle(emptyMessageColor)
                 }
+                .allowsHitTesting(false)
                 .zIndex(-1_500_000_000_000)
             }
 
@@ -490,15 +494,15 @@ struct DiaryStickerVisual: View {
     var body: some View {
         ZStack {
             Group {
-                if activeColorRevealItems.isEmpty {
+                if activeGrayFilterItems.isEmpty {
                     RemoteStickerView(sticker: sticker, size: size)
                 } else {
                     ZStack {
                         RemoteStickerView(sticker: sticker, size: size)
-                            .grayscale(1)
 
-                        colorSourceView
-                            .mask { colorRevealMask }
+                        RemoteStickerView(sticker: sticker, size: size)
+                            .grayscale(1)
+                            .mask { grayFilterMask }
                     }
                     .compositingGroup()
                 }
@@ -515,7 +519,7 @@ struct DiaryStickerVisual: View {
         .frame(width: size, height: size)
     }
 
-    private var activeColorRevealItems: [DiaryDesignItem] {
+    private var activeGrayFilterItems: [DiaryDesignItem] {
         designItems.filter { item in
             item.effect == .tint
                 && revealGeometry(for: item).intersectsSticker
@@ -529,12 +533,12 @@ struct DiaryStickerVisual: View {
         }
     }
 
-    private var colorRevealMask: some View {
+    private var grayFilterMask: some View {
         ZStack {
-            ForEach(activeColorRevealItems) { item in
+            ForEach(activeGrayFilterItems) { item in
                 let geometry = revealGeometry(for: item)
                 DiaryDesignShapePath(shape: item.shape)
-                    .fill(.white)
+                    .fill(.white.opacity(min(1, max(0.08, item.opacity))))
                     .frame(width: geometry.width, height: geometry.height)
                     .rotationEffect(.degrees(geometry.rotation))
                     .position(x: geometry.center.x, y: geometry.center.y)
@@ -555,34 +559,6 @@ struct DiaryStickerVisual: View {
             }
         }
         .frame(width: size, height: size)
-    }
-
-    @ViewBuilder
-    private var colorSourceView: some View {
-        let sourceURL = sticker.originalStickerImageURL.isEmpty
-            ? sticker.stickerImageURL
-            : sticker.originalStickerImageURL
-
-        if sticker.originalStickerImageURL.isEmpty,
-           sticker.effect == .grayscale || sticker.effect == .noir {
-            RemoteStickerView(
-                sticker: sticker,
-                size: size,
-                imageURLString: sourceURL
-            )
-            .colorMultiply(fallbackRevealColor)
-        } else {
-            RemoteStickerView(
-                sticker: sticker,
-                size: size,
-                imageURLString: sourceURL
-            )
-        }
-    }
-
-    private var fallbackRevealColor: Color {
-        let colorHex = activeColorRevealItems.first?.colorHex ?? DiaryDesignItem.defaultColorHex
-        return Color(uiColor: UIColor(hex: colorHex) ?? .systemPink)
     }
 
     private func revealGeometry(for item: DiaryDesignItem) -> ColorRevealGeometry {

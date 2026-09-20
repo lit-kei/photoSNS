@@ -82,7 +82,7 @@ enum DiaryDesignEffect: String, PetankoOption {
     var title: String {
         switch self {
         case .invert: "部分反転"
-        case .tint: "カラーフィルター"
+        case .tint: "グレーフィルター"
         case .translucent: "半透明カラー"
         case .eightBit: "8ビット"
         }
@@ -91,7 +91,7 @@ enum DiaryDesignEffect: String, PetankoOption {
     var systemImage: String {
         switch self {
         case .invert: "circle.lefthalf.filled.inverse"
-        case .tint: "camera.filters"
+        case .tint: "circle.lefthalf.filled"
         case .translucent: "rectangle.fill"
         case .eightBit: "square.grid.3x3.fill"
         }

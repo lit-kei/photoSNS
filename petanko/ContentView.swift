@@ -166,7 +166,7 @@ struct AttachedBottomTabBar: View {
                     Circle()
                         .stroke(AppColors.border, lineWidth: 0.8)
                 }
-                .offset(y: -18)
+                .offset(y: -17)
 
             Button {
                 selection = .camera
@@ -175,13 +175,10 @@ struct AttachedBottomTabBar: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
                     .frame(width: 48, height: 48)
-                    .background(AppColors.accentBlue, in: Circle())
-                    .overlay {
-                        Circle().stroke(Color.white.opacity(0.86), lineWidth: 2.5)
-                    }
+                    .background(AppColors.accentPink, in: Circle())
             }
             .buttonStyle(.plain)
-            .offset(y: -11)
+            .offset(y: -10)
             .accessibilityLabel("カメラ")
         }
         .frame(maxWidth: .infinity)
