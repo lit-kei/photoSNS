@@ -8,6 +8,18 @@ import UserNotifications
 @MainActor
 final class PushNotificationService: NSObject, MessagingDelegate {
     static let shared = PushNotificationService()
+    static let userPreferenceKey = "petanko.notifications.enabled"
+
+    static var isUserPreferenceEnabled: Bool {
+        if UserDefaults.standard.object(forKey: userPreferenceKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: userPreferenceKey)
+    }
+
+    static func setUserPreferenceEnabled(_ isEnabled: Bool) {
+        UserDefaults.standard.set(isEnabled, forKey: userPreferenceKey)
+    }
 
     private let db = Firestore.firestore()
     private var currentUserId: String?
@@ -60,6 +72,10 @@ final class PushNotificationService: NSObject, MessagingDelegate {
               updatedSettings.authorizationStatus == .provisional ||
               updatedSettings.authorizationStatus == .ephemeral else { return }
         UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
     nonisolated func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {

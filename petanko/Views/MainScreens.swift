@@ -626,20 +626,19 @@ struct ProfileScreen: View {
             VStack(spacing: 30) {
                 RootTabNavigationHeader(title: "プロフィール") {
                     NavigationLink {
-                        ProfileEditScreen()
+                        SettingsScreen()
                     } label: {
-                        Label("編集", systemImage: "pencil")
-                            .font(.system(size: 14, weight: .semibold))
-                            .labelStyle(.titleAndIcon)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .frame(width: 36, height: 36)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(AppColors.mainText)
-                    .padding(.horizontal, 12)
-                    .frame(height: 36)
-                    .background(AppColors.elevatedSurface.opacity(0.96), in: Capsule())
+                    .background(AppColors.elevatedSurface.opacity(0.96), in: Circle())
                     .overlay {
-                        Capsule().stroke(AppColors.border, lineWidth: 0.8)
+                        Circle().stroke(AppColors.border, lineWidth: 0.8)
                     }
+                    .accessibilityLabel("設定")
                 }
 
                 VStack(spacing: 18) {
@@ -688,14 +687,6 @@ struct ProfileScreen: View {
                             .buttonStyle(PrimaryActionButtonStyle())
                         }
                         
-                        NavigationLink {
-                            BlockedUsersScreen()
-                        } label: {
-                            Label("ブロックしたユーザー", systemImage: "hand.raised")
-                                .frame(maxWidth: .infinity)
-                                .foregroundStyle(AppColors.destructiveRed)
-                        }
-                        .buttonStyle(SecondaryActionButtonStyle())
                     }
                 }
             }
@@ -907,17 +898,6 @@ struct ProfileEditScreen: View {
     @State private var selectedPhotoData: Data?
     @State private var isSavingProfile = false
     @State private var currentAvatarURL: String?
-    @State private var isDeletingAccount = false
-    @State private var isShowingReauthentication = false
-    @State private var isReauthenticatingForAccountDeletion = false
-    @State private var accountDeletionPassword = ""
-    @State private var accountDeletionMessage: String?
-    @State private var isAccountDeletionFlowActive = false
-    @State private var isChoosingAccountDeletionPostPolicy = false
-    @State private var isPreparingAccountDeletionChoice = false
-    @State private var hasRecentLoginForAccountDeletion = false
-    @State private var verifiedAccountDeletionPassword: String?
-    @State private var accountDeletionStep: AccountDeletionStep?
     @FocusState private var isDisplayNameFocused: Bool
 
     var body: some View {
@@ -984,26 +964,7 @@ struct ProfileEditScreen: View {
                 }
                 .buttonStyle(PrimaryActionButtonStyle())
                 .disabled(isSavingProfile)
-
-                VStack(spacing: 10) {
-                    Button(role: .destructive) {
-                        appState.signOut()
-                    } label: {
-                        Label("ログアウト", systemImage: "rectangle.portrait.and.arrow.right")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
-                }
-
-                    Button("アカウントを削除") {
-                        beginAccountDeletion()
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppColors.destructiveRed)
-                    .buttonStyle(.plain)
-                    .disabled(isDeletingAccount)
-                    .padding(.top, 4)
-                }
+            }
             .padding(.horizontal, AppSpacing.screenHorizontal)
             .padding(.top, AppSpacing.screenTop + 18)
             .padding(.bottom, isDisplayNameFocused ? 220 : 16)
@@ -1022,225 +983,11 @@ struct ProfileEditScreen: View {
         .background {
             PetankoMetalBackground()
         }
-        .disabled(isAccountDeletionFlowActive)
-        .overlay {
-            if isDeletingAccount {
-                AccountDeletionProgressOverlay(step: accountDeletionStep)
-            } else if isChoosingAccountDeletionPostPolicy {
-                AccountDeletionChoiceOverlay(
-                    deletePostsAction: {
-                        Task { await deleteAccount(policy: .deletePosts) }
-                    },
-                    anonymizePostsAction: {
-                        Task { await deleteAccount(policy: .anonymizePosts) }
-                    },
-                    cancelAction: cancelAccountDeletionFlow
-                )
-            } else if isAccountDeletionFlowActive && isPreparingAccountDeletionChoice {
-                AccountDeletionProgressOverlay(step: nil)
-            }
-        }
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle("プロフィール編集")
-        .navigationBarBackButtonHidden(isAccountDeletionFlowActive)
         .onAppear {
             displayName = appState.currentUser?.displayName ?? ""
             currentAvatarURL = appState.currentUser?.avatarURL
-        }
-        .alert("ログイン確認", isPresented: $isShowingReauthentication) {
-            SecureField("パスワード", text: $accountDeletionPassword)
-            Button("続ける", role: .destructive) {
-                Task { await confirmAccountDeletionPassword() }
-            }
-            .disabled(isReauthenticatingForAccountDeletion)
-            Button("キャンセル", role: .cancel) {
-                cancelAccountDeletionFlow()
-            }
-        } message: {
-            Text("安全のため、パスワードを入力してください。次の画面で投稿の扱いを選べます。")
-        }
-        .alert("アカウント削除", isPresented: Binding(
-            get: { accountDeletionMessage != nil },
-            set: { if !$0 { accountDeletionMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(accountDeletionMessage ?? "")
-        }
-    }
-
-    private func beginAccountDeletion() {
-        clearPendingAccountDeletionCredentials()
-        isAccountDeletionFlowActive = true
-        isPreparingAccountDeletionChoice = false
-        isChoosingAccountDeletionPostPolicy = false
-        hasRecentLoginForAccountDeletion = false
-        if appState.needsPasswordForAccountDeletion() {
-            isShowingReauthentication = true
-        } else {
-            isChoosingAccountDeletionPostPolicy = true
-        }
-    }
-
-    private func confirmAccountDeletionPassword() async {
-        guard !isReauthenticatingForAccountDeletion else { return }
-        isReauthenticatingForAccountDeletion = true
-        let password = accountDeletionPassword
-        let result = await appState.reauthenticateForAccountDeletion(password: password)
-        accountDeletionPassword = ""
-        isReauthenticatingForAccountDeletion = false
-        switch result {
-        case .authenticated:
-            hasRecentLoginForAccountDeletion = true
-            verifiedAccountDeletionPassword = password
-            isPreparingAccountDeletionChoice = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(220))
-                isPreparingAccountDeletionChoice = false
-                isChoosingAccountDeletionPostPolicy = true
-            }
-        case .failed(let message):
-            hasRecentLoginForAccountDeletion = false
-            isPreparingAccountDeletionChoice = false
-            isAccountDeletionFlowActive = false
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(220))
-                accountDeletionMessage = message
-            }
-        }
-    }
-
-    private func deleteAccount(policy: AccountDeletionPostRetentionPolicy) async {
-        guard !isDeletingAccount else { return }
-        isDeletingAccount = true
-        accountDeletionStep = .reauthenticating
-        isChoosingAccountDeletionPostPolicy = false
-        let password = verifiedAccountDeletionPassword
-        clearPendingAccountDeletionCredentials()
-        let result = await appState.deleteAccount(
-            password: password,
-            postRetentionPolicy: policy,
-            hasRecentLogin: hasRecentLoginForAccountDeletion
-        ) { step in
-            accountDeletionStep = step
-        }
-        isDeletingAccount = false
-        switch result {
-        case .deleted:
-            accountDeletionStep = nil
-            isAccountDeletionFlowActive = false
-            break
-        case .requiresRecentLogin:
-            accountDeletionStep = nil
-            hasRecentLoginForAccountDeletion = false
-            isAccountDeletionFlowActive = true
-            isShowingReauthentication = true
-        case .failed(let message):
-            accountDeletionStep = nil
-            isAccountDeletionFlowActive = false
-            accountDeletionMessage = message
-        }
-    }
-
-    private func cancelAccountDeletionFlow() {
-        isAccountDeletionFlowActive = false
-        isPreparingAccountDeletionChoice = false
-        isChoosingAccountDeletionPostPolicy = false
-        isDeletingAccount = false
-        accountDeletionStep = nil
-        hasRecentLoginForAccountDeletion = false
-        clearPendingAccountDeletionCredentials()
-    }
-
-    private func clearPendingAccountDeletionCredentials() {
-        accountDeletionPassword = ""
-        verifiedAccountDeletionPassword = nil
-    }
-}
-
-private struct AccountDeletionProgressOverlay: View {
-    let step: AccountDeletionStep?
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.34)
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-
-            MetalCard(padding: 22) {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .tint(AppColors.mainText)
-                        .scaleEffect(1.12)
-
-                    VStack(spacing: 6) {
-                        Text(step?.title ?? "アカウントを削除中")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(AppColors.mainText)
-
-                        Text(step?.message ?? "しばらくお待ちください。")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(AppColors.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(maxWidth: 280)
-            }
-            .padding(.horizontal, AppSpacing.screenHorizontal)
-        }
-    }
-}
-
-private struct AccountDeletionChoiceOverlay: View {
-    let deletePostsAction: () -> Void
-    let anonymizePostsAction: () -> Void
-    let cancelAction: () -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.34)
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-
-            MetalCard(padding: 22) {
-                VStack(spacing: 16) {
-                    VStack(spacing: 7) {
-                        Text("アカウントを削除しますか？")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(AppColors.mainText)
-                            .multilineTextAlignment(.center)
-
-                        Text("この操作は取り消せません。匿名化を選ぶと、投稿画像は残り、名前・ユーザーID・プロフィール画像との紐づきとコメントが削除されます。")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(AppColors.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    VStack(spacing: 10) {
-                        Button(role: .destructive, action: deletePostsAction) {
-                            Label("投稿も削除", systemImage: "trash")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
-
-                        Button(role: .destructive, action: anonymizePostsAction) {
-                            Label("匿名化して投稿を残す", systemImage: "person.crop.circle.badge.xmark")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(SecondaryActionButtonStyle(foregroundColor: AppColors.destructiveRed))
-
-                        Button(action: cancelAction) {
-                            Label("キャンセル", systemImage: "xmark.circle")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(SecondaryActionButtonStyle())
-                    }
-                }
-                .frame(maxWidth: 320)
-            }
-            .padding(.horizontal, AppSpacing.screenHorizontal)
         }
     }
 }

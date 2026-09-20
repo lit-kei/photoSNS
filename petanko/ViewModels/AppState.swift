@@ -127,7 +127,7 @@ final class AppState: ObservableObject {
             currentUser = user
             resetSignedInNavigation()
             authState = .signedIn
-            PushNotificationService.shared.activate(for: user.id)
+            activatePushNotificationsIfNeeded(for: user.id)
             observeSignedInData(for: user.id)
         } catch {
             if let uploadedAvatarURL, !didPersistProfile {
@@ -393,7 +393,7 @@ final class AppState: ObservableObject {
             return .deleted
         } catch {
             if authState == .signedIn, self.currentUser?.id == currentUser.id {
-                PushNotificationService.shared.activate(for: currentUser.id)
+                activatePushNotificationsIfNeeded(for: currentUser.id)
                 observeSignedInData(for: currentUser.id)
             }
             if error.isPetankoRequiresRecentLoginError {
@@ -762,7 +762,7 @@ final class AppState: ObservableObject {
                 currentUser = user
                 resetSignedInNavigation()
                 authState = .signedIn
-                PushNotificationService.shared.activate(for: user.id)
+                activatePushNotificationsIfNeeded(for: user.id)
                 observeSignedInData(for: user.id)
                 openPendingRemoteNotificationIfPossible()
             } else {
@@ -783,10 +783,15 @@ final class AppState: ObservableObject {
             currentUser = fallbackUser
             resetSignedInNavigation()
             authState = .signedIn
-            PushNotificationService.shared.activate(for: fallbackUser.id)
+            activatePushNotificationsIfNeeded(for: fallbackUser.id)
             observeSignedInData(for: fallbackUser.id)
             openPendingRemoteNotificationIfPossible()
         }
+    }
+
+    private func activatePushNotificationsIfNeeded(for userId: String) {
+        guard PushNotificationService.isUserPreferenceEnabled else { return }
+        PushNotificationService.shared.activate(for: userId)
     }
 
     private func resetSignedInNavigation() {
