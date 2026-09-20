@@ -94,6 +94,50 @@ service cloud.firestore {
         ]);
     }
 
+    function hasValidFcmTokenShape(tokenData) {
+      return tokenData.keys().hasOnly([
+          "token",
+          "platform",
+          "updatedAt"
+        ])
+        && tokenData.token is string
+        && tokenData.platform == "ios"
+        && tokenData.updatedAt is timestamp;
+    }
+
+    function hasValidStickerUploadJobCreate(jobData) {
+      return jobData.keys().hasOnly([
+          "userId",
+          "assetId",
+          "storagePath",
+          "downloadURL",
+          "originalStoragePath",
+          "originalDownloadURL",
+          "draft",
+          "groupIds",
+          "publishToBlog",
+          "authorName",
+          "authorAvatar",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ])
+        && jobData.userId == request.auth.uid
+        && jobData.assetId is string
+        && jobData.storagePath == "stickerAssets/" + request.auth.uid + "/" + jobData.assetId + ".png"
+        && jobData.downloadURL is string
+        && jobData.originalStoragePath is string
+        && jobData.originalDownloadURL is string
+        && jobData.draft is map
+        && jobData.groupIds is list
+        && jobData.publishToBlog is bool
+        && jobData.authorName is string
+        && jobData.authorAvatar is string
+        && jobData.status == "pending"
+        && jobData.createdAt is timestamp
+        && jobData.updatedAt is timestamp;
+    }
+
     match /users/{userId} {
       allow read: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == userId;
@@ -124,6 +168,13 @@ service cloud.firestore {
               && !exists(/databases/$(database)/documents/users/$(blockedUserId))
             )
           );
+      }
+
+      match /fcmTokens/{tokenId} {
+        allow read, delete: if signedIn() && request.auth.uid == userId;
+        allow create, update: if signedIn()
+          && request.auth.uid == userId
+          && hasValidFcmTokenShape(request.resource.data);
       }
     }
 
@@ -168,6 +219,13 @@ service cloud.firestore {
 
     match /stickerAssets/{assetId} {
       allow read, create, update, delete: if signedIn();
+    }
+
+    match /stickerUploadJobs/{jobId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && hasValidStickerUploadJobCreate(request.resource.data);
+      allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if false;
     }
 
     match /stickerReports/{reportId} {

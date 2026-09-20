@@ -491,13 +491,49 @@ struct MemoriesScreen: View {
             .navigationDestination(for: PetankoGroup.self) { group in
                 DiaryScreen(group: group)
             }
+            .navigationDestination(for: DiaryNavigationTarget.self) { target in
+                DiaryScreen(
+                    group: target.group,
+                    initialDateKey: target.dateKey,
+                    focusedStickerId: target.stickerId
+                )
+            }
             .onChange(of: appState.memoriesNavigationResetID) { _, _ in
                 navigationPath = NavigationPath()
                 groupRoute = nil
                 isShowingGroupOptions = false
             }
+            .onChange(of: appState.pendingDiaryNavigationRequest) { _, request in
+                openDiaryIfPossible(for: request)
+            }
+            .onChange(of: appState.groups) { _, _ in
+                openDiaryIfPossible(for: appState.pendingDiaryNavigationRequest)
+            }
+            .onAppear {
+                openDiaryIfPossible(for: appState.pendingDiaryNavigationRequest)
+            }
         }
     }
+
+    private func openDiaryIfPossible(for request: DiaryNotificationNavigationRequest?) {
+        guard let request,
+              let group = appState.groups.first(where: { $0.id == request.groupId }) else { return }
+        navigationPath = NavigationPath()
+        navigationPath.append(
+            DiaryNavigationTarget(
+                group: group,
+                dateKey: request.dateKey,
+                stickerId: request.stickerId
+            )
+        )
+        appState.clearDiaryNavigationRequest(request)
+    }
+}
+
+private struct DiaryNavigationTarget: Hashable {
+    let group: PetankoGroup
+    let dateKey: String?
+    let stickerId: String?
 }
 
 struct RootTabNavigationHeader<Trailing: View>: View {

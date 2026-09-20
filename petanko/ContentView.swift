@@ -29,16 +29,21 @@ struct ContentView: View {
         .dismissKeyboardOnOutsideTap()
         .task {
             appState.stickerUploadCoordinator.setAppActive(scenePhase == .active)
-            appState.stickerUploadCoordinator.prepareNotifications()
             if appState.authState == .bootstrapping {
                 appState.bootstrap()
             }
+            handlePendingRemoteNotifications()
         }
         .onChange(of: scenePhase) { _, newValue in
             appState.stickerUploadCoordinator.setAppActive(newValue == .active)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .petankoOpenNotifications)) { _ in
-            appState.openNotifications()
+        .onReceive(NotificationCenter.default.publisher(for: .petankoOpenNotifications)) { notification in
+            let pendingUserInfos = RemoteNotificationRouter.shared.drainPendingUserInfos()
+            if pendingUserInfos.isEmpty {
+                appState.handleRemoteNotification(notification.userInfo ?? [:])
+            } else {
+                pendingUserInfos.forEach(appState.handleRemoteNotification)
+            }
         }
         .preferredColorScheme(.light)
         .alert("エラー", isPresented: Binding(
@@ -49,6 +54,12 @@ struct ContentView: View {
         } message: {
             Text(appState.errorMessage ?? "")
         }
+    }
+
+    private func handlePendingRemoteNotifications() {
+        RemoteNotificationRouter.shared
+            .drainPendingUserInfos()
+            .forEach(appState.handleRemoteNotification)
     }
 
     private var signedInTabs: some View {

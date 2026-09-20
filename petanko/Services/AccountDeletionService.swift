@@ -357,6 +357,9 @@ final class AccountDeletionService {
     private func deleteAccountCollections(userId: String) async throws {
         let blocks = try await db.collection("users").document(userId).collection("blockedUsers").getDocuments()
         try await deleteDocuments(documents: blocks.documents)
+        let tokens = try await db.collection("users").document(userId).collection("fcmTokens").getDocuments()
+        try await deleteDocuments(documents: tokens.documents)
+        try await deleteDocuments(matching: db.collection("stickerUploadJobs").whereField("userId", isEqualTo: userId))
     }
 
     private func deleteInboundBlockReferences(userId: String) async throws {

@@ -3,6 +3,14 @@ import ImageIO
 import UIKit
 
 extension Date {
+    nonisolated static func petankoDate(fromDateKey dateKey: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: dateKey)
+    }
+
     nonisolated var petankoDateKey: String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)

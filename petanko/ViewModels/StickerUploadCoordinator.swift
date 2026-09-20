@@ -1,7 +1,6 @@
 import Combine
 import SwiftUI
 import UIKit
-import UserNotifications
 
 enum BackgroundStickerUploadState: Equatable {
     case idle
@@ -39,7 +38,6 @@ final class StickerUploadCoordinator: ObservableObject {
     private var uploadTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
     private var failedUpload: PendingStickerUpload?
-    private var isAppActive = true
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
 
     init(services: AppServices, networkMonitor: NetworkMonitor) {
@@ -94,16 +92,7 @@ final class StickerUploadCoordinator: ObservableObject {
     }
 
     func setAppActive(_ isActive: Bool) {
-        isAppActive = isActive
-    }
-
-    func prepareNotifications() {
-        Task {
-            let center = UNUserNotificationCenter.current()
-            let settings = await center.notificationSettings()
-            guard settings.authorizationStatus == .notDetermined else { return }
-            _ = try? await center.requestAuthorization(options: [.alert, .sound])
-        }
+        _ = isActive
     }
 
     func cancelAndClear() {
@@ -138,10 +127,6 @@ final class StickerUploadCoordinator: ObservableObject {
                 guard !Task.isCancelled else { return }
                 state = .success
                 failedUpload = nil
-                await sendCompletionNotificationIfNeeded(
-                    title: "投稿しました",
-                    body: "写真の投稿を保存しました。"
-                )
                 scheduleSuccessDismissal()
             } catch {
                 guard !Task.isCancelled else { return }
@@ -171,16 +156,6 @@ final class StickerUploadCoordinator: ObservableObject {
             guard !Task.isCancelled else { return }
             await MainActor.run { self?.state = .idle }
         }
-    }
-
-    private func sendCompletionNotificationIfNeeded(title: String, body: String) async {
-        guard !isAppActive else { return }
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        content.sound = .default
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        try? await UNUserNotificationCenter.current().add(request)
     }
 
     private func beginBackgroundTask() {

@@ -5,18 +5,24 @@ struct DiaryScreen: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     let group: PetankoGroup
+    private let focusedStickerId: String?
     @StateObject private var viewModel: DiaryViewModel
     @State private var selectedSticker: StickerPost?
     @State private var selectedDate = Date()
+    @State private var pendingFocusedStickerId: String?
     @State private var dragOffset: CGFloat = 0
     @State private var pageEntranceOffset: CGFloat = 0
     @State private var isPageTransitioning = false
     @State private var transitionID = UUID()
     @State private var isShowingPastEditExplanation = false
 
-    init(group: PetankoGroup) {
+    init(group: PetankoGroup, initialDateKey: String? = nil, focusedStickerId: String? = nil) {
         self.group = group
-        _viewModel = StateObject(wrappedValue: DiaryViewModel(group: group))
+        self.focusedStickerId = focusedStickerId
+        let dateKey = initialDateKey ?? Date().petankoDateKey
+        _selectedDate = State(initialValue: Date.petankoDate(fromDateKey: dateKey) ?? Date())
+        _pendingFocusedStickerId = State(initialValue: focusedStickerId)
+        _viewModel = StateObject(wrappedValue: DiaryViewModel(group: group, dateKey: dateKey, services: AppServices.shared))
     }
 
     private var currentGroup: PetankoGroup {
@@ -88,9 +94,11 @@ struct DiaryScreen: View {
             }
         }
         .onAppear {
+            pendingFocusedStickerId = pendingFocusedStickerId ?? focusedStickerId
             Task { await appState.refreshGroup(group.id) }
             appState.markGroupAsRead(group.id)
             viewModel.start()
+            selectPendingFocusedStickerIfPossible()
         }
         .onDisappear {
             appState.markGroupAsRead(group.id)
@@ -111,6 +119,9 @@ struct DiaryScreen: View {
             if let selectedSticker, appState.isBlocked(selectedSticker.authorId) {
                 self.selectedSticker = nil
             }
+        }
+        .onChange(of: viewModel.stickers) { _, _ in
+            selectPendingFocusedStickerIfPossible()
         }
         .sheet(item: $selectedSticker) { sticker in
             StickerDetailSheet(sticker: sticker)
@@ -218,6 +229,13 @@ struct DiaryScreen: View {
             try? await Task.sleep(for: .seconds(0.24))
             isPageTransitioning = false
         }
+    }
+
+    private func selectPendingFocusedStickerIfPossible() {
+        guard let pendingFocusedStickerId,
+              let sticker = visibleStickers.first(where: { $0.id == pendingFocusedStickerId }) else { return }
+        selectedSticker = sticker
+        self.pendingFocusedStickerId = nil
     }
 
     private var dateSwipeGesture: some Gesture {

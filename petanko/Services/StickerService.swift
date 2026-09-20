@@ -150,7 +150,6 @@ final class StickerService {
         }
 
         let assetId = UUID().uuidString
-        let dateKey = Date().petankoDateKey
         let storagePath = "stickerAssets/\(user.id)/\(assetId).png"
         let originalStoragePath = "stickerAssets/\(user.id)/\(assetId)-original.png"
         let stickerURL = try await upload(data: stickerPNG, path: storagePath, onStageChange: onStageChange)
@@ -170,115 +169,33 @@ final class StickerService {
             originalStickerURL = nil
         }
         onStageChange(.savingPost)
-        let createdAt = Date()
-        var posts: [StickerPost] = []
-
-        if publishToBlog {
-            let postId = UUID().uuidString
-            let layout = StickerLayout(
-                stickerId: postId,
-                x: Double.random(in: -80...80),
-                y: Double.random(in: -140...140),
-                scale: Double.random(in: 0.86...1.12),
-                rotation: Double.random(in: -13...13),
-                zIndex: Int(createdAt.timeIntervalSince1970)
-            )
-            posts.append(
-                StickerPost(
-                    id: postId,
-                    target: .blog,
-                    assetId: assetId,
-                    groupId: "",
-                    diaryId: "",
-                    dateKey: dateKey,
-                    authorId: user.id,
-                    authorName: user.displayName,
-                    authorAvatar: user.avatar,
-                    comment: draft.comment.trimmedForPetanko,
-                    shape: draft.shape,
-                    decoration: draft.decoration,
-                    outlineColorHex: draft.outlineColorHex,
-                    creationMode: draft.creationMode,
-                    effect: draft.effect,
-                    stickerImageURL: stickerURL.absoluteString,
-                    originalStickerImageURL: originalStickerURL?.absoluteString ?? "",
-                    layout: layout,
-                    createdAt: createdAt
-                )
-            )
-        }
-
-        let groupPosts = groups.enumerated().map { index, group in
-            let postId = UUID().uuidString
-            let diaryId = "\(group.id)_\(dateKey)"
-            let layout = StickerLayout(
-                stickerId: postId,
-                x: Double.random(in: -80...80),
-                y: Double.random(in: -140...140),
-                scale: Double.random(in: 0.86...1.12),
-                rotation: Double.random(in: -13...13),
-                zIndex: Int(createdAt.timeIntervalSince1970) + index
-            )
-            return StickerPost(
-                id: postId,
-                target: .group,
-                assetId: assetId,
-                groupId: group.id,
-                diaryId: diaryId,
-                dateKey: dateKey,
-                authorId: user.id,
-                authorName: user.displayName,
-                authorAvatar: user.avatar,
-                comment: draft.comment.trimmedForPetanko,
-                shape: draft.shape,
-                decoration: draft.decoration,
-                outlineColorHex: draft.outlineColorHex,
-                creationMode: draft.creationMode,
-                effect: draft.effect,
-                stickerImageURL: stickerURL.absoluteString,
-                originalStickerImageURL: originalStickerURL?.absoluteString ?? "",
-                layout: layout,
-                createdAt: createdAt
-            )
-        }
-        posts.append(contentsOf: groupPosts)
-
-        let batch = db.batch()
-        var assetData: [String: Any] = [
-            "ownerId": user.id,
+        let jobId = UUID().uuidString
+        let jobRef = db.collection("stickerUploadJobs").document(jobId)
+        let jobData: [String: Any] = [
+            "userId": user.id,
+            "assetId": assetId,
             "storagePath": storagePath,
             "downloadURL": stickerURL.absoluteString,
-            "referenceCount": posts.count,
-            "createdAt": Timestamp(date: createdAt)
+            "originalStoragePath": originalStickerURL == nil ? "" : originalStoragePath,
+            "originalDownloadURL": originalStickerURL?.absoluteString ?? "",
+            "draft": [
+                "comment": draft.comment.trimmedForPetanko,
+                "shape": draft.shape.rawValue,
+                "decoration": draft.decoration.rawValue,
+                "outlineColorHex": draft.outlineColorHex,
+                "creationMode": draft.creationMode.rawValue,
+                "effect": draft.effect.rawValue
+            ],
+            "groupIds": groups.map(\.id),
+            "publishToBlog": publishToBlog,
+            "authorName": user.displayName,
+            "authorAvatar": user.avatar,
+            "status": "pending",
+            "createdAt": FieldValue.serverTimestamp(),
+            "updatedAt": FieldValue.serverTimestamp()
         ]
-        if let originalStickerURL {
-            assetData["originalStoragePath"] = originalStoragePath
-            assetData["originalDownloadURL"] = originalStickerURL.absoluteString
-        }
-        batch.setData(
-            assetData,
-            forDocument: db.collection("stickerAssets").document(assetId)
-        )
-        if publishToBlog, let blogPost = posts.first(where: { $0.target == .blog }) {
-            batch.setData(blogPost.dictionary, forDocument: db.collection("stickers").document(blogPost.id))
-        }
-        for (group, post) in zip(groups, groupPosts) {
-            batch.setData(
-                [
-                    "groupId": group.id,
-                    "dateKey": dateKey,
-                    "stickerLayout": FieldValue.arrayUnion([post.layout.dictionary]),
-                    "updatedAt": FieldValue.serverTimestamp()
-                ],
-                forDocument: db.collection("diaries").document(post.diaryId),
-                merge: true
-            )
-            batch.setData(post.dictionary, forDocument: db.collection("stickers").document(post.id))
-            batch.updateData(["diaryCount": FieldValue.increment(Int64(1))], forDocument: db.collection("groups").document(group.id))
-        }
-
         do {
-            try await batch.commit()
+            try await jobRef.setData(jobData)
         } catch {
             try? await storage.reference(withPath: storagePath).delete()
             if originalStickerURL != nil {
@@ -286,6 +203,8 @@ final class StickerService {
             }
             throw error
         }
+
+        let posts = try await waitForStickerUploadJob(jobId: jobId)
 
         // Remote persistence is complete at this point. Cache population can
         // continue without delaying the transition back to the home screen.
@@ -296,6 +215,31 @@ final class StickerService {
             }
         }
         return posts
+    }
+
+    private func waitForStickerUploadJob(jobId: String) async throws -> [StickerPost] {
+        let jobRef = db.collection("stickerUploadJobs").document(jobId)
+        let deadline = Date().addingTimeInterval(120)
+        while Date() < deadline {
+            let snapshot = try await jobRef.getDocument(source: .server)
+            let data = snapshot.data() ?? [:]
+            let status = data["status"] as? String ?? "pending"
+            if status == "completed" {
+                let postData = data["posts"] as? [[String: Any]] ?? []
+                return postData.compactMap { data in
+                    guard let id = data["id"] as? String else { return nil }
+                    var stickerData = data
+                    stickerData.removeValue(forKey: "id")
+                    return StickerPost(id: id, data: stickerData)
+                }
+            }
+            if status == "failed" {
+                let message = data["errorMessage"] as? String ?? "投稿処理に失敗しました。もう一度お試しください。"
+                throw PetankoError.message(message)
+            }
+            try await Task.sleep(for: .seconds(1))
+        }
+        throw PetankoError.message("投稿処理をサーバーに送信しました。完了通知が届くまで少しお待ちください。")
     }
 
     func deleteSticker(_ sticker: StickerPost, user: AppUser) async throws {

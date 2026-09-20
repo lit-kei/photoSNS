@@ -1,9 +1,30 @@
 import SwiftUI
 import FirebaseCore
+import FirebaseMessaging
 import UserNotifications
 
 extension Notification.Name {
     static let petankoOpenNotifications = Notification.Name("petankoOpenNotifications")
+}
+
+@MainActor
+final class RemoteNotificationRouter {
+    static let shared = RemoteNotificationRouter()
+
+    private var pendingUserInfos: [[AnyHashable: Any]] = []
+
+    private init() {}
+
+    func enqueue(_ userInfo: [AnyHashable: Any]) {
+        pendingUserInfos.append(userInfo)
+        NotificationCenter.default.post(name: .petankoOpenNotifications, object: nil, userInfo: userInfo)
+    }
+
+    func drainPendingUserInfos() -> [[AnyHashable: Any]] {
+        let userInfos = pendingUserInfos
+        pendingUserInfos = []
+        return userInfos
+    }
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -13,8 +34,16 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) -> Bool {
         FirebaseApp.configure()
         UNUserNotificationCenter.current().delegate = self
+        PushNotificationService.shared.configureMessagingDelegate()
 
         return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Messaging.messaging().apnsToken = deviceToken
     }
 
     func userNotificationCenter(
@@ -28,10 +57,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        let destination = response.notification.request.content.userInfo["petankoDestination"] as? String
-        guard destination == "notifications" else { return }
+        let userInfo = response.notification.request.content.userInfo
+        guard userInfo["petankoDestination"] != nil else { return }
         await MainActor.run {
-            NotificationCenter.default.post(name: .petankoOpenNotifications, object: nil)
+            RemoteNotificationRouter.shared.enqueue(userInfo)
         }
     }
 }

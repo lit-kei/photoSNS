@@ -6,7 +6,6 @@
 import Combine
 import FirebaseFirestore
 import Foundation
-import UserNotifications
 
 @MainActor
 final class AppState: ObservableObject {
@@ -26,6 +25,7 @@ final class AppState: ObservableObject {
     @Published var errorMessage: String?
     @Published var isAuthenticating = false
     @Published var isShowingNotifications = false
+    @Published var pendingDiaryNavigationRequest: DiaryNotificationNavigationRequest?
 
     private let services: AppServices
     let networkMonitor: NetworkMonitor
@@ -48,8 +48,7 @@ final class AppState: ObservableObject {
     private var allOutgoingFriendRequests: [FriendRequest] = []
     private var pendingAccount: AuthenticatedAccount?
     private var pendingTermsAcceptedAt: Date?
-    private var hasLoadedIncomingFriendRequests = false
-    private var knownIncomingFriendRequestIds: Set<String> = []
+    private var pendingRemoteNotificationUserInfo: [AnyHashable: Any]?
     private var leavingGroupIds: Set<String> = []
 
     init() {
@@ -128,6 +127,7 @@ final class AppState: ObservableObject {
             currentUser = user
             resetSignedInNavigation()
             authState = .signedIn
+            PushNotificationService.shared.activate(for: user.id)
             observeSignedInData(for: user.id)
         } catch {
             if let uploadedAvatarURL, !didPersistProfile {
@@ -138,12 +138,16 @@ final class AppState: ObservableObject {
     }
 
     func signOut() {
-        do {
-            try services.auth.signOut()
-            clearSignedInState()
-            authState = .signedOut
-        } catch {
-            errorMessage = error.localizedDescription
+        Task {
+            await PushNotificationService.shared.deactivate()
+            stopSignedInDataListeners()
+            do {
+                try services.auth.signOut()
+                clearSignedInState()
+                authState = .signedOut
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -376,6 +380,8 @@ final class AppState: ObservableObject {
             return .requiresRecentLogin
         }
         do {
+            await PushNotificationService.shared.deactivate()
+            stopSignedInDataListeners()
             try await services.accountDeletion.deleteAccount(
                 user: currentUser,
                 password: password,
@@ -386,6 +392,10 @@ final class AppState: ObservableObject {
             authState = .signedOut
             return .deleted
         } catch {
+            if authState == .signedIn, self.currentUser?.id == currentUser.id {
+                PushNotificationService.shared.activate(for: currentUser.id)
+                observeSignedInData(for: currentUser.id)
+            }
             if error.isPetankoRequiresRecentLoginError {
                 return .requiresRecentLogin
             }
@@ -417,6 +427,39 @@ final class AppState: ObservableObject {
     func openNotifications() {
         selectedTab = .home
         isShowingNotifications = true
+    }
+
+    func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) {
+        guard userInfo["petankoDestination"] != nil else { return }
+        guard authState == .signedIn, currentUser != nil else {
+            pendingRemoteNotificationUserInfo = userInfo
+            return
+        }
+        openRemoteNotification(userInfo)
+    }
+
+    private func openRemoteNotification(_ userInfo: [AnyHashable: Any]) {
+        guard let destination = userInfo["petankoDestination"] as? String else { return }
+        switch destination {
+        case "groupDiary":
+            openDiaryFromNotification(userInfo)
+        case "postComplete":
+            if let groupId = (userInfo["primaryGroupId"] as? String), !groupId.isEmpty {
+                openDiaryFromNotification(userInfo, groupIdKey: "primaryGroupId")
+            } else {
+                selectedTab = .home
+                isShowingNotifications = false
+            }
+        case "friendRequests", "notifications":
+            openNotifications()
+        default:
+            break
+        }
+    }
+
+    func clearDiaryNavigationRequest(_ request: DiaryNotificationNavigationRequest) {
+        guard pendingDiaryNavigationRequest?.id == request.id else { return }
+        pendingDiaryNavigationRequest = nil
     }
 
     func markGroupAsRead(_ groupId: String) {
@@ -710,7 +753,9 @@ final class AppState: ObservableObject {
                 currentUser = user
                 resetSignedInNavigation()
                 authState = .signedIn
+                PushNotificationService.shared.activate(for: user.id)
                 observeSignedInData(for: user.id)
+                openPendingRemoteNotificationIfPossible()
             } else {
                 clearSignedInState()
                 pendingAccount = account
@@ -729,38 +774,26 @@ final class AppState: ObservableObject {
             currentUser = fallbackUser
             resetSignedInNavigation()
             authState = .signedIn
+            PushNotificationService.shared.activate(for: fallbackUser.id)
             observeSignedInData(for: fallbackUser.id)
+            openPendingRemoteNotificationIfPossible()
         }
     }
 
     private func resetSignedInNavigation() {
         selectedTab = .home
         isShowingNotifications = false
+        pendingDiaryNavigationRequest = nil
         signedInSessionResetID = UUID()
     }
 
     private func clearSignedInState() {
         stickerUploadCoordinator.cancelAndClear()
         pendingTermsAcceptedAt = nil
-        groupListener?.remove()
-        groupListener = nil
-        groupReadStateListener?.remove()
-        groupReadStateListener = nil
-        unreadStickerListeners.values.forEach { $0.remove() }
-        unreadStickerListeners = [:]
+        stopSignedInDataListeners()
         unreadObservationCutoffs = [:]
         groupLastReadDates = [:]
         initializingReadStateGroupIds = []
-        friendListener?.remove()
-        friendListener = nil
-        removeFriendTodayStickerListeners()
-        removeUserProfileListeners()
-        blockedUserListener?.remove()
-        blockedUserListener = nil
-        incomingFriendRequestListener?.remove()
-        incomingFriendRequestListener = nil
-        outgoingFriendRequestListener?.remove()
-        outgoingFriendRequestListener = nil
         currentUser = nil
         observedUserProfiles = [:]
         groups = []
@@ -776,9 +809,47 @@ final class AppState: ObservableObject {
         unreadPostCounts = [:]
         selectedTab = .home
         isShowingNotifications = false
-        hasLoadedIncomingFriendRequests = false
-        knownIncomingFriendRequestIds = []
+        pendingDiaryNavigationRequest = nil
         pendingAccount = nil
+        pendingRemoteNotificationUserInfo = nil
+    }
+
+    private func stopSignedInDataListeners() {
+        groupListener?.remove()
+        groupListener = nil
+        groupReadStateListener?.remove()
+        groupReadStateListener = nil
+        unreadStickerListeners.values.forEach { $0.remove() }
+        unreadStickerListeners = [:]
+        friendListener?.remove()
+        friendListener = nil
+        removeFriendTodayStickerListeners()
+        removeUserProfileListeners()
+        blockedUserListener?.remove()
+        blockedUserListener = nil
+        incomingFriendRequestListener?.remove()
+        incomingFriendRequestListener = nil
+        outgoingFriendRequestListener?.remove()
+        outgoingFriendRequestListener = nil
+    }
+
+    private func openDiaryFromNotification(_ userInfo: [AnyHashable: Any], groupIdKey: String = "groupId") {
+        guard let groupId = userInfo[groupIdKey] as? String, !groupId.isEmpty else { return }
+        selectedTab = .memories
+        isShowingNotifications = false
+        pendingDiaryNavigationRequest = DiaryNotificationNavigationRequest(
+            groupId: groupId,
+            dateKey: userInfo["dateKey"] as? String,
+            stickerId: userInfo["stickerId"] as? String
+        )
+    }
+
+    private func openPendingRemoteNotificationIfPossible() {
+        guard authState == .signedIn,
+              currentUser != nil,
+              let userInfo = pendingRemoteNotificationUserInfo else { return }
+        pendingRemoteNotificationUserInfo = nil
+        openRemoteNotification(userInfo)
     }
 
     private func removeFriendTodayStickerListeners() {
@@ -826,18 +897,7 @@ final class AppState: ObservableObject {
     }
 
     private func applyIncomingFriendRequests(_ requests: [FriendRequest]) {
-        let incomingIds = Set(requests.map(\.id))
-        let newRequests = requests.filter { !knownIncomingFriendRequestIds.contains($0.id) }
         incomingFriendRequests = requests
-
-        if hasLoadedIncomingFriendRequests {
-            for request in newRequests {
-                sendFriendRequestNotification(request)
-            }
-        }
-
-        hasLoadedIncomingFriendRequests = true
-        knownIncomingFriendRequestIds = incomingIds
     }
 
     private var blockedUserIds: Set<String> {
@@ -880,21 +940,13 @@ final class AppState: ObservableObject {
         return fallback
     }
 
-    private func sendFriendRequestNotification(_ request: FriendRequest) {
-        Task {
-            let content = UNMutableNotificationContent()
-            content.title = "友達申請が届きました"
-            content.body = "\(request.fromName)さんから友達申請が届いています。"
-            content.sound = .default
-            content.userInfo = ["petankoDestination": "notifications"]
-            let notificationRequest = UNNotificationRequest(
-                identifier: "friend-request-\(request.id)",
-                content: content,
-                trigger: nil
-            )
-            try? await UNUserNotificationCenter.current().add(notificationRequest)
-        }
-    }
+}
+
+struct DiaryNotificationNavigationRequest: Identifiable, Hashable {
+    let id = UUID()
+    let groupId: String
+    let dateKey: String?
+    let stickerId: String?
 }
 
 enum AuthState: Hashable {

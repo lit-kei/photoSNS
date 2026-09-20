@@ -11,6 +11,7 @@
 		EB42FE13302EFBAC00036929 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = EB42FE18302EFBAC00036929 /* FirebaseAuth */; };
 		EB42FE14302EFBAC00036929 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = EB42FE19302EFBAC00036929 /* FirebaseFirestore */; };
 		EB42FE15302EFBAC00036929 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = EB42FE1A302EFBAC00036929 /* FirebaseStorage */; };
+		EB42FE1B302EFBAC00036929 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = EB42FE1C302EFBAC00036929 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 				EB42FE13302EFBAC00036929 /* FirebaseAuth in Frameworks */,
 				EB42FE14302EFBAC00036929 /* FirebaseFirestore in Frameworks */,
 				EB42FE15302EFBAC00036929 /* FirebaseStorage in Frameworks */,
+				EB42FE1B302EFBAC00036929 /* FirebaseMessaging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -80,6 +82,7 @@
 				EB42FE18302EFBAC00036929 /* FirebaseAuth */,
 				EB42FE19302EFBAC00036929 /* FirebaseFirestore */,
 				EB42FE1A302EFBAC00036929 /* FirebaseStorage */,
+				EB42FE1C302EFBAC00036929 /* FirebaseMessaging */,
 			);
 			productName = petanko;
 			productReference = F7A4CF36302EEF9000BA2FA0 /* petanko.app */;
@@ -97,6 +100,14 @@
 				TargetAttributes = {
 					F7A4CF35302EEF9000BA2FA0 = {
 						CreatedOnToolsVersion = 26.2;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -267,6 +278,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = petanko/petanko.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5PBPP7JKP7;
@@ -278,6 +290,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "作成したステッカーを写真に保存するために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -303,6 +316,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = petanko/petanko.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 5PBPP7JKP7;
@@ -314,6 +328,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "作成したステッカーを写真に保存するために使用します。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -388,6 +403,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = EB42FE11302EFBAC00036929 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseStorage;
+		};
+		EB42FE1C302EFBAC00036929 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EB42FE11302EFBAC00036929 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
