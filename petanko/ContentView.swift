@@ -32,18 +32,9 @@ struct ContentView: View {
             if appState.authState == .bootstrapping {
                 appState.bootstrap()
             }
-            handlePendingRemoteNotifications()
         }
         .onChange(of: scenePhase) { _, newValue in
             appState.stickerUploadCoordinator.setAppActive(newValue == .active)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .petankoOpenNotifications)) { notification in
-            let pendingUserInfos = RemoteNotificationRouter.shared.drainPendingUserInfos()
-            if pendingUserInfos.isEmpty {
-                appState.handleRemoteNotification(notification.userInfo ?? [:])
-            } else {
-                pendingUserInfos.forEach(appState.handleRemoteNotification)
-            }
         }
         .preferredColorScheme(.light)
         .alert("エラー", isPresented: Binding(
@@ -56,12 +47,6 @@ struct ContentView: View {
         }
     }
 
-    private func handlePendingRemoteNotifications() {
-        RemoteNotificationRouter.shared
-            .drainPendingUserInfos()
-            .forEach(appState.handleRemoteNotification)
-    }
-
     private var signedInTabs: some View {
         Group {
             tabContent(for: appState.selectedTab)
@@ -71,13 +56,6 @@ struct ContentView: View {
             StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
                 .padding(.horizontal, 16)
                 .padding(.bottom, uploadBannerBottomPadding)
-        }
-        .sheet(isPresented: $appState.isShowingNotifications) {
-            NavigationStack {
-                HomeNotificationScreen()
-                    .environmentObject(appState)
-            }
-            .presentationDragIndicator(.visible)
         }
     }
 
