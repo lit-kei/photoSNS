@@ -19,30 +19,50 @@ enum BackgroundStickerRenderer {
         return try apply(decoration, to: filtered, outlineColor: outlineColor)
     }
 
-    static func renderPNG(preparedForeground: UIImage, draft: StickerDraft) throws -> Data {
+    static func prepareForeground(
+        _ foreground: UIImage,
+        decoration: StickerDecoration,
+        outlineColor: UIColor = .white
+    ) throws -> UIImage {
+        try prepareForeground(
+            foreground,
+            effect: .original,
+            decoration: decoration,
+            outlineColor: outlineColor
+        )
+    }
+
+    static func renderImage(preparedForeground: UIImage, draft: StickerDraft) throws -> UIImage {
+        let filters = draft.detailEdit.filters.sorted { $0.zIndex < $1.zIndex }
+        let filteredForeground = try applyDetailFilters(
+            filters,
+            to: renderForegroundLayer(preparedForeground: preparedForeground, draft: draft)
+        )
+
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false
         let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
-        let image = renderer.image { rendererContext in
+        return renderer.image { rendererContext in
             UIColor.clear.setFill()
             rendererContext.fill(CGRect(origin: .zero, size: canvasSize))
 
-            let rect = placementRect(
-                imageSize: preparedForeground.size,
-                canvasSize: canvasSize,
-                scale: draft.foregroundScale,
-                offset: draft.foregroundOffset
-            )
-            let cgContext = rendererContext.cgContext
-            cgContext.saveGState()
-            cgContext.translateBy(x: rect.midX, y: rect.midY)
-            cgContext.rotate(by: CGFloat(draft.foregroundRotation) * .pi / 180)
-            preparedForeground.draw(
-                in: CGRect(x: -rect.width / 2, y: -rect.height / 2, width: rect.width, height: rect.height)
-            )
-            cgContext.restoreGState()
+            for shape in draft.detailEdit.shapes.sorted(by: { $0.zIndex < $1.zIndex }) {
+                if shape.isFilterEnabled {
+                    let shapeLayer = renderShapeLayer(shape)
+                    let filteredShape = (try? applyDetailFilters(filters, to: shapeLayer)) ?? shapeLayer
+                    filteredShape.draw(in: CGRect(origin: .zero, size: canvasSize))
+                } else {
+                    drawShape(shape, in: rendererContext.cgContext)
+                }
+            }
+
+            filteredForeground.draw(in: CGRect(origin: .zero, size: canvasSize))
         }
+    }
+
+    static func renderPNG(preparedForeground: UIImage, draft: StickerDraft) throws -> Data {
+        let image = try renderImage(preparedForeground: preparedForeground, draft: draft)
 
         guard let data = image.pngData() else {
             throw PetankoError.message("ステッカー画像を書き出せませんでした。")
@@ -56,6 +76,234 @@ enum BackgroundStickerRenderer {
             throw PetankoError.message("ステッカー画像を512pxで作成できませんでした。")
         }
         return data
+    }
+
+    private static func renderFilterTargetLayer(preparedForeground: UIImage, draft: StickerDraft) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: canvasSize, format: format).image { rendererContext in
+            UIColor.clear.setFill()
+            rendererContext.fill(CGRect(origin: .zero, size: canvasSize))
+
+            drawShapes(
+                draft.detailEdit.shapes
+                    .filter(\.isFilterEnabled)
+                    .sorted { $0.zIndex < $1.zIndex },
+                in: rendererContext.cgContext
+            )
+            drawForeground(preparedForeground, draft: draft, in: rendererContext.cgContext)
+        }
+    }
+
+    private static func renderForegroundLayer(preparedForeground: UIImage, draft: StickerDraft) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: canvasSize, format: format).image { rendererContext in
+            UIColor.clear.setFill()
+            rendererContext.fill(CGRect(origin: .zero, size: canvasSize))
+            drawForeground(preparedForeground, draft: draft, in: rendererContext.cgContext)
+        }
+    }
+
+    private static func renderShapeLayer(_ shape: StickerDetailShapeItem) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: canvasSize, format: format).image { rendererContext in
+            UIColor.clear.setFill()
+            rendererContext.fill(CGRect(origin: .zero, size: canvasSize))
+            drawShape(shape, in: rendererContext.cgContext)
+        }
+    }
+
+    private static func drawForeground(_ image: UIImage, draft: StickerDraft, in cgContext: CGContext) {
+        let rect = placementRect(
+            imageSize: image.size,
+            canvasSize: canvasSize,
+            scale: draft.foregroundScale,
+            offset: draft.foregroundOffset
+        )
+        cgContext.saveGState()
+        cgContext.translateBy(x: rect.midX, y: rect.midY)
+        cgContext.rotate(by: CGFloat(draft.foregroundRotation) * .pi / 180)
+        image.draw(
+            in: CGRect(x: -rect.width / 2, y: -rect.height / 2, width: rect.width, height: rect.height)
+        )
+        cgContext.restoreGState()
+    }
+
+    private static func drawShapes(_ shapes: [StickerDetailShapeItem], in cgContext: CGContext) {
+        for shape in shapes {
+            drawShape(shape, in: cgContext)
+        }
+    }
+
+    private static func drawShape(_ shape: StickerDetailShapeItem, in cgContext: CGContext) {
+        let width = CGFloat(shape.width * shape.scale)
+        let height = CGFloat(shape.height * shape.scale)
+        guard width > 0, height > 0 else { return }
+
+        cgContext.saveGState()
+        cgContext.translateBy(x: CGFloat(shape.x), y: CGFloat(shape.y))
+        cgContext.rotate(by: CGFloat(shape.rotation) * .pi / 180)
+        let rect = CGRect(x: -width / 2, y: -height / 2, width: width, height: height)
+        let path = detailPath(kind: shape.type, in: rect)
+
+        if let fillColor = detailColor(shape.fillColorHex) {
+            fillColor.setFill()
+            path.fill()
+        }
+
+        if shape.strokeWidth > 0,
+           let strokeColor = detailColor(shape.strokeColorHex) {
+            strokeColor.setStroke()
+            path.lineWidth = CGFloat(shape.strokeWidth)
+            path.stroke()
+        }
+
+        cgContext.restoreGState()
+    }
+
+    private static func applyDetailFilters(
+        _ filters: [StickerDetailFilterItem],
+        to image: UIImage
+    ) throws -> UIImage {
+        var result = image
+        for filter in filters {
+            result = try applyDetailFilter(filter, to: result)
+        }
+        return result
+    }
+
+    private static func applyDetailFilter(
+        _ filter: StickerDetailFilterItem,
+        to image: UIImage
+    ) throws -> UIImage {
+        let filtered: UIImage
+        switch filter.type {
+        case .invert:
+            filtered = try filteredImage(image, filterName: "CIColorInvert")
+        case .grayscale:
+            filtered = try filteredImage(image, filterName: "CIPhotoEffectMono")
+        case .translucentColor:
+            return applyTranslucentColorFilter(filter, to: image)
+        case .pixelate:
+            filtered = try pixelatedImage(image, scale: filter.pixelScale)
+        case .sepia:
+            filtered = try sepiaImage(image)
+        case .vivid:
+            filtered = try vividImage(image)
+        }
+
+        return composite(filtered: filtered, over: image, in: filter)
+    }
+
+    private static func applyTranslucentColorFilter(
+        _ filter: StickerDetailFilterItem,
+        to image: UIImage
+    ) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: canvasSize, format: format).image { rendererContext in
+            image.draw(in: CGRect(origin: .zero, size: canvasSize))
+            let cgContext = rendererContext.cgContext
+            cgContext.saveGState()
+            addClipPath(for: filter, in: cgContext)
+            cgContext.setBlendMode(.sourceAtop)
+            detailColor(filter.colorHex)?
+                .withAlphaComponent(CGFloat(filter.opacity.clamped(to: 0...1)))
+                .setFill()
+            cgContext.fill(CGRect(origin: .zero, size: canvasSize))
+            cgContext.restoreGState()
+        }
+    }
+
+    private static func composite(
+        filtered: UIImage,
+        over image: UIImage,
+        in filter: StickerDetailFilterItem
+    ) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: canvasSize, format: format).image { rendererContext in
+            image.draw(in: CGRect(origin: .zero, size: canvasSize))
+            let cgContext = rendererContext.cgContext
+            cgContext.saveGState()
+            addClipPath(for: filter, in: cgContext)
+            filtered.draw(in: CGRect(origin: .zero, size: canvasSize))
+            cgContext.restoreGState()
+        }
+    }
+
+    private static func addClipPath(for filter: StickerDetailFilterItem, in cgContext: CGContext) {
+        let width = CGFloat(filter.width * filter.scale)
+        let height = CGFloat(filter.height * filter.scale)
+        guard width > 0, height > 0 else { return }
+
+        let rect = CGRect(x: -width / 2, y: -height / 2, width: width, height: height)
+        let path = detailPath(kind: filter.maskShape, in: rect)
+        var transform = CGAffineTransform(translationX: CGFloat(filter.x), y: CGFloat(filter.y))
+            .rotated(by: CGFloat(filter.rotation) * .pi / 180)
+        if let transformedPath = path.cgPath.copy(using: &transform) {
+            cgContext.addPath(transformedPath)
+            cgContext.clip()
+        }
+    }
+
+    private static func filteredImage(_ image: UIImage, filterName: String) throws -> UIImage {
+        guard let cgImage = image.cgImage else { throw ForegroundExtractionError.invalidImage }
+        let input = CIImage(cgImage: cgImage)
+        let output = input.applyingFilter(filterName)
+        guard let cgOutput = context.createCGImage(output.cropped(to: input.extent), from: input.extent) else {
+            throw ForegroundExtractionError.renderingFailed
+        }
+        return UIImage(cgImage: cgOutput, scale: 1, orientation: .up)
+    }
+
+    private static func pixelatedImage(_ image: UIImage, scale: Double) throws -> UIImage {
+        guard let cgImage = image.cgImage else { throw ForegroundExtractionError.invalidImage }
+        let input = CIImage(cgImage: cgImage)
+        let filter = CIFilter.pixellate()
+        filter.inputImage = input
+        filter.center = CGPoint(x: input.extent.midX, y: input.extent.midY)
+        filter.scale = Float(scale.clamped(to: 4...32))
+        guard let output = filter.outputImage,
+              let cgOutput = context.createCGImage(output.cropped(to: input.extent), from: input.extent) else {
+            throw ForegroundExtractionError.renderingFailed
+        }
+        return UIImage(cgImage: cgOutput, scale: 1, orientation: .up)
+    }
+
+    private static func sepiaImage(_ image: UIImage) throws -> UIImage {
+        guard let cgImage = image.cgImage else { throw ForegroundExtractionError.invalidImage }
+        let input = CIImage(cgImage: cgImage)
+        let filter = CIFilter.sepiaTone()
+        filter.inputImage = input
+        filter.intensity = 0.86
+        guard let output = filter.outputImage,
+              let cgOutput = context.createCGImage(output.cropped(to: input.extent), from: input.extent) else {
+            throw ForegroundExtractionError.renderingFailed
+        }
+        return UIImage(cgImage: cgOutput, scale: 1, orientation: .up)
+    }
+
+    private static func vividImage(_ image: UIImage) throws -> UIImage {
+        guard let cgImage = image.cgImage else { throw ForegroundExtractionError.invalidImage }
+        let input = CIImage(cgImage: cgImage)
+        let filter = CIFilter.colorControls()
+        filter.inputImage = input
+        filter.saturation = 1.35
+        filter.contrast = 1.10
+        filter.brightness = 0.02
+        guard let output = filter.outputImage,
+              let cgOutput = context.createCGImage(output.cropped(to: input.extent), from: input.extent) else {
+            throw ForegroundExtractionError.renderingFailed
+        }
+        return UIImage(cgImage: cgOutput, scale: 1, orientation: .up)
     }
 
     static func placementSize(
@@ -290,6 +538,72 @@ enum BackgroundStickerRenderer {
         path.close()
         UIColor(white: 0.90, alpha: 1).setFill()
         path.fill()
+    }
+
+    private static func detailColor(_ hex: String) -> UIColor? {
+        if hex == StickerDetailShapeItem.transparentColorHex {
+            return nil
+        }
+        return UIColor(hex: hex) ?? .systemPink
+    }
+
+    private static func detailPath(kind: StickerDetailShapeKind, in rect: CGRect) -> UIBezierPath {
+        switch kind {
+        case .rectangle:
+            return UIBezierPath(roundedRect: rect, cornerRadius: min(rect.width, rect.height) * 0.08)
+        case .circle:
+            return UIBezierPath(ovalIn: rect)
+        case .star:
+            return starPath(in: rect)
+        case .heart:
+            return heartPath(in: rect)
+        }
+    }
+
+    private static func starPath(in rect: CGRect) -> UIBezierPath {
+        let path = UIBezierPath()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let outerX = rect.width / 2
+        let outerY = rect.height / 2
+        let innerRatio: CGFloat = 0.44
+        for index in 0..<10 {
+            let angle = -CGFloat.pi / 2 + CGFloat(index) * CGFloat.pi / 5
+            let radius = index.isMultiple(of: 2) ? CGFloat(1) : innerRatio
+            let point = CGPoint(
+                x: center.x + cos(angle) * outerX * radius,
+                y: center.y + sin(angle) * outerY * radius
+            )
+            index == 0 ? path.move(to: point) : path.addLine(to: point)
+        }
+        path.close()
+        return path
+    }
+
+    private static func heartPath(in rect: CGRect) -> UIBezierPath {
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addCurve(
+            to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.30),
+            controlPoint1: CGPoint(x: rect.minX + rect.width * 0.36, y: rect.minY + rect.height * 0.76),
+            controlPoint2: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.56)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.24),
+            controlPoint1: CGPoint(x: rect.minX, y: rect.minY),
+            controlPoint2: CGPoint(x: rect.minX + rect.width * 0.36, y: rect.minY)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.30),
+            controlPoint1: CGPoint(x: rect.minX + rect.width * 0.64, y: rect.minY),
+            controlPoint2: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addCurve(
+            to: CGPoint(x: rect.midX, y: rect.maxY),
+            controlPoint1: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.56),
+            controlPoint2: CGPoint(x: rect.minX + rect.width * 0.64, y: rect.minY + rect.height * 0.76)
+        )
+        path.close()
+        return path
     }
 }
 

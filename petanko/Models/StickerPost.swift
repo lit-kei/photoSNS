@@ -130,5 +130,6 @@ struct StickerDraft: Hashable {
     var foregroundScale: Double = 1
     var foregroundRotation: Double = 0
     var foregroundOffset: CGSize = .zero
+    var detailEdit = StickerDetailEdit()
     var comment: String = ""
 }
