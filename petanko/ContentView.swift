@@ -74,26 +74,12 @@ struct ContentView: View {
             tabContent(for: appState.selectedTab)
         }
         .id(appState.signedInSessionResetID)
-        .overlay(alignment: .bottom) {
-            StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
-                .padding(.horizontal, 16)
-                .padding(.bottom, uploadBannerBottomPadding)
-        }
         .sheet(isPresented: $appState.isShowingNotifications) {
             NavigationStack {
                 HomeNotificationScreen()
                     .environmentObject(appState)
             }
             .presentationDragIndicator(.visible)
-        }
-    }
-
-    private var uploadBannerBottomPadding: CGFloat {
-        switch appState.selectedTab {
-        case .home, .friends:
-            72
-        default:
-            18
         }
     }
 
@@ -240,6 +226,8 @@ struct AttachedBottomTabBar: View {
 }
 
 private struct RootTabBarModifier: ViewModifier {
+    @EnvironmentObject private var appState: AppState
+
     let shows: Bool
     let isDisabled: Bool
     @Binding var selection: AppTab
@@ -249,8 +237,14 @@ private struct RootTabBarModifier: ViewModifier {
             .safeAreaPadding(.bottom, shows ? 72 : 0)
             .overlay(alignment: .bottom) {
                 if shows {
-                    AttachedBottomTabBar(selection: $selection, isDisabled: isDisabled)
-                        .ignoresSafeArea(.keyboard, edges: .bottom)
+                    ZStack(alignment: .bottom) {
+                        StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 72)
+
+                        AttachedBottomTabBar(selection: $selection, isDisabled: isDisabled)
+                            .ignoresSafeArea(.keyboard, edges: .bottom)
+                    }
                 }
             }
             .ignoresSafeArea(.keyboard, edges: shows ? .bottom : [])

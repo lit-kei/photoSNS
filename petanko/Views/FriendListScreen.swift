@@ -12,7 +12,7 @@ struct FriendListScreen: View {
                     NavigationLink {
                         FriendAddScreen()
                     } label: {
-                        RootTabHeaderPersonAddIconLabel(systemName: "person")
+                        RootTabHeaderPersonAddIconLabel(systemName: "person.fill")
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("友達追加")
