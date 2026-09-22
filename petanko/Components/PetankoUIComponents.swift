@@ -459,6 +459,8 @@ struct HorizontalOptionPicker<Option: PetankoOption>: View {
                     .buttonStyle(OptionButtonStyle(isSelected: option.id == selection.id))
                 }
             }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
         }
     }
 }
@@ -483,10 +485,9 @@ private struct OptionButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
                     .stroke(isSelected ? AppColors.accentPink.opacity(0.58) : AppColors.border, lineWidth: 0.8)
             }
-            .scaleEffect(configuration.isPressed ? 0.98 : (isSelected ? 1.02 : 1))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.84 : 1)
             .animation(.spring(response: 0.24, dampingFraction: 0.86), value: configuration.isPressed)
-            .animation(.spring(response: 0.28, dampingFraction: 0.84), value: isSelected)
     }
 }
 

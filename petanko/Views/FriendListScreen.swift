@@ -12,17 +12,7 @@ struct FriendListScreen: View {
                     NavigationLink {
                         FriendAddScreen()
                     } label: {
-                        Label("追加", systemImage: "person.badge.plus")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(AppColors.mainText)
-                            .labelStyle(.titleAndIcon)
-                            .padding(.horizontal, 13)
-                            .frame(height: 40)
-                            .background(AppColors.elevatedSurface.opacity(0.96), in: Capsule())
-                            .overlay {
-                                Capsule()
-                                    .stroke(AppColors.mainText.opacity(0.16), lineWidth: 1)
-                            }
+                        RootTabHeaderPersonAddIconLabel(systemName: "person")
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("友達追加")

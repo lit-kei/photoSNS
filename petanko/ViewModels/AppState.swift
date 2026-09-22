@@ -46,6 +46,7 @@ final class AppState: ObservableObject {
     private var allFriendTodayStickers: [StickerPost] = []
     private var allIncomingFriendRequests: [FriendRequest] = []
     private var allOutgoingFriendRequests: [FriendRequest] = []
+    private var observedFriendFeedDateKey = Date().petankoDateKey
     private var pendingAccount: AuthenticatedAccount?
     private var pendingTermsAcceptedAt: Date?
     private var pendingRemoteNotificationUserInfo: [AnyHashable: Any]?
@@ -126,6 +127,7 @@ final class AppState: ObservableObject {
             pendingTermsAcceptedAt = nil
             currentUser = user
             resetSignedInNavigation()
+            observedFriendFeedDateKey = Date().petankoDateKey
             authState = .signedIn
             activatePushNotificationsIfNeeded(for: user.id)
             observeSignedInData(for: user.id)
@@ -223,6 +225,18 @@ final class AppState: ObservableObject {
             guard !error.isPetankoOfflineFirestoreError else { return }
             errorMessage = error.localizedDescription
         }
+    }
+
+    func refreshDateSensitiveDataIfNeeded() {
+        guard authState == .signedIn, currentUser != nil else { return }
+        let currentDateKey = Date().petankoDateKey
+        guard observedFriendFeedDateKey != currentDateKey else { return }
+
+        observedFriendFeedDateKey = currentDateKey
+        allFriendTodayStickers = []
+        friendTodayStickers = []
+        observeTodayBlogStickers(for: allFriends)
+        reconcileObservedUserProfiles()
     }
 
     func leaveGroup(_ group: PetankoGroup) async -> Bool {
@@ -662,9 +676,11 @@ final class AppState: ObservableObject {
             return
         }
         let authorIds = friends.map(\.friendId) + [currentUser.id]
+        let dateKey = observedFriendFeedDateKey
 
-        friendTodayStickerListeners = services.stickers.observeTodayBlogStickers(authorIds: authorIds) { [weak self] stickers, error in
+        friendTodayStickerListeners = services.stickers.observeTodayBlogStickers(authorIds: authorIds, dateKey: dateKey) { [weak self] stickers, error in
             Task { @MainActor in
+                guard self?.observedFriendFeedDateKey == dateKey else { return }
                 if let error {
                     guard !error.isPetankoOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
@@ -761,6 +777,7 @@ final class AppState: ObservableObject {
                 pendingTermsAcceptedAt = nil
                 currentUser = user
                 resetSignedInNavigation()
+                observedFriendFeedDateKey = Date().petankoDateKey
                 authState = .signedIn
                 activatePushNotificationsIfNeeded(for: user.id)
                 observeSignedInData(for: user.id)
@@ -782,6 +799,7 @@ final class AppState: ObservableObject {
             pendingTermsAcceptedAt = nil
             currentUser = fallbackUser
             resetSignedInNavigation()
+            observedFriendFeedDateKey = Date().petankoDateKey
             authState = .signedIn
             activatePushNotificationsIfNeeded(for: fallbackUser.id)
             observeSignedInData(for: fallbackUser.id)
@@ -816,6 +834,7 @@ final class AppState: ObservableObject {
         blockedUsers = []
         allFriends = []
         allFriendTodayStickers = []
+        observedFriendFeedDateKey = Date().petankoDateKey
         allIncomingFriendRequests = []
         allOutgoingFriendRequests = []
         incomingFriendRequests = []

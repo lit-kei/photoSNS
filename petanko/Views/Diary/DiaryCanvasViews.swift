@@ -6,15 +6,16 @@ enum DiaryCanvasMetrics {
     static let stickerBaseSize: CGFloat = 118
     static let stickerScaleRange: ClosedRange<Double> = 0.55...3.4
 
-    static func sanitizedStickerLayout(_ layout: StickerLayout) -> StickerLayout {
+    nonisolated static func sanitizedStickerLayout(_ layout: StickerLayout) -> StickerLayout {
         var result = layout
-        let halfWidth = Double(logicalSize.width) / 2
-        let halfHeight = Double(logicalSize.height) / 2
+        let halfWidth = 180.0
+        let halfHeight = 240.0
+        let scaleRange = 0.55...3.4
 
         result.x = result.x.isFinite ? min(halfWidth, max(-halfWidth, result.x)) : 0
         result.y = result.y.isFinite ? min(halfHeight, max(-halfHeight, result.y)) : 0
         result.scale = result.scale.isFinite
-            ? min(stickerScaleRange.upperBound, max(stickerScaleRange.lowerBound, result.scale))
+            ? min(scaleRange.upperBound, max(scaleRange.lowerBound, result.scale))
             : 1
         result.rotation = result.rotation.isFinite ? result.rotation : 0
         return result

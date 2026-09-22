@@ -32,6 +32,8 @@ private final class BackgroundRemovalViewModel: ObservableObject {
 }
 
 struct BackgroundRemovalStickerScreen: View {
+    @Environment(\.dismiss) private var dismiss
+
     let originalImage: UIImage
 
     @StateObject private var viewModel = BackgroundRemovalViewModel()
@@ -44,6 +46,7 @@ struct BackgroundRemovalStickerScreen: View {
     @State private var generatedOriginalPNG: Data?
     @State private var isShowingPostScreen = false
     @State private var isInteracting = false
+    @State private var isShowingDiscardAlert = false
 
     var body: some View {
         Group {
@@ -59,6 +62,16 @@ struct BackgroundRemovalStickerScreen: View {
         .background { PetankoMetalBackground() }
         .navigationTitle("背景透過ステッカー")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    requestDismiss()
+                } label: {
+                    Label("戻る", systemImage: "chevron.left")
+                }
+            }
+        }
         .navigationDestination(isPresented: $isShowingPostScreen) {
             StickerPostScreen(
                 stickerPNG: generatedPNG ?? Data(),
@@ -72,6 +85,14 @@ struct BackgroundRemovalStickerScreen: View {
         .onDisappear {
             preparedForeground = nil
             viewModel.discard()
+        }
+        .alert("変更を破棄しますか？", isPresented: $isShowingDiscardAlert) {
+            Button("キャンセル", role: .cancel) {}
+            Button("破棄", role: .destructive) {
+                dismiss()
+            }
+        } message: {
+            Text("編集した内容は保存されません。")
         }
     }
 
@@ -230,6 +251,18 @@ struct BackgroundRemovalStickerScreen: View {
         }
     }
 
+    private var hasUnsavedChanges: Bool {
+        draft != StickerDraft(creationMode: .backgroundRemoval)
+    }
+
+    private func requestDismiss() {
+        if hasUnsavedChanges {
+            isShowingDiscardAlert = true
+        } else {
+            dismiss()
+        }
+    }
+
     private var outlineColorBinding: Binding<Color> {
         Binding(
             get: {
@@ -321,14 +354,13 @@ private struct BackgroundForegroundPreview: View {
     @State private var dragStart: CGSize?
     @State private var scaleStart: Double?
     @State private var rotationStart: Double?
-    @State private var liveRotation: Double = 0
     @State private var isDragging = false
     @State private var isMagnifying = false
     @State private var isRotating = false
 
     var body: some View {
         GeometryReader { proxy in
-            let displayedRotation = draft.foregroundRotation + liveRotation
+            let displayedRotation = draft.foregroundRotation
             let saveSide = min(proxy.size.width * 0.9, proxy.size.height * 0.9)
             let previewImage = (try? BackgroundStickerRenderer.renderImage(
                 preparedForeground: image,
@@ -403,15 +435,14 @@ private struct BackgroundForegroundPreview: View {
                 if rotationStart == nil {
                     rotationStart = draft.foregroundRotation
                 }
-                liveRotation = value.degrees
+                draft.foregroundRotation = normalizedAngle((rotationStart ?? 0) + value.degrees)
                 draft.foregroundOffset = constrained(
                     draft.foregroundOffset,
-                    rotation: (rotationStart ?? 0) + liveRotation
+                    rotation: draft.foregroundRotation
                 )
             }
             .onEnded { value in
                 draft.foregroundRotation = normalizedAngle((rotationStart ?? draft.foregroundRotation) + value.degrees)
-                liveRotation = 0
                 rotationStart = nil
                 draft.foregroundOffset = constrained(
                     draft.foregroundOffset,
@@ -462,100 +493,237 @@ private struct StickerSaveAreaGuide: View {
     }
 }
 
+private enum StickerDetailEditorTab: String, CaseIterable, Identifiable {
+    case shape = "図形"
+    case filter = "フィルター"
+
+    var id: String { rawValue }
+}
+
+private enum StickerDetailEditorMetrics {
+    static let canvasHorizontalPadding: CGFloat = 16
+    static let sheetHorizontalPadding: CGFloat = 20
+    static let sheetTopPadding: CGFloat = 14
+    static let sheetBottomPadding: CGFloat = 12
+    static let sectionPadding: CGFloat = 16
+}
+
 private struct StickerDetailEditorScreen: View {
     @Environment(\.dismiss) private var dismiss
 
     let preparedForeground: UIImage
-    @Binding var draft: StickerDraft
+    @Binding private var parentDraft: StickerDraft
+    private let originalDraft: StickerDraft
+    @State private var draft: StickerDraft
     @State private var selectedElement: StickerDetailElementID?
     @State private var activeElement: StickerDetailElementID?
     @State private var isInteracting = false
+    @State private var selectedEditorTab: StickerDetailEditorTab = .shape
+    @State private var isShowingDiscardAlert = false
+    @State private var customPaletteColor = Color(uiColor: .systemPink)
+
+    init(preparedForeground: UIImage, draft: Binding<StickerDraft>) {
+        self.preparedForeground = preparedForeground
+        _parentDraft = draft
+        originalDraft = draft.wrappedValue
+        _draft = State(initialValue: draft.wrappedValue)
+    }
 
     private let palette = [
         "#E11D48",
         "#F7B267",
         "#6AA84F",
         "#4F8AE8",
-        "#F9D65C",
         "#FFFFFF",
         "#1F1B18",
         StickerDetailShapeItem.transparentColorHex
     ]
 
     var body: some View {
-        VStack(spacing: 12) {
-            StickerDetailCanvas(
-                preparedForeground: preparedForeground,
-                draft: $draft,
-                selectedElement: $selectedElement,
-                activeElement: $activeElement,
-                isInteracting: $isInteracting
-            )
-            .frame(maxWidth: .infinity)
-            .aspectRatio(1, contentMode: .fit)
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
+        GeometryReader { proxy in
+            let screenWidth = proxy.size.width
+            let canvasHorizontalPadding = StickerDetailEditorMetrics.canvasHorizontalPadding
+            let canvasSide = max(1, screenWidth - canvasHorizontalPadding * 4)
 
-            ScrollView {
-                VStack(spacing: 14) {
-                    addControls
-                    selectedControls
+            ZStack(alignment: .bottom) {
+                VStack(spacing: 12) {
+                    StickerDetailCanvas(
+                        preparedForeground: preparedForeground,
+                        draft: $draft,
+                        selectedElement: $selectedElement,
+                        activeElement: $activeElement,
+                        isInteracting: $isInteracting
+                    )
+                    .frame(width: canvasSide, height: canvasSide)
+                    .padding(.top, 12)
+                    .padding(.horizontal, canvasHorizontalPadding)
+
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 26)
+                .frame(width: screenWidth, height: proxy.size.height, alignment: .top)
+
+                editorBottomSheet
+                    .frame(width: screenWidth)
             }
-            .scrollDisabled(isInteracting)
+            .frame(width: screenWidth, height: proxy.size.height)
+            .clipped()
         }
         .background { PetankoMetalBackground() }
         .navigationTitle("詳細編集")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    requestDismiss()
+                } label: {
+                    Label("戻る", systemImage: "chevron.left")
+                }
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button("完了") {
+                    parentDraft = draft
                     dismiss()
                 }
                 .fontWeight(.bold)
                 .foregroundStyle(AppColors.accentPink)
             }
         }
+        .onChange(of: selectedElement) { _, element in
+            switch element {
+            case .shape:
+                selectedEditorTab = .shape
+            case .filter:
+                selectedEditorTab = .filter
+            case nil:
+                break
+            }
+        }
+        .alert("変更を破棄しますか？", isPresented: $isShowingDiscardAlert) {
+            Button("キャンセル", role: .cancel) {}
+            Button("破棄", role: .destructive) {
+                dismiss()
+            }
+        } message: {
+            Text("編集した内容は保存されません。")
+        }
     }
 
-    private var addControls: some View {
-        ControlSection(title: "追加") {
-            VStack(spacing: 12) {
-                optionRow(title: "図形", options: StickerDetailShapeKind.allCases) { kind in
+    private var editorBottomSheet: some View {
+        VStack(spacing: 0) {
+            if selectedElement == nil {
+                VStack(spacing: 14) {
+                    editorTabContent
+                }
+                .padding(.horizontal, StickerDetailEditorMetrics.sheetHorizontalPadding)
+                .padding(.top, StickerDetailEditorMetrics.sheetTopPadding)
+                .padding(.bottom, StickerDetailEditorMetrics.sheetBottomPadding)
+            } else {
+                ScrollView {
+                    VStack(spacing: 14) {
+                        editorTabContent
+                    }
+                    .padding(.horizontal, StickerDetailEditorMetrics.sheetHorizontalPadding)
+                    .padding(.top, StickerDetailEditorMetrics.sheetTopPadding)
+                    .padding(.bottom, StickerDetailEditorMetrics.sheetBottomPadding)
+                }
+                .frame(maxHeight: 300)
+                .scrollDisabled(isInteracting)
+            }
+
+            if selectedElement == nil {
+                Rectangle()
+                    .fill(AppColors.border.opacity(0.55))
+                    .frame(height: 1)
+
+                editorBottomTabBar
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(.white)
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: AppRadius.card,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: AppRadius.card,
+                style: .continuous
+            )
+        )
+        .shadow(color: .black.opacity(0.10), radius: 14, x: 0, y: -4)
+        .ignoresSafeArea(.container, edges: .bottom)
+    }
+
+    private var editorBottomTabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 22) {
+                ForEach(StickerDetailEditorTab.allCases) { tab in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            selectedEditorTab = tab
+                        }
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(selectedEditorTab == tab ? AppColors.accentPink : AppColors.mainText)
+                            .padding(.horizontal, selectedEditorTab == tab ? 20 : 2)
+                            .padding(.vertical, 10)
+                            .frame(minWidth: 92)
+                            .background {
+                                Capsule()
+                                    .fill(selectedEditorTab == tab ? AppColors.accentPink.opacity(0.15) : .clear)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var hasUnsavedChanges: Bool {
+        draft != originalDraft
+    }
+
+    private func requestDismiss() {
+        if hasUnsavedChanges {
+            isShowingDiscardAlert = true
+        } else {
+            dismiss()
+        }
+    }
+
+    @ViewBuilder
+    private var editorTabContent: some View {
+        switch selectedEditorTab {
+        case .shape:
+            if case .shape(let id) = selectedElement {
+                shapeControls(id: id)
+            } else {
+                optionRow(options: StickerDetailShapeKind.allCases) { kind in
                     addShape(kind)
                 }
-
-                optionRow(title: "フィルター", options: StickerDetailFilterKind.allCases) { kind in
+            }
+        case .filter:
+            if case .filter(let id) = selectedElement {
+                filterControls(id: id)
+            } else {
+                optionRow(options: StickerDetailFilterKind.allCases) { kind in
                     addFilter(kind)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var selectedControls: some View {
-        switch selectedElement {
-        case .shape(let id):
-            shapeControls(id: id)
-        case .filter(let id):
-            filterControls(id: id)
-        case nil:
-            EmptyView()
-        }
-    }
-
     private func optionRow<Option: PetankoOption>(
-        title: String,
         options: [Option],
         action: @escaping (Option) -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(AppColors.mainText)
-
+        VStack(alignment: .leading, spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(options, id: \.id) { option in
@@ -581,7 +749,7 @@ private struct StickerDetailEditorScreen: View {
     }
 
     private func shapeControls(id: String) -> some View {
-        ControlSection(title: "図形") {
+        DetailControlSection(title: "図形") {
             if draft.detailEdit.shapes.firstIndex(where: { $0.id == id }) != nil {
                 VStack(spacing: 13) {
                     HorizontalOptionPicker(
@@ -632,13 +800,16 @@ private struct StickerDetailEditorScreen: View {
     }
 
     private func filterControls(id: String) -> some View {
-        ControlSection(title: "フィルター") {
+        DetailControlSection(title: "フィルター") {
             if let index = draft.detailEdit.filters.firstIndex(where: { $0.id == id }) {
                 VStack(spacing: 13) {
                     HorizontalOptionPicker(
                         options: StickerDetailFilterKind.allCases,
                         selection: filterTypeBinding(id: id)
                     )
+
+                    Divider()
+
                     HorizontalOptionPicker(
                         options: StickerDetailShapeKind.allCases,
                         selection: filterShapeBinding(id: id)
@@ -719,32 +890,69 @@ private struct StickerDetailEditorScreen: View {
                 .foregroundStyle(AppColors.secondaryText)
 
             HStack(spacing: 8) {
+                ColorPicker(
+                    selection: customPaletteColorBinding(selection),
+                    supportsOpacity: false
+                ) {
+                    paletteCircle(
+                        color: customPaletteColor,
+                        isSelected: !palette.contains(selection.wrappedValue),
+                        isTransparent: false
+                    )
+                }
+                .frame(width: 38, height: 38)
+                .clipped()
+
                 ForEach(palette.filter { includesTransparent || $0 != StickerDetailShapeItem.transparentColorHex }, id: \.self) { hex in
                     Button {
                         selection.wrappedValue = hex
                     } label: {
-                        ZStack {
-                            Circle()
-                                .fill(paletteColor(hex))
-                                .frame(width: 30, height: 30)
-                            if hex == StickerDetailShapeItem.transparentColorHex {
-                                Image(systemName: "slash.circle")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(AppColors.mainText)
-                            }
-                            if selection.wrappedValue == hex {
-                                Circle()
-                                    .stroke(AppColors.accentPink, lineWidth: 3)
-                                    .frame(width: 36, height: 36)
-                            }
-                        }
-                        .frame(width: 38, height: 38)
+                        paletteCircle(
+                            color: paletteColor(hex),
+                            isSelected: selection.wrappedValue == hex,
+                            isTransparent: hex == StickerDetailShapeItem.transparentColorHex
+                        )
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func customPaletteColorBinding(_ selection: Binding<String>) -> Binding<Color> {
+        Binding(
+            get: { customPaletteColor },
+            set: { color in
+                customPaletteColor = color
+                selection.wrappedValue = UIColor(color).petankoHexString
+            }
+        )
+    }
+
+    private func paletteCircle(
+        color: Color,
+        isSelected: Bool,
+        isTransparent: Bool
+    ) -> some View {
+        ZStack {
+            Circle()
+                .fill(color)
+                .frame(width: 30, height: 30)
+                .overlay {
+                    Circle()
+                        .stroke(AppColors.border, lineWidth: 1)
+                }
+            if isTransparent {
+                Image(systemName: "slash.circle")
+                    .font(.caption.bold())
+                    .foregroundStyle(AppColors.mainText)
+            }
+            Circle()
+                .stroke(isSelected ? AppColors.accentPink : AppColors.border, lineWidth: isSelected ? 3 : 1)
+                .frame(width: 36, height: 36)
+        }
+        .frame(width: 38, height: 38)
     }
 
     private func paletteColor(_ hex: String) -> Color {
@@ -764,9 +972,14 @@ private struct StickerDetailEditorScreen: View {
     }
 
     private func addShape(_ kind: StickerDetailShapeKind) {
-        let color = ["#E11D48", "#F7B267", "#6AA84F", "#4F8AE8", "#F9D65C"].randomElement() ?? "#F7B267"
+        let color = ["#E11D48", "#F7B267", "#6AA84F", "#4F8AE8"].randomElement() ?? "#F7B267"
+        let side = 150.0
         let item = StickerDetailShapeItem(
             type: kind,
+            x: side / 2,
+            y: side / 2,
+            width: side,
+            height: side,
             fillColorHex: color,
             zIndex: draft.detailEdit.nextOrder()
         )
@@ -811,7 +1024,7 @@ private struct StickerDetailEditorScreen: View {
 
     private func shapeHeightBinding(id: String) -> Binding<Double> {
         Binding(
-            get: { shape(id)?.height ?? 120 },
+            get: { shape(id)?.height ?? 150 },
             set: { value in updateShape(id) { $0.height = value } }
         )
     }
@@ -1239,6 +1452,26 @@ private struct StickerDetailCanvas: View {
 private struct StickerDetailLayerEntry: Hashable {
     let element: StickerDetailElementID
     let zIndex: Int
+}
+
+private struct DetailControlSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SectionHeader(title: title)
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white)
+    }
 }
 
 private struct StickerDetailInteractionGeometry {

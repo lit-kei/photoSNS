@@ -45,6 +45,8 @@ struct DiaryEditorScreen: View {
     let group: PetankoGroup
     @StateObject private var viewModel: DiaryViewModel
     @State private var draftDiary: DiaryPage?
+    @State private var originalDiary: DiaryPage?
+    @State private var originalLayouts: [String: StickerLayout] = [:]
     @State private var selectedElement: CanvasElementID?
     @State private var localLayouts: [String: StickerLayout] = [:]
     @State private var canvasSize: CGSize = .zero
@@ -62,6 +64,7 @@ struct DiaryEditorScreen: View {
     @State private var backgroundImageData: Data?
     @State private var isShowingBackgroundCamera = false
     @State private var backgroundImageError: String?
+    @State private var isShowingDiscardAlert = false
 
 
     init(group: PetankoGroup) {
@@ -139,7 +142,7 @@ struct DiaryEditorScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
-                    dismiss()
+                    requestDismiss()
                 } label: {
                     Label("戻る", systemImage: "chevron.left")
                 }
@@ -180,11 +183,18 @@ struct DiaryEditorScreen: View {
             guard let diary else { return }
             draftDiary = draftDiary ?? diary
             seedLayouts(from: diary)
+            if originalDiary == nil {
+                originalDiary = diary
+                originalLayouts = localLayouts
+            }
             Task { await lockIfPossible() }
         }
         .onChange(of: viewModel.stickers) { _, _ in
             if let diary = draftDiary ?? viewModel.diary {
                 seedLayouts(from: diary)
+                if originalDiary != nil, originalLayouts.isEmpty, !localLayouts.isEmpty {
+                    originalLayouts = localLayouts
+                }
             }
         }
         .onChange(of: selectedElement) { _, element in
@@ -243,6 +253,14 @@ struct DiaryEditorScreen: View {
         } message: {
             Text(backgroundImageError ?? "写真を読み込めませんでした。")
         }
+        .alert("変更を破棄しますか？", isPresented: $isShowingDiscardAlert) {
+            Button("キャンセル", role: .cancel) {}
+            Button("破棄", role: .destructive) {
+                dismiss()
+            }
+        } message: {
+            Text("編集した内容は保存されません。")
+        }
     }
 
     private var isStickerSelected: Bool {
@@ -250,6 +268,41 @@ struct DiaryEditorScreen: View {
             return true
         }
         return false
+    }
+
+    private var hasUnsavedChanges: Bool {
+        guard let originalDiary,
+              let currentDiary = comparableDraftDiary(),
+              backgroundImageData == nil else {
+            return backgroundImageData != nil
+        }
+
+        var original = originalDiary
+        original.stickerLayout = comparableLayouts(originalLayouts)
+        return currentDiary != original
+    }
+
+    private func requestDismiss() {
+        if hasUnsavedChanges {
+            isShowingDiscardAlert = true
+        } else {
+            dismiss()
+        }
+    }
+
+    private func comparableDraftDiary() -> DiaryPage? {
+        guard var page = draftDiary else { return nil }
+        inputBuffer.apply(to: &page)
+        page.stickerLayout = comparableLayouts(localLayouts)
+        return page
+    }
+
+    private func comparableLayouts(_ layouts: [String: StickerLayout]) -> [StickerLayout] {
+        let stickerIDs = Set(viewModel.stickers.map(\.id))
+        return layouts.values
+            .filter { stickerIDs.contains($0.stickerId) }
+            .map(DiaryCanvasMetrics.sanitizedStickerLayout)
+            .sorted { $0.zIndex < $1.zIndex }
     }
 
     private var isDesignSelected: Bool {

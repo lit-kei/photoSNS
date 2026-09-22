@@ -95,7 +95,7 @@ struct StickerDetailShapeItem: Identifiable, Hashable {
         x: Double = 256,
         y: Double = 256,
         width: Double = 150,
-        height: Double = 120,
+        height: Double = 150,
         scale: Double = 1,
         rotation: Double = 0,
         fillColorHex: String = "#F7B267",

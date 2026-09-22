@@ -359,7 +359,7 @@ struct FriendProfileScreen: View {
             Button {
                 Task { await appState.acceptFriendRequest(incomingRequest) }
             } label: {
-                Label("届いた申請を承認する", systemImage: "person.badge.checkmark")
+                Label("届いた申請を承認する", systemImage: "person.crop.circle.badge.checkmark")
             }
             .buttonStyle(PrimaryActionButtonStyle())
         } else {

@@ -60,7 +60,7 @@ struct HomeScreen: View {
                 NavigationLink {
                     FriendAddScreen()
                 } label: {
-                    IconButtonLabel(systemName: "person.badge.plus")
+                    RootTabHeaderPersonAddIconLabel(systemName: "person.fill")
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("友達追加")
@@ -69,7 +69,7 @@ struct HomeScreen: View {
                     HomeNotificationScreen()
                 } label: {
                     ZStack(alignment: .topTrailing) {
-                        IconButtonLabel(systemName: "bell")
+                        RootTabHeaderSystemIconLabel(systemName: "bell")
                         if !appState.incomingFriendRequests.isEmpty {
                             Circle()
                                 .fill(AppColors.accentPink)
@@ -457,7 +457,7 @@ struct MemoriesScreen: View {
                         Button {
                             isShowingGroupOptions = true
                         } label: {
-                            GroupAddIconButtonLabel()
+                            RootTabHeaderPersonAddIconLabel(systemName: "person.3.fill")
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("グループを作成または参加")
@@ -570,17 +570,50 @@ struct RootTabNavigationHeader<Trailing: View>: View {
     }
 }
 
-private struct GroupAddIconButtonLabel: View {
+struct RootTabHeaderIconLabel<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .frame(width: 44, height: 44)
+            .background {
+                Circle()
+                    .fill(AppColors.elevatedSurface.opacity(0.96))
+            }
+            .overlay {
+                Circle().stroke(AppColors.border, lineWidth: 0.8)
+            }
+            .frame(width: 46, height: 46)
+    }
+}
+
+struct RootTabHeaderSystemIconLabel: View {
+    let systemName: String
+
+    var body: some View {
+        RootTabHeaderIconLabel {
+            Image(systemName: systemName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(AppColors.mainText)
+        }
+    }
+}
+
+struct RootTabHeaderPersonAddIconLabel: View {
+    let systemName: String
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            IconButtonLabel(systemName: "person.3.fill")
-
+            RootTabHeaderSystemIconLabel(systemName: systemName)
             Image(systemName: "plus.circle.fill")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(AppColors.mainText)
                 .background(.white, in: Circle())
                 .overlay {
-                    Circle().stroke(AppColors.elevatedSurface, lineWidth: 1.6)
+                    Circle().stroke(AppColors.elevatedSurface, lineWidth: 0.8)
                 }
                 .offset(x: 2, y: 2)
         }
@@ -628,16 +661,9 @@ struct ProfileScreen: View {
                     NavigationLink {
                         SettingsScreen()
                     } label: {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .frame(width: 36, height: 36)
+                        RootTabHeaderSystemIconLabel(systemName: "gearshape.fill")
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(AppColors.mainText)
-                    .background(AppColors.elevatedSurface.opacity(0.96), in: Circle())
-                    .overlay {
-                        Circle().stroke(AppColors.border, lineWidth: 0.8)
-                    }
                     .accessibilityLabel("設定")
                 }
 

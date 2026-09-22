@@ -32,10 +32,17 @@ struct ContentView: View {
             if appState.authState == .bootstrapping {
                 appState.bootstrap()
             }
+            appState.refreshDateSensitiveDataIfNeeded()
             handlePendingRemoteNotifications()
         }
         .onChange(of: scenePhase) { _, newValue in
             appState.stickerUploadCoordinator.setAppActive(newValue == .active)
+            if newValue == .active {
+                appState.refreshDateSensitiveDataIfNeeded()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            appState.refreshDateSensitiveDataIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .petankoOpenNotifications)) { notification in
             let pendingUserInfos = RemoteNotificationRouter.shared.drainPendingUserInfos()
