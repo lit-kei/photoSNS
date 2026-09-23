@@ -74,13 +74,6 @@ struct ContentView: View {
             tabContent(for: appState.selectedTab)
         }
         .id(appState.signedInSessionResetID)
-        .sheet(isPresented: $appState.isShowingNotifications) {
-            NavigationStack {
-                HomeNotificationScreen()
-                    .environmentObject(appState)
-            }
-            .presentationDragIndicator(.visible)
-        }
     }
 
     @ViewBuilder

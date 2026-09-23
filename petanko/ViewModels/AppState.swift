@@ -217,6 +217,22 @@ final class AppState: ObservableObject {
         }
     }
 
+    func addFriendsToGroup(group: PetankoGroup, friends: [AppFriend]) async -> Bool {
+        guard let currentUser else { return false }
+        do {
+            try await services.groups.addFriendsToGroup(
+                group: group,
+                friends: friends,
+                invitedBy: currentUser
+            )
+            await refreshGroup(group.id)
+            return true
+        } catch {
+            errorMessage = userFriendlyMessage(for: error, fallback: "友達をグループに追加できませんでした。")
+            return false
+        }
+    }
+
     func refreshGroup(_ groupId: String) async {
         do {
             guard let refreshedGroup = try await services.groups.fetchGroup(id: groupId) else { return }

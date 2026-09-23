@@ -520,7 +520,8 @@ private struct StickerDetailEditorScreen: View {
     @State private var isInteracting = false
     @State private var selectedEditorTab: StickerDetailEditorTab = .shape
     @State private var isShowingDiscardAlert = false
-    @State private var customPaletteColor = Color(uiColor: .systemPink)
+    @State private var customPaletteColors: [String: Color] = [:]
+    @State private var customPaletteSelectionIDs: Set<String> = []
 
     init(preparedForeground: UIImage, draft: Binding<StickerDraft>) {
         self.preparedForeground = preparedForeground
@@ -782,10 +783,12 @@ private struct StickerDetailEditorScreen: View {
 
                     colorPalette(
                         title: "塗りつぶし色",
+                        customSelectionID: "shape-\(id)-fill",
                         selection: shapeFillColorBinding(id: id)
                     )
                     colorPalette(
                         title: "枠色",
+                        customSelectionID: "shape-\(id)-stroke",
                         selection: shapeStrokeColorBinding(id: id)
                     )
 
@@ -831,6 +834,7 @@ private struct StickerDetailEditorScreen: View {
                     if draft.detailEdit.filters[index].type == .translucentColor {
                         colorPalette(
                             title: "色",
+                            customSelectionID: "filter-\(id)-color",
                             selection: filterColorBinding(id: id),
                             includesTransparent: false
                         )
@@ -881,35 +885,48 @@ private struct StickerDetailEditorScreen: View {
 
     private func colorPalette(
         title: String,
+        customSelectionID: String,
         selection: Binding<String>,
         includesTransparent: Bool = true
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let isCustomSelected = customPaletteSelectionIDs.contains(customSelectionID)
+
+        return VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(AppColors.secondaryText)
 
             HStack(spacing: 8) {
                 ColorPicker(
-                    selection: customPaletteColorBinding(selection),
+                    selection: customPaletteColorBinding(selection, customSelectionID: customSelectionID),
                     supportsOpacity: false
                 ) {
                     paletteCircle(
-                        color: customPaletteColor,
-                        isSelected: !palette.contains(selection.wrappedValue),
+                        color: customPaletteDisplayColor(selection, customSelectionID: customSelectionID),
+                        isSelected: false,
                         isTransparent: false
                     )
                 }
+                .labelsHidden()
+                .buttonStyle(.plain)
                 .frame(width: 38, height: 38)
-                .clipped()
+                .overlay {
+                    if isCustomSelected {
+                        Circle()
+                            .stroke(AppColors.accentPink, lineWidth: 3)
+                            .frame(width: 36, height: 36)
+                            .allowsHitTesting(false)
+                    }
+                }
 
                 ForEach(palette.filter { includesTransparent || $0 != StickerDetailShapeItem.transparentColorHex }, id: \.self) { hex in
                     Button {
+                        customPaletteSelectionIDs.remove(customSelectionID)
                         selection.wrappedValue = hex
                     } label: {
                         paletteCircle(
                             color: paletteColor(hex),
-                            isSelected: selection.wrappedValue == hex,
+                            isSelected: !isCustomSelected && selection.wrappedValue == hex,
                             isTransparent: hex == StickerDetailShapeItem.transparentColorHex
                         )
                     }
@@ -920,14 +937,26 @@ private struct StickerDetailEditorScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func customPaletteColorBinding(_ selection: Binding<String>) -> Binding<Color> {
+    private func customPaletteColorBinding(_ selection: Binding<String>, customSelectionID: String) -> Binding<Color> {
         Binding(
-            get: { customPaletteColor },
+            get: { customPaletteDisplayColor(selection, customSelectionID: customSelectionID) },
             set: { color in
-                customPaletteColor = color
+                customPaletteColors[customSelectionID] = color
+                customPaletteSelectionIDs.insert(customSelectionID)
                 selection.wrappedValue = UIColor(color).petankoHexString
             }
         )
+    }
+
+    private func customPaletteDisplayColor(_ selection: Binding<String>, customSelectionID: String) -> Color {
+        customPaletteColors[customSelectionID] ?? customPaletteFallbackColor(selection.wrappedValue)
+    }
+
+    private func customPaletteFallbackColor(_ hex: String) -> Color {
+        if hex == StickerDetailShapeItem.transparentColorHex {
+            return Color(uiColor: .systemPink)
+        }
+        return paletteColor(hex)
     }
 
     private func paletteCircle(

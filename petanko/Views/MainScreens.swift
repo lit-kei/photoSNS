@@ -44,6 +44,9 @@ struct HomeScreen: View {
                     GroupManagementScreen(initialMode: .join)
                 }
             }
+            .navigationDestination(isPresented: $appState.isShowingNotifications) {
+                HomeNotificationScreen()
+            }
         }
     }
 
