@@ -265,7 +265,7 @@ struct GroupEditScreen: View {
                 NavigationLink {
                     GroupFriendInviteScreen(group: currentGroup)
                 } label: {
-                    Label("友達を招待", systemImage: "person.2.badge.plus")
+                    Label("友達をグループに追加", systemImage: "person.2.badge.plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(SecondaryActionButtonStyle())
@@ -378,7 +378,7 @@ struct GroupFriendInviteScreen: View {
             VStack(alignment: .leading, spacing: 20) {
                 ControlSection(title: "友達を選択") {
                     if inviteCandidates.isEmpty {
-                        EmptyStateView(systemImage: "person.2.slash", title: "招待できる友達がいません", message: "")
+                        EmptyStateView(systemImage: "person.2.slash", title: "追加できる友達がいません", message: "")
                     } else {
                         VStack(spacing: 0) {
                             ForEach(inviteCandidates) { friend in
@@ -424,7 +424,7 @@ struct GroupFriendInviteScreen: View {
         .background {
             PetankoMetalBackground()
         }
-        .navigationTitle("友達を招待")
+        .navigationTitle("友達を追加")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await appState.refreshGroup(group.id)
