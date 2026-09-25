@@ -4,6 +4,10 @@ import UIKit
 struct CameraScreen: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var camera = CameraService()
+    @State private var isShowingStickerCreationMode = false
+    @State private var isAutoNavigatingToCreationMode = false
+    @State private var hasRetakenInCurrentRound = false
+    @State private var cameraPreviewID = UUID()
     var onClose: (() -> Void)? = nil
 
     var body: some View {
@@ -36,6 +40,33 @@ struct CameraScreen: View {
             .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
                 camera.updateDeviceOrientation(UIDevice.current.orientation)
             }
+            .onReceive(camera.$capturedImage) { image in
+                guard image != nil else {
+                    isShowingStickerCreationMode = false
+                    isAutoNavigatingToCreationMode = false
+                    return
+                }
+                guard !hasRetakenInCurrentRound else {
+                    isAutoNavigatingToCreationMode = false
+                    return
+                }
+                DispatchQueue.main.async {
+                    isShowingStickerCreationMode = true
+                }
+            }
+            .onReceive(camera.$isCapturing) { isCapturing in
+                if !isCapturing, camera.capturedImage == nil {
+                    isAutoNavigatingToCreationMode = false
+                }
+            }
+            .navigationDestination(isPresented: $isShowingStickerCreationMode) {
+                if let image = camera.capturedImage {
+                    StickerCreationModeScreen(
+                        originalImage: image,
+                        isHidingSourceCameraControls: $isAutoNavigatingToCreationMode
+                    )
+                }
+            }
         }
     }
 
@@ -49,6 +80,7 @@ struct CameraScreen: View {
                 .background(Color.black)
         } else if camera.permissionState == .authorized {
             CameraPreview(session: camera.session, orientation: camera.captureOrientation)
+                .id(cameraPreviewID)
         } else {
             cameraPermissionView
         }
@@ -117,7 +149,9 @@ struct CameraScreen: View {
 
             Spacer()
 
-            if let image = camera.capturedImage {
+            if isAutoNavigatingToCreationMode {
+                EmptyView()
+            } else if let image = camera.capturedImage {
                 HStack(spacing: 10) {
                     retakeIconButton
                     stickerCreationIconLink(image: image)
@@ -162,6 +196,9 @@ struct CameraScreen: View {
                     .tint(AppColors.mainText)
             } else {
                 Button {
+                    if !hasRetakenInCurrentRound {
+                        isAutoNavigatingToCreationMode = true
+                    }
                     camera.capturePhoto()
                 } label: {
                     ZStack {
@@ -186,6 +223,10 @@ struct CameraScreen: View {
 
     private var retakeIconButton: some View {
         Button {
+            isShowingStickerCreationMode = false
+            isAutoNavigatingToCreationMode = false
+            hasRetakenInCurrentRound = true
+            cameraPreviewID = UUID()
             camera.retake()
         } label: {
             Image(systemName: "arrow.counterclockwise")

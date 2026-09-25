@@ -25,6 +25,40 @@ service cloud.firestore {
         && memberId == memberData.groupId + "_" + request.auth.uid;
     }
 
+    function isFriendInviteGroupMemberDocument(memberId, memberData) {
+      return signedIn()
+        && memberData.keys().hasOnly([
+          "groupId",
+          "userId",
+          "displayName",
+          "avatar",
+          "avatarURL",
+          "role",
+          "joinSource",
+          "invitedById",
+          "invitedByName",
+          "lastReadAt",
+          "joinedAt"
+        ])
+        && memberData.groupId is string
+        && memberData.userId is string
+        && memberData.displayName is string
+        && memberData.avatar is string
+        && memberData.avatarURL is string
+        && memberData.role == "member"
+        && memberData.joinSource == "friend_invite"
+        && memberData.invitedById == request.auth.uid
+        && memberData.invitedByName is string
+        && memberData.lastReadAt is timestamp
+        && memberData.joinedAt is timestamp
+        && memberData.userId != request.auth.uid
+        && memberId == memberData.groupId + "_" + memberData.userId
+        && exists(/databases/$(database)/documents/groups/$(memberData.groupId))
+        && request.auth.uid in get(/databases/$(database)/documents/groups/$(memberData.groupId)).data.memberIds
+        && !(memberData.userId in get(/databases/$(database)/documents/groups/$(memberData.groupId)).data.memberIds)
+        && exists(/databases/$(database)/documents/friendships/$(request.auth.uid + "_" + memberData.userId));
+    }
+
     function hasValidEditLockShape(lockData, diaryId) {
       return lockData.keys().hasOnly([
           "groupId",
@@ -196,7 +230,8 @@ service cloud.firestore {
 
     match /groupMembers/{memberId} {
       allow read: if signedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSelfGroupMemberDocument(memberId, request.resource.data);
+      allow create: if isSelfGroupMemberDocument(memberId, request.resource.data)
+        || isFriendInviteGroupMemberDocument(memberId, request.resource.data);
       allow update: if isSelfGroupMemberDocument(memberId, request.resource.data)
         && request.resource.data.groupId == resource.data.groupId;
       allow update: if isGroupOwner(resource.data.groupId)

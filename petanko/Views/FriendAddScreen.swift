@@ -12,7 +12,7 @@ struct FriendAddScreen: View {
             VStack(alignment: .leading, spacing: 0) {
                 searchSection
                 requestSections
-                    .padding(.top, 56)
+                    .padding(.top, 32)
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -51,7 +51,7 @@ struct FriendAddScreen: View {
                 .textCase(.uppercase)
                 .autocorrectionDisabled()
                 .textFieldStyle(.plain)
-                .metalTextField(radius: 0)
+                .metalTextField()
 
             
             Button {
@@ -64,7 +64,7 @@ struct FriendAddScreen: View {
                     Label("プロフィールを見る", systemImage: "person.text.rectangle")
                 }
             }
-            .buttonStyle(PrimaryActionButtonStyle(radius: 0))
+            .buttonStyle(PrimaryActionButtonStyle())
             .disabled(playerId.trimmedForPetanko.isEmpty || isSearching)
             .opacity(playerId.trimmedForPetanko.isEmpty ? 0.48 : 1)
             
@@ -86,8 +86,9 @@ struct FriendAddScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
                 .background(AppColors.accentBlue.opacity(0.26))
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous))
                 .overlay {
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: AppRadius.field, style: .continuous)
                         .stroke(AppColors.border, lineWidth: 0.8)
                 }
             }
@@ -96,18 +97,8 @@ struct FriendAddScreen: View {
                 isShowingMyQR = true
             } label: {
                 Label("My QRコードを表示", systemImage: "qrcode")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppColors.mainText)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(AppColors.elevatedSurface.opacity(0.96))
-                    .overlay {
-                        Rectangle()
-                            .stroke(AppColors.border, lineWidth: 0.8)
-                    }
             }
-            .buttonStyle(.plain)
-            .disabled(appState.currentUser == nil)
+            .buttonStyle(SecondaryActionButtonStyle())
 
 
             
@@ -116,6 +107,10 @@ struct FriendAddScreen: View {
 
     private var requestSections: some View {
         VStack(spacing: 18) {
+            Text("友達申請")
+                .font(.title3.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
             if appState.incomingFriendRequests.isEmpty {
                 EmptyStateView(
                     systemImage: "tray",
@@ -364,7 +359,7 @@ struct FriendProfileScreen: View {
             Button {
                 Task { await appState.acceptFriendRequest(incomingRequest) }
             } label: {
-                Label("届いた申請を承認する", systemImage: "person.badge.checkmark")
+                Label("届いた申請を承認する", systemImage: "person.crop.circle.badge.checkmark")
             }
             .buttonStyle(PrimaryActionButtonStyle())
         } else {
@@ -463,7 +458,7 @@ private struct IncomingRequestRow: View {
             }
         }
         .padding(12)
-        .background(AppColors.surface.opacity(0.94))
+        .background(.white)
         .overlay {
             Rectangle()
                 .stroke(AppColors.border, lineWidth: 0.8)

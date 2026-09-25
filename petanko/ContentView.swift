@@ -32,9 +32,16 @@ struct ContentView: View {
             if appState.authState == .bootstrapping {
                 appState.bootstrap()
             }
+            appState.refreshDateSensitiveDataIfNeeded()
         }
         .onChange(of: scenePhase) { _, newValue in
             appState.stickerUploadCoordinator.setAppActive(newValue == .active)
+            if newValue == .active {
+                appState.refreshDateSensitiveDataIfNeeded()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+            appState.refreshDateSensitiveDataIfNeeded()
         }
         .preferredColorScheme(.light)
         .alert("エラー", isPresented: Binding(
@@ -52,20 +59,6 @@ struct ContentView: View {
             tabContent(for: appState.selectedTab)
         }
         .id(appState.signedInSessionResetID)
-        .overlay(alignment: .bottom) {
-            StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
-                .padding(.horizontal, 16)
-                .padding(.bottom, uploadBannerBottomPadding)
-        }
-    }
-
-    private var uploadBannerBottomPadding: CGFloat {
-        switch appState.selectedTab {
-        case .home, .friends:
-            72
-        default:
-            18
-        }
     }
 
     @ViewBuilder
@@ -144,7 +137,7 @@ struct AttachedBottomTabBar: View {
                     Circle()
                         .stroke(AppColors.border, lineWidth: 0.8)
                 }
-                .offset(y: -18)
+                .offset(y: -17)
 
             Button {
                 selection = .camera
@@ -153,13 +146,10 @@ struct AttachedBottomTabBar: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(AppColors.mainText)
                     .frame(width: 48, height: 48)
-                    .background(AppColors.accentBlue, in: Circle())
-                    .overlay {
-                        Circle().stroke(Color.white.opacity(0.86), lineWidth: 2.5)
-                    }
+                    .background(AppColors.accentPink, in: Circle())
             }
             .buttonStyle(.plain)
-            .offset(y: -11)
+            .offset(y: -10)
             .accessibilityLabel("カメラ")
         }
         .frame(maxWidth: .infinity)
@@ -214,6 +204,8 @@ struct AttachedBottomTabBar: View {
 }
 
 private struct RootTabBarModifier: ViewModifier {
+    @EnvironmentObject private var appState: AppState
+
     let shows: Bool
     let isDisabled: Bool
     @Binding var selection: AppTab
@@ -223,8 +215,14 @@ private struct RootTabBarModifier: ViewModifier {
             .safeAreaPadding(.bottom, shows ? 72 : 0)
             .overlay(alignment: .bottom) {
                 if shows {
-                    AttachedBottomTabBar(selection: $selection, isDisabled: isDisabled)
-                        .ignoresSafeArea(.keyboard, edges: .bottom)
+                    ZStack(alignment: .bottom) {
+                        StickerUploadBanner(coordinator: appState.stickerUploadCoordinator)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 72)
+
+                        AttachedBottomTabBar(selection: $selection, isDisabled: isDisabled)
+                            .ignoresSafeArea(.keyboard, edges: .bottom)
+                    }
                 }
             }
             .ignoresSafeArea(.keyboard, edges: shows ? .bottom : [])

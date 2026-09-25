@@ -286,6 +286,79 @@ final class GroupService {
         }
     }
 
+    func addFriendsToGroup(
+        group: PetankoGroup,
+        friends: [AppFriend],
+        invitedBy currentUser: AppUser
+    ) async throws {
+        let friendMap = Dictionary(uniqueKeysWithValues: friends.map { ($0.friendId, $0) })
+        guard !friendMap.isEmpty else { return }
+
+        let groupRef = db.collection("groups").document(group.id)
+        _ = try await db.runTransaction { transaction, errorPointer in
+            do {
+                let snapshot = try transaction.getDocument(groupRef)
+                guard snapshot.exists, let data = snapshot.data() else {
+                    throw PetankoError.message("グループを確認できませんでした。")
+                }
+
+                let latestGroup = PetankoGroup(id: snapshot.documentID, data: data)
+                guard latestGroup.memberIds.contains(currentUser.id) else {
+                    throw PetankoError.message("このグループに参加していません。")
+                }
+
+                var memberIds = latestGroup.memberIds
+                var memberNames = latestGroup.memberNames
+                var memberAvatars = latestGroup.memberAvatars
+                while memberNames.count < memberIds.count { memberNames.append("") }
+                while memberAvatars.count < memberIds.count { memberAvatars.append("system:person.fill") }
+
+                let invitees = friendMap.values
+                    .filter { !memberIds.contains($0.friendId) }
+                    .sorted { $0.friendName.localizedStandardCompare($1.friendName) == .orderedAscending }
+                guard !invitees.isEmpty else { return nil }
+
+                for friend in invitees {
+                    let displayName = friend.friendName.isEmpty ? "petanko user" : friend.friendName
+                    memberIds.append(friend.friendId)
+                    memberNames.append(displayName)
+                    memberAvatars.append(Self.memberAvatarValue(for: friend))
+
+                    transaction.setData(
+                        [
+                            "groupId": latestGroup.id,
+                            "userId": friend.friendId,
+                            "displayName": displayName,
+                            "avatar": friend.friendAvatar,
+                            "avatarURL": friend.friendAvatarURL ?? "",
+                            "role": "member",
+                            "joinSource": "friend_invite",
+                            "invitedById": currentUser.id,
+                            "invitedByName": currentUser.displayName,
+                            "lastReadAt": Timestamp(date: Date()),
+                            "joinedAt": FieldValue.serverTimestamp()
+                        ],
+                        forDocument: self.db.collection("groupMembers").document("\(latestGroup.id)_\(friend.friendId)"),
+                        merge: true
+                    )
+                }
+
+                transaction.updateData(
+                    [
+                        "memberIds": memberIds,
+                        "memberNames": memberNames,
+                        "memberAvatars": memberAvatars
+                    ],
+                    forDocument: groupRef
+                )
+                return nil
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
+        }
+    }
+
     func leaveGroup(_ group: PetankoGroup, currentUser: AppUser) async throws {
         guard let memberIndex = group.memberIds.firstIndex(of: currentUser.id) else { return }
 
@@ -388,5 +461,12 @@ final class GroupService {
     private static func makeInviteCode() -> String {
         let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
         return String((0..<6).compactMap { _ in alphabet.randomElement() })
+    }
+
+    private static func memberAvatarValue(for friend: AppFriend) -> String {
+        if let avatarURL = friend.friendAvatarURL, !avatarURL.isEmpty {
+            return avatarURL
+        }
+        return friend.friendAvatar.isEmpty ? "system:person.fill" : friend.friendAvatar
     }
 }

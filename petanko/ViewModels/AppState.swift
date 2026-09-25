@@ -44,6 +44,7 @@ final class AppState: ObservableObject {
     private var allFriendTodayStickers: [StickerPost] = []
     private var allIncomingFriendRequests: [FriendRequest] = []
     private var allOutgoingFriendRequests: [FriendRequest] = []
+    private var observedFriendFeedDateKey = Date().petankoDateKey
     private var pendingAccount: AuthenticatedAccount?
     private var pendingTermsAcceptedAt: Date?
     private var leavingGroupIds: Set<String> = []
@@ -123,6 +124,7 @@ final class AppState: ObservableObject {
             pendingTermsAcceptedAt = nil
             currentUser = user
             resetSignedInNavigation()
+            observedFriendFeedDateKey = Date().petankoDateKey
             authState = .signedIn
             observeSignedInData(for: user.id)
         } catch {
@@ -210,6 +212,22 @@ final class AppState: ObservableObject {
         }
     }
 
+    func addFriendsToGroup(group: PetankoGroup, friends: [AppFriend]) async -> Bool {
+        guard let currentUser else { return false }
+        do {
+            try await services.groups.addFriendsToGroup(
+                group: group,
+                friends: friends,
+                invitedBy: currentUser
+            )
+            await refreshGroup(group.id)
+            return true
+        } catch {
+            errorMessage = userFriendlyMessage(for: error, fallback: "友達をグループに追加できませんでした。")
+            return false
+        }
+    }
+
     func refreshGroup(_ groupId: String) async {
         do {
             guard let refreshedGroup = try await services.groups.fetchGroup(id: groupId) else { return }
@@ -218,6 +236,18 @@ final class AppState: ObservableObject {
             guard !error.isPetankoOfflineFirestoreError else { return }
             errorMessage = error.localizedDescription
         }
+    }
+
+    func refreshDateSensitiveDataIfNeeded() {
+        guard authState == .signedIn, currentUser != nil else { return }
+        let currentDateKey = Date().petankoDateKey
+        guard observedFriendFeedDateKey != currentDateKey else { return }
+
+        observedFriendFeedDateKey = currentDateKey
+        allFriendTodayStickers = []
+        friendTodayStickers = []
+        observeTodayBlogStickers(for: allFriends)
+        reconcileObservedUserProfiles()
     }
 
     func leaveGroup(_ group: PetankoGroup) async -> Bool {
@@ -608,9 +638,11 @@ final class AppState: ObservableObject {
             return
         }
         let authorIds = friends.map(\.friendId) + [currentUser.id]
+        let dateKey = observedFriendFeedDateKey
 
-        friendTodayStickerListeners = services.stickers.observeTodayBlogStickers(authorIds: authorIds) { [weak self] stickers, error in
+        friendTodayStickerListeners = services.stickers.observeTodayBlogStickers(authorIds: authorIds, dateKey: dateKey) { [weak self] stickers, error in
             Task { @MainActor in
+                guard self?.observedFriendFeedDateKey == dateKey else { return }
                 if let error {
                     guard !error.isPetankoOfflineFirestoreError else { return }
                     self?.errorMessage = error.localizedDescription
@@ -707,6 +739,7 @@ final class AppState: ObservableObject {
                 pendingTermsAcceptedAt = nil
                 currentUser = user
                 resetSignedInNavigation()
+                observedFriendFeedDateKey = Date().petankoDateKey
                 authState = .signedIn
                 observeSignedInData(for: user.id)
             } else {
@@ -726,6 +759,7 @@ final class AppState: ObservableObject {
             pendingTermsAcceptedAt = nil
             currentUser = fallbackUser
             resetSignedInNavigation()
+            observedFriendFeedDateKey = Date().petankoDateKey
             authState = .signedIn
             observeSignedInData(for: fallbackUser.id)
         }
@@ -751,6 +785,7 @@ final class AppState: ObservableObject {
         blockedUsers = []
         allFriends = []
         allFriendTodayStickers = []
+        observedFriendFeedDateKey = Date().petankoDateKey
         allIncomingFriendRequests = []
         allOutgoingFriendRequests = []
         incomingFriendRequests = []

@@ -2,12 +2,15 @@ import SwiftUI
 import UIKit
 
 struct StickerCreationScreen: View {
+    @Environment(\.dismiss) private var dismiss
+
     let originalImage: UIImage
     @State private var draft = StickerDraft()
     @State private var generatedPNG: Data?
     @State private var isShowingPostScreen = false
     @State private var renderError: String?
     @State private var isInteractingWithCrop = false
+    @State private var isShowingDiscardAlert = false
 
     var body: some View {
         ScrollView {
@@ -107,10 +110,28 @@ struct StickerCreationScreen: View {
         .background {
             PetankoMetalBackground()
         }
-        .navigationTitle("ステッカー作成")
+        .navigationTitle("切り抜きステッカー")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    requestDismiss()
+                } label: {
+                    Label("戻る", systemImage: "chevron.left")
+                }
+            }
+        }
         .navigationDestination(isPresented: $isShowingPostScreen) {
             StickerPostScreen(stickerPNG: generatedPNG ?? Data(), draft: draft)
+        }
+        .alert("変更を破棄しますか？", isPresented: $isShowingDiscardAlert) {
+            Button("キャンセル", role: .cancel) {}
+            Button("破棄", role: .destructive) {
+                dismiss()
+            }
+        } message: {
+            Text("編集した内容は保存されません。")
         }
     }
 
@@ -123,6 +144,18 @@ struct StickerCreationScreen: View {
                 draft.outlineColorHex = UIColor(color).petankoHexString
             }
         )
+    }
+
+    private var hasUnsavedChanges: Bool {
+        draft != StickerDraft()
+    }
+
+    private func requestDismiss() {
+        if hasUnsavedChanges {
+            isShowingDiscardAlert = true
+        } else {
+            dismiss()
+        }
     }
 }
 

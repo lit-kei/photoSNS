@@ -199,15 +199,18 @@ struct SectionHeader: View {
 struct MetalCard<Content: View>: View {
     var padding: CGFloat = AppSpacing.card
     var radius: CGFloat = AppRadius.card
+    var color: Color = AppColors.surface.opacity(0.98)
     let content: Content
 
     init(
         padding: CGFloat = AppSpacing.card,
         radius: CGFloat = AppRadius.card,
+        color: Color = AppColors.surface.opacity(0.98),
         @ViewBuilder content: () -> Content
     ) {
         self.padding = padding
         self.radius = radius
+        self.color = color
         self.content = content()
     }
 
@@ -217,7 +220,7 @@ struct MetalCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(AppColors.surface.opacity(0.98))
+                    .fill(color)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -351,20 +354,23 @@ struct ListRowButtonStyle: ButtonStyle {
 struct ControlSection<Content: View>: View {
     let title: String
     let radius: CGFloat
+    let color: Color
     let content: Content
 
     init(
         title: String,
         radius: CGFloat = AppRadius.card,
+        color: Color = AppColors.surface.opacity(0.98),
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.radius = radius
+        self.color = color
         self.content = content()
     }
 
     var body: some View {
-        MetalCard(radius: radius) {
+        MetalCard(radius: radius, color: color) {
             VStack(alignment: .leading, spacing: 16) {
                 SectionHeader(title: title)
                 content
@@ -453,6 +459,8 @@ struct HorizontalOptionPicker<Option: PetankoOption>: View {
                     .buttonStyle(OptionButtonStyle(isSelected: option.id == selection.id))
                 }
             }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
         }
     }
 }
@@ -477,10 +485,9 @@ private struct OptionButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: AppRadius.chip, style: .continuous)
                     .stroke(isSelected ? AppColors.accentPink.opacity(0.58) : AppColors.border, lineWidth: 0.8)
             }
-            .scaleEffect(configuration.isPressed ? 0.98 : (isSelected ? 1.02 : 1))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.84 : 1)
             .animation(.spring(response: 0.24, dampingFraction: 0.86), value: configuration.isPressed)
-            .animation(.spring(response: 0.28, dampingFraction: 0.84), value: isSelected)
     }
 }
 
@@ -558,6 +565,14 @@ struct EmptyStateView: View {
         self.yOffset = yOffset
     }
 
+    
+    static let stickerBorder = Color(
+        red: 0.95,
+        green: 0.94,
+        blue: 0.92
+    )
+
+    
     var body: some View {
         Group {
             switch style {
@@ -645,83 +660,58 @@ struct EmptyStateView: View {
     }
 
     private var hardShadowCard: some View {
-        ZStack {
-            Rectangle()
-                .fill(Color.black)
-                .offset(x: 9, y: 10)
+        VStack(spacing: 0) {
+            stickerIcon
 
-            Rectangle()
-                .fill(Color(red: 1, green: 0.99, blue: 0.97))
-                .overlay {
-                    Rectangle()
-                        .stroke(Color.black, lineWidth: 2.4)
-                }
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppColors.secondaryText)
+                .padding(.top, 18)
 
-            VStack(spacing: hasMessage ? 10 : 14) {
-                if let sectionTitle, !sectionTitle.isEmpty {
-                    Text(sectionTitle)
-                        .font(.system(size: 21, weight: .black, design: .rounded))
-                        .foregroundStyle(Color.black.opacity(0.92))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.bottom, 2)
-                }
-
-                ZStack {
-                    Rectangle()
-                        .fill(Color.black)
-                        .frame(width: 62, height: 58)
-                        .offset(x: 7, y: 7)
-                        .zIndex(0)
-
-                    ZStack {
-                        Rectangle()
-                            .fill(AppColors.accentPink)
-                            .overlay {
-                                Rectangle()
-                                    .stroke(Color.black, lineWidth: 2)
-                            }
-
-                        Image(systemName: systemImage)
-                            .symbolRenderingMode(.monochrome)
-                            .font(.system(size: min(size, 37), weight: .bold))
-                            .foregroundStyle(Color.black.opacity(0.90))
-                            .offset(x: xOffset, y: yOffset)
-                            .zIndex(2)
-                    }
-                    .frame(width: 62, height: 58)
-                    .zIndex(1)
-                }
-
-                Text(title)
-                    .font(.system(size: 18, weight: .black, design: .rounded))
-                    .foregroundStyle(Color.black.opacity(0.90))
+            if let message {
+                Text(message)
+                    .font(.system(size: 13))
+                    .foregroundStyle(AppColors.secondaryText.opacity(0.75))
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.78)
-
-                if let message, !message.isEmpty {
-                    Text(message)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color.black.opacity(0.62))
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(2)
-                        .lineLimit(3)
-                }
+                    .lineSpacing(2)
+                    .padding(.top, 6)
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 18)
         }
-        .frame(
-            width: 300,
-            height: hasSectionTitle
-                ? (hasMessage ? 218 : 194)
-                : (hasMessage ? 172 : 148)
-        )
-        .padding(.trailing, 9)
-        .padding(.bottom, 10)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
     }
+
+    private var stickerIcon: some View {
+        
+        ZStack {
+            // 背景のやわらかい丸
+            Circle()
+                .fill(AppColors.accentPink.opacity(0.08))
+                .frame(width: 110, height: 110)
+            Circle()
+                .stroke(
+                    AppColors.accentPink,
+                    style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+                )
+                .frame(width: 106, height: 106)
+
+            // 本体
+            Image(systemName: systemImage)
+                .symbolRenderingMode(.monochrome)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(AppColors.accentPink)
+                .offset(x: xOffset, y: yOffset)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .shadow(color: Self.stickerBorder, radius: 0.8, x: 0, y: 0)
+                .rotationEffect(.degrees(-4))
+        }
+        .frame(width: 120, height: 110)
+    }
+    
 
     private var hasMessage: Bool {
         message?.isEmpty == false

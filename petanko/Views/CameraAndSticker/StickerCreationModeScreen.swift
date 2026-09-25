@@ -3,6 +3,15 @@ import UIKit
 
 struct StickerCreationModeScreen: View {
     let originalImage: UIImage
+    @Binding private var isHidingSourceCameraControls: Bool
+
+    init(
+        originalImage: UIImage,
+        isHidingSourceCameraControls: Binding<Bool> = .constant(false)
+    ) {
+        self.originalImage = originalImage
+        _isHidingSourceCameraControls = isHidingSourceCameraControls
+    }
 
     var body: some View {
         ScrollView {
@@ -45,8 +54,18 @@ struct StickerCreationModeScreen: View {
             .padding(.bottom, 30)
         }
         .background { PetankoMetalBackground() }
-        .navigationTitle("ステッカーの作り方")
+        .navigationTitle("ステッカー作成")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            releaseSourceCameraControlsAfterNavigation()
+        }
+    }
+
+    private func releaseSourceCameraControlsAfterNavigation() {
+        guard isHidingSourceCameraControls else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            isHidingSourceCameraControls = false
+        }
     }
 }
 

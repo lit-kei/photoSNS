@@ -262,6 +262,14 @@ struct GroupEditScreen: View {
                 .disabled(groupName.trimmedForPetanko.isEmpty || isSaving)
                 .opacity(groupName.trimmedForPetanko.isEmpty || isSaving ? 0.48 : 1)
 
+                NavigationLink {
+                    GroupFriendInviteScreen(group: currentGroup)
+                } label: {
+                    Label("友達をグループに追加", systemImage: "person.2.badge.plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
+
                 ControlSection(title: "メンバー") {
                     VStack(spacing: 0) {
                         ForEach(memberSummaries) { member in
@@ -344,6 +352,140 @@ struct GroupEditScreen: View {
     }
 }
 
+struct GroupFriendInviteScreen: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    let group: PetankoGroup
+    @State private var selectedFriendIds: Set<String> = []
+    @State private var isAdding = false
+
+    private var currentGroup: PetankoGroup {
+        appState.groups.first(where: { $0.id == group.id }) ?? group
+    }
+
+    private var inviteCandidates: [AppFriend] {
+        appState.friends
+            .filter { !currentGroup.memberIds.contains($0.friendId) }
+            .sorted { $0.friendName.localizedStandardCompare($1.friendName) == .orderedAscending }
+    }
+
+    private var selectedFriends: [AppFriend] {
+        inviteCandidates.filter { selectedFriendIds.contains($0.friendId) }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                ControlSection(title: "友達を選択") {
+                    if inviteCandidates.isEmpty {
+                        EmptyStateView(systemImage: "person.2.slash", title: "追加できる友達がいません", message: "")
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(inviteCandidates) { friend in
+                                GroupInviteFriendRow(
+                                    friend: friend,
+                                    isSelected: selectedFriendIds.contains(friend.friendId)
+                                ) {
+                                    toggleSelection(for: friend)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    Task {
+                        isAdding = true
+                        let didAdd = await appState.addFriendsToGroup(
+                            group: currentGroup,
+                            friends: selectedFriends
+                        )
+                        isAdding = false
+                        if didAdd {
+                            dismiss()
+                        }
+                    }
+                } label: {
+                    if isAdding {
+                        ProgressView()
+                            .tint(AppColors.mainText)
+                    } else {
+                        Label("\(selectedFriendIds.count)人を追加する", systemImage: "person.2.fill")
+                    }
+                }
+                .buttonStyle(PrimaryActionButtonStyle())
+                .disabled(selectedFriendIds.isEmpty || isAdding)
+                .opacity(selectedFriendIds.isEmpty || isAdding ? 0.48 : 1)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
+        }
+        .background {
+            PetankoMetalBackground()
+        }
+        .navigationTitle("友達を追加")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await appState.refreshGroup(group.id)
+        }
+        .onChange(of: currentGroup.memberIds) { _, _ in
+            selectedFriendIds = selectedFriendIds.intersection(Set(inviteCandidates.map(\.friendId)))
+        }
+    }
+
+    private func toggleSelection(for friend: AppFriend) {
+        if selectedFriendIds.contains(friend.friendId) {
+            selectedFriendIds.remove(friend.friendId)
+        } else {
+            selectedFriendIds.insert(friend.friendId)
+        }
+    }
+}
+
+private struct GroupInviteFriendRow: View {
+    let friend: AppFriend
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                GroupMemberAvatar(member: friend.groupMemberSummary)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(friend.friendName.isEmpty ? "petanko user" : friend.friendName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppColors.mainText)
+                        .lineLimit(1)
+
+                    if !friend.friendEmail.isEmpty {
+                        Text(friend.friendEmail)
+                            .font(.system(size: 12))
+                            .foregroundStyle(AppColors.secondaryText)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(isSelected ? AppColors.accentPink : AppColors.darkSilver)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppColors.border)
+                .frame(height: 0.8)
+        }
+    }
+}
+
 private struct GroupMemberSummary: Identifiable, Hashable {
     let id: String
     let name: String
@@ -372,6 +514,23 @@ private struct GroupMemberSummary: Identifiable, Hashable {
 
     var displayAvatar: String {
         isSystemImage ? "" : avatarValue
+    }
+}
+
+private extension AppFriend {
+    var groupMemberSummary: GroupMemberSummary {
+        GroupMemberSummary(
+            id: friendId,
+            name: friendName.isEmpty ? "petanko user" : friendName,
+            avatarValue: groupMemberAvatarValue
+        )
+    }
+
+    var groupMemberAvatarValue: String {
+        if let friendAvatarURL, !friendAvatarURL.isEmpty {
+            return friendAvatarURL
+        }
+        return friendAvatar.isEmpty ? "system:person.fill" : friendAvatar
     }
 }
 

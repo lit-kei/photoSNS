@@ -114,6 +114,36 @@ export const onFriendRequestCreated = onDocumentCreated(
   }
 );
 
+export const onGroupMemberCreated = onDocumentCreated(
+  {document: "groupMembers/{memberId}", region},
+  async (event) => {
+    const data = event.data?.data();
+    if (!data || data.joinSource !== "friend_invite") return;
+
+    const groupId = stringValue(data.groupId);
+    const userId = stringValue(data.userId);
+    const invitedById = stringValue(data.invitedById);
+    const invitedByName = stringValue(data.invitedByName) || "petanko user";
+    if (!groupId || !userId || userId === invitedById) return;
+
+    const group = await fetchGroupForNotification(groupId);
+    await sendToUser(userId, {
+      notification: {
+        title: `${group.name}に追加されました`,
+        body: `${invitedByName} があなたをグループに招待しました。`,
+      },
+      data: {
+        petankoDestination: "groupDiary",
+        groupId,
+        dateKey: tokyoDateKey(new Date()),
+        stickerId: "",
+        groupMemberId: event.params.memberId,
+        recipientUserId: userId,
+      },
+    });
+  }
+);
+
 async function finalizeStickerUploadJob(
   jobId: string,
   initialData: DocumentData

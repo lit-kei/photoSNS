@@ -62,14 +62,17 @@ final class StickerService {
             }
     }
 
-    func observeTodayBlogStickers(authorIds: [String], onChange: @escaping ([StickerPost], Error?) -> Void) -> [ListenerRegistration] {
+    func observeTodayBlogStickers(
+        authorIds: [String],
+        dateKey: String = Date().petankoDateKey,
+        onChange: @escaping ([StickerPost], Error?) -> Void
+    ) -> [ListenerRegistration] {
         let uniqueAuthorIds = Array(Set(authorIds).filter { !$0.isEmpty }).sorted()
         guard !uniqueAuthorIds.isEmpty else {
             onChange([], nil)
             return []
         }
 
-        let todayKey = Date().petankoDateKey
         let chunks = uniqueAuthorIds.chunked(into: 10)
         let lock = NSLock()
         var postsByChunk: [Int: [String: StickerPost]] = [:]
@@ -77,7 +80,7 @@ final class StickerService {
         return chunks.enumerated().map { index, ids in
             db.collection("stickers")
                 .whereField("target", isEqualTo: StickerPostTarget.blog.rawValue)
-                .whereField("dateKey", isEqualTo: todayKey)
+                .whereField("dateKey", isEqualTo: dateKey)
                 .whereField("authorId", in: ids)
                 .addSnapshotListener { snapshot, error in
                     if let error {
