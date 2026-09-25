@@ -15,3 +15,9 @@ Apple Developerの署名を使う実機起動とApp Store向け設定を外す�
 `codex/apple-signing-device-support-backup`
 
 現在のプロジェクトはiPhone実機向けビルド対応を維持しています。プッシュ通知などのApple Developer固有機能を再開するときは、このブランチから必要な設定を戻してください。なお、実機へのインストールと起動にはAppleの仕様上コード署名が必要です。
+
+Apple Developerの申請待ち期間用として、現在のmainでは固定Team IDを設定していません。iOS SimulatorではApple Developerアカウントなしで開発を継続でき、iPhone実機向けSDKとターゲットは残しています。申請承認後に戻すTeam設定は、次のGitHubブランチへ保存しています。
+
+`codex/apple-developer-approved-setup`
+
+申請待ち中のDebug構成は、実機向けコードを含めて署名なしでコンパイルできるようにしています。これによりBuildは可能ですが、署名がないアプリをiPhoneへインストール・起動することはできません。承認後は上記ブランチを参照してDebugのコード署名とTeam IDを戻します。
