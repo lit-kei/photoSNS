@@ -9,6 +9,8 @@ struct StickerPostScreen: View {
     let draft: StickerDraft
     @State private var selectedGroupIDs: Set<String> = []
     @State private var publishToBlog = true
+    @State private var didApplyDefaultDestinations = false
+    @State private var didCustomizeDestinations = false
     @State private var submissionError: String?
 
     var body: some View {
@@ -39,6 +41,7 @@ struct StickerPostScreen: View {
                 ControlSection(title: "投稿先") {
                     VStack(spacing: 10) {
                         Button {
+                            didCustomizeDestinations = true
                             publishToBlog.toggle()
                         } label: {
                             HStack(spacing: 10) {
@@ -116,6 +119,12 @@ struct StickerPostScreen: View {
         }
         .navigationTitle("投稿")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            applyDefaultDestinationsIfNeeded()
+        }
+        .onChange(of: appState.groups) { _, _ in
+            applyDefaultDestinationsIfNeeded()
+        }
         .alert("投稿を開始できません", isPresented: Binding(
             get: { submissionError != nil },
             set: { if !$0 { submissionError = nil } }
@@ -194,7 +203,16 @@ struct StickerPostScreen: View {
         !appState.groups.isEmpty && selectedGroupIDs.count == appState.groups.count
     }
 
+    private func applyDefaultDestinationsIfNeeded() {
+        guard !didApplyDefaultDestinations, !didCustomizeDestinations else { return }
+        publishToBlog = true
+        guard !appState.groups.isEmpty else { return }
+        selectedGroupIDs = Set(appState.groups.map(\.id))
+        didApplyDefaultDestinations = true
+    }
+
     private func toggleSelection(for group: PetankoGroup) {
+        didCustomizeDestinations = true
         if selectedGroupIDs.contains(group.id) {
             selectedGroupIDs.remove(group.id)
         } else {
@@ -203,6 +221,7 @@ struct StickerPostScreen: View {
     }
 
     private func toggleAllGroups() {
+        didCustomizeDestinations = true
         if areAllGroupsSelected {
             selectedGroupIDs.removeAll()
         } else {
