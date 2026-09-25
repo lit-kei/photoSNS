@@ -663,7 +663,7 @@ struct ProfileScreen: View {
                             Button {
                                 isShowingMyQR = true
                             } label: {
-                                Label("My QRコード", systemImage: "qrcode")
+                                Text("My QRコード")
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(SecondaryActionButtonStyle())
@@ -671,7 +671,7 @@ struct ProfileScreen: View {
                             NavigationLink {
                                 StickerCollectionScreen()
                             } label: {
-                                Label("コレクション", systemImage: "square.grid.3x3.fill")
+                                Text("コレクション")
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(PrimaryActionButtonStyle())
