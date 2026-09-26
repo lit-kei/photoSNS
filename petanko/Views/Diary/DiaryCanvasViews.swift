@@ -68,7 +68,7 @@ struct DiaryCanvasView: View {
                     .rotationEffect(.degrees(item.rotation))
                     .position(x: item.x, y: item.y)
                     .allowsHitTesting(false)
-                    .zIndex(Double(item.zIndex))
+                    .zIndex(950_000_000_000 + Double(item.zIndex))
             }
 
             ForEach(diary.textItems) { item in
@@ -277,12 +277,13 @@ struct DiaryDesignShapePath: Shape {
 
 struct DiaryDesignVisual: View {
     let item: DiaryDesignItem
+    var showsConfiguredBorder = true
 
     var body: some View {
         ZStack {
             effectContent
 
-            if item.hasBorder {
+            if item.hasBorder && showsConfiguredBorder {
                 DiaryDesignShapePath(shape: item.shape)
                     .stroke(borderColor, lineWidth: 1.15)
             }
@@ -300,14 +301,41 @@ struct DiaryDesignVisual: View {
                 .opacity(clampedOpacity)
         case .tint:
             DiaryDesignShapePath(shape: item.shape)
-                .fill(.clear)
+                .fill(.gray.opacity(clampedOpacity))
+                .blendMode(.saturation)
         case .translucent:
             DiaryDesignShapePath(shape: item.shape)
                 .fill(selectedColor.opacity(clampedOpacity))
         case .eightBit:
-            DiaryDesignShapePath(shape: item.shape)
-                .fill(.clear)
+            eightBitOverlay
         }
+    }
+
+    private var eightBitOverlay: some View {
+        Canvas { context, size in
+            let blockSize: CGFloat = 9
+            for row in 0...Int(ceil(size.height / blockSize)) {
+                for column in 0...Int(ceil(size.width / blockSize)) {
+                    let isDark = (row + column).isMultiple(of: 2)
+                    let rect = CGRect(
+                        x: CGFloat(column) * blockSize,
+                        y: CGFloat(row) * blockSize,
+                        width: blockSize,
+                        height: blockSize
+                    )
+                    context.fill(
+                        Path(rect),
+                        with: .color(isDark ? .black.opacity(0.13) : .white.opacity(0.09))
+                    )
+                }
+            }
+        }
+        .mask {
+            DiaryDesignShapePath(shape: item.shape)
+                .fill(.white)
+        }
+        .blendMode(.overlay)
+        .opacity(clampedOpacity)
     }
 
     private var selectedColor: Color {
@@ -325,66 +353,35 @@ struct DiaryDesignVisual: View {
 
 struct DiaryStampVisual: View {
     let item: DiaryStampItem
-    var localImageData: Data? = nil
 
     @ViewBuilder
     var body: some View {
-        if item.imageURL?.isEmpty == false || localImageData != nil {
-            photoStamp
-        } else {
-            switch item.design {
-            case .normal:
+        switch item.design {
+        case .normal:
+            stampText(color: selectedColor)
+        case .sparkle:
+            stampText(color: selectedColor)
+                .overlay { sparkleHalo }
+        case .layered:
+            ZStack {
+                stampText(color: AppColors.accentPink.opacity(0.88))
+                    .offset(x: -3.5, y: -3)
+                stampText(color: AppColors.accentBlue.opacity(0.92))
+                    .offset(x: 3.5, y: 3)
                 stampText(color: selectedColor)
-            case .sparkle:
+            }
+        case .neon:
+            stampText(color: .white)
+                .shadow(color: selectedColor.opacity(0.98), radius: 2)
+                .shadow(color: selectedColor.opacity(0.90), radius: 6)
+                .shadow(color: selectedColor.opacity(0.64), radius: 11)
+        case .shadow:
+            ZStack {
+                stampText(color: .black.opacity(0.36))
+                    .offset(x: 4, y: 5)
                 stampText(color: selectedColor)
-                    .overlay { sparkleHalo }
-            case .layered:
-                ZStack {
-                    stampText(color: AppColors.accentPink.opacity(0.88))
-                        .offset(x: -3.5, y: -3)
-                    stampText(color: AppColors.accentBlue.opacity(0.92))
-                        .offset(x: 3.5, y: 3)
-                    stampText(color: selectedColor)
-                }
-            case .neon:
-                stampText(color: .white)
-                    .shadow(color: selectedColor.opacity(0.98), radius: 2)
-                    .shadow(color: selectedColor.opacity(0.90), radius: 6)
-                    .shadow(color: selectedColor.opacity(0.64), radius: 11)
-            case .shadow:
-                ZStack {
-                    stampText(color: .black.opacity(0.36))
-                        .offset(x: 4, y: 5)
-                    stampText(color: selectedColor)
-                }
             }
         }
-    }
-
-    @ViewBuilder
-    private var photoStamp: some View {
-        let size = photoStampSize
-        Group {
-            if let localImageData, let image = UIImage(data: localImageData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-            } else if let imageURL = item.imageURL {
-                RemoteImageView(urlString: imageURL, contentMode: .fit) {
-                    ProgressView()
-                }
-            }
-        }
-        .frame(width: size.width, height: size.height)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private var photoStampSize: CGSize {
-        let ratio = min(2.4, max(0.42, item.imageAspectRatio))
-        let longestSide: CGFloat = 112
-        return ratio >= 1
-            ? CGSize(width: longestSide, height: longestSide / ratio)
-            : CGSize(width: longestSide * ratio, height: longestSide)
     }
 
     private func stampText(color: Color) -> some View {

@@ -376,8 +376,6 @@ struct DiaryStampItem: Identifiable, Hashable {
     var symbol: String
     var colorHex: String
     var design: DiaryStampDesign
-    var imageURL: String?
-    var imageAspectRatio: Double
     var x: Double
     var y: Double
     var rotation: Double
@@ -389,8 +387,6 @@ struct DiaryStampItem: Identifiable, Hashable {
         symbol: String,
         colorHex: String = DiaryStampItem.defaultColorHex,
         design: DiaryStampDesign = .normal,
-        imageURL: String? = nil,
-        imageAspectRatio: Double = 1,
         x: Double = 40,
         y: Double = 80,
         rotation: Double = -8,
@@ -401,8 +397,6 @@ struct DiaryStampItem: Identifiable, Hashable {
         self.symbol = symbol
         self.colorHex = colorHex
         self.design = design
-        self.imageURL = imageURL
-        self.imageAspectRatio = imageAspectRatio
         self.x = x
         self.y = y
         self.rotation = rotation
@@ -415,9 +409,6 @@ struct DiaryStampItem: Identifiable, Hashable {
         self.symbol = data["symbol"] as? String ?? "★"
         self.colorHex = data["colorHex"] as? String ?? DiaryStampItem.defaultColorHex
         self.design = DiaryStampDesign(rawValue: data["design"] as? String ?? "") ?? .normal
-        let storedImageURL = data["imageURL"] as? String
-        self.imageURL = storedImageURL?.isEmpty == false ? storedImageURL : nil
-        self.imageAspectRatio = data["imageAspectRatio"] as? Double ?? 1
         self.x = data["x"] as? Double ?? 40
         self.y = data["y"] as? Double ?? 80
         self.rotation = data["rotation"] as? Double ?? -8
@@ -431,8 +422,6 @@ struct DiaryStampItem: Identifiable, Hashable {
             "symbol": symbol,
             "colorHex": colorHex,
             "design": design.rawValue,
-            "imageURL": imageURL ?? "",
-            "imageAspectRatio": imageAspectRatio,
             "x": x,
             "y": y,
             "rotation": rotation,

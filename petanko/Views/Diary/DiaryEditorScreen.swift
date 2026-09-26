@@ -63,16 +63,16 @@ struct DiaryEditorScreen: View {
     @State private var selectedBackgroundPhotoItem: PhotosPickerItem?
     @State private var isShowingBackgroundPhotoPicker = false
     @State private var backgroundImageData: Data?
-    @State private var selectedPhotoStampItem: PhotosPickerItem?
-    @State private var isShowingPhotoStampPicker = false
-    @State private var photoStampImageData: [String: Data] = [:]
     @State private var isShowingBackgroundCamera = false
     @State private var backgroundImageError: String?
     @State private var isShowingDiscardAlert = false
     @State private var drawingColor = Color(
         uiColor: UIColor(hex: DiaryDrawingStroke.defaultColorHex) ?? UIColor(AppColors.mainText)
     )
-    @State private var drawingLineWidth: Double = 5
+    @State private var drawingLineWidth: Double = 2
+    @State private var drawingZoomScale: Double = 1
+    @State private var drawingPanOffset: CGSize = .zero
+    @State private var isDrawingPanMode = false
 
 
     init(group: PetankoGroup) {
@@ -101,13 +101,15 @@ struct DiaryEditorScreen: View {
                     activeElement: $activeElement,
                     canvasSize: $canvasSize,
                     backgroundImageData: backgroundImageData,
-                    photoStampImageData: photoStampImageData,
                     isDrawingEnabled: isDrawingEnabled,
+                    drawingZoomScale: $drawingZoomScale,
+                    drawingPanOffset: $drawingPanOffset,
+                    isDrawingPanMode: $isDrawingPanMode,
                     drawingColorHex: UIColor(drawingColor).petankoHexString,
                     drawingLineWidth: drawingLineWidth
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.bottom, isDesignSelected ? editorBottomSheetHeight : 0)
+                .padding(.bottom, editorBottomSheetHeight)
                 .animation(.easeInOut(duration: 0.2), value: editorBottomSheetHeight)
             } else {
                 ProgressView("絵日記を読み込み中")
@@ -235,29 +237,9 @@ struct DiaryEditorScreen: View {
                 }
             }
         }
-        .onChange(of: selectedPhotoStampItem) { _, item in
-            guard let item else { return }
-            Task {
-                do {
-                    guard let data = try await item.loadTransferable(type: Data.self) else {
-                        throw PetankoError.message("選択した写真を読み込めませんでした。")
-                    }
-                    addPhotoStamp(data)
-                } catch {
-                    backgroundImageError = error.localizedDescription
-                    selectedPhotoStampItem = nil
-                }
-            }
-        }
         .photosPicker(
             isPresented: $isShowingBackgroundPhotoPicker,
             selection: $selectedBackgroundPhotoItem,
-            matching: .images,
-            photoLibrary: .shared()
-        )
-        .photosPicker(
-            isPresented: $isShowingPhotoStampPicker,
-            selection: $selectedPhotoStampItem,
             matching: .images,
             photoLibrary: .shared()
         )
@@ -305,9 +287,8 @@ struct DiaryEditorScreen: View {
     private var hasUnsavedChanges: Bool {
         guard let originalDiary,
               let currentDiary = comparableDraftDiary(),
-              backgroundImageData == nil,
-              photoStampImageData.isEmpty else {
-            return backgroundImageData != nil || !photoStampImageData.isEmpty
+              backgroundImageData == nil else {
+            return backgroundImageData != nil
         }
 
         var original = originalDiary
@@ -479,22 +460,10 @@ struct DiaryEditorScreen: View {
             VStack(alignment: .leading, spacing: 9) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        Button {
-                            isShowingPhotoStampPicker = true
-                        } label: {
-                            Label("写真", systemImage: "photo.on.rectangle.angled")
-                                .font(.caption.weight(.bold))
-                                .frame(height: 42)
-                                .padding(.horizontal, 6)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppColors.accentPink)
-
                         ForEach(["★", "♥", "!!", "→", "✦", "♪"], id: \.self) { stamp in
                             let isSelectedStampSymbol = selectedStamp?.symbol == stamp
                             Button {
-                                if case .stamp(let stampID) = selectedElement,
-                                   selectedStamp?.imageURL == nil {
+                                if case .stamp(let stampID) = selectedElement {
                                     // 選択中のスタンプを書き換える
                                     updateStamp(stampID) {
                                         $0.symbol = stamp
@@ -514,7 +483,7 @@ struct DiaryEditorScreen: View {
                     }
                 }
 
-                if case .stamp(let stampID) = selectedElement, selectedStamp?.imageURL == nil {
+                if case .stamp(let stampID) = selectedElement {
                     HStack(spacing: 10) {
                         ColorPicker("カラー", selection: selectedStampColorBinding, supportsOpacity: false)
                             .font(.caption.weight(.bold))
@@ -577,25 +546,6 @@ struct DiaryEditorScreen: View {
                                     Capsule()
                                         .stroke(AppColors.destructiveRed.opacity(0.30), lineWidth: 1)
                                 }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                } else if case .stamp(let stampID) = selectedElement {
-                    HStack {
-                        Label("写真スタンプ", systemImage: "photo.fill")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(AppColors.mainText)
-
-                        Spacer()
-
-                        Button(role: .destructive) {
-                            deleteStamp(stampID)
-                        } label: {
-                            Label("削除", systemImage: "trash")
-                                .font(.caption.weight(.bold))
-                                .padding(.horizontal, 10)
-                                .frame(height: 38)
-                                .background(AppColors.destructiveRed.opacity(0.09), in: Capsule())
                         }
                         .buttonStyle(.plain)
                     }
@@ -784,11 +734,11 @@ struct DiaryEditorScreen: View {
                         Image(systemName: "scribble.variable")
                             .foregroundStyle(AppColors.accentPink)
 
-                        Slider(value: $drawingLineWidth, in: 2...20, step: 1)
+                        Slider(value: $drawingLineWidth, in: 0.5...12, step: 0.5)
                             .tint(AppColors.accentPink)
                             .frame(minWidth: 86)
 
-                        Text("\(Int(drawingLineWidth))")
+                        Text(drawingLineWidth.formatted(.number.precision(.fractionLength(drawingLineWidth < 2 ? 1 : 0))))
                             .font(.caption.monospacedDigit().weight(.bold))
                             .foregroundStyle(AppColors.secondaryText)
                             .frame(width: 22)
@@ -821,9 +771,55 @@ struct DiaryEditorScreen: View {
                     .accessibilityLabel("手書きをすべて削除")
                 }
 
-                Label("キャンバス上を指またはApple Pencilで描けます", systemImage: "hand.draw")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppColors.secondaryText)
+                HStack(spacing: 12) {
+                    Button {
+                        drawingZoomScale = max(1, drawingZoomScale - 0.25)
+                    } label: {
+                        Image(systemName: "minus.magnifyingglass")
+                            .frame(width: 34, height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(drawingZoomScale <= 1)
+                    .opacity(drawingZoomScale <= 1 ? 0.4 : 1)
+                    .accessibilityLabel("縮小")
+
+                    Slider(value: $drawingZoomScale, in: 1...3, step: 0.05)
+                        .tint(AppColors.accentPink)
+
+                    Text("\(Int((drawingZoomScale * 100).rounded()))%")
+                        .font(.caption.monospacedDigit().weight(.bold))
+                        .foregroundStyle(AppColors.secondaryText)
+                        .frame(width: 42)
+
+                    Button {
+                        drawingZoomScale = min(3, drawingZoomScale + 0.25)
+                    } label: {
+                        Image(systemName: "plus.magnifyingglass")
+                            .frame(width: 34, height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(drawingZoomScale >= 3)
+                    .opacity(drawingZoomScale >= 3 ? 0.4 : 1)
+                    .accessibilityLabel("拡大")
+
+                    Button {
+                        isDrawingPanMode.toggle()
+                    } label: {
+                        Image(systemName: isDrawingPanMode ? "pencil.tip" : "hand.draw.fill")
+                            .foregroundStyle(isDrawingPanMode ? .white : AppColors.mainText)
+                            .frame(width: 34, height: 32)
+                            .background(
+                                isDrawingPanMode ? AppColors.accentPink : AppColors.accentPink.opacity(0.14),
+                                in: Circle()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(drawingZoomScale <= 1)
+                    .opacity(drawingZoomScale <= 1 ? 0.4 : 1)
+                    .accessibilityLabel(isDrawingPanMode ? "手書きに戻る" : "画面を移動")
+                }
+                .padding(.horizontal, 8)
+                .background(AppColors.accentPink.opacity(0.10), in: Capsule())
             }
 
         case .background:
@@ -1056,11 +1052,7 @@ struct DiaryEditorScreen: View {
             .sorted { $0.zIndex < $1.zIndex }
         draftDiary = page
         localLayouts = layouts
-        guard let savedPage = await viewModel.saveDiary(
-            page,
-            backgroundImageData: backgroundImageData,
-            photoStampImageData: photoStampImageData
-        ) else {
+        guard let savedPage = await viewModel.saveDiary(page, backgroundImageData: backgroundImageData) else {
             isSaving = false
             backgroundImageError = viewModel.errorMessage ?? "変更を保存できませんでした。もう一度お試しください。"
             return
@@ -1068,8 +1060,6 @@ struct DiaryEditorScreen: View {
         draftDiary = savedPage
         backgroundImageData = nil
         selectedBackgroundPhotoItem = nil
-        photoStampImageData.removeAll()
-        selectedPhotoStampItem = nil
         isSaving = false
         stopLockHeartbeat()
         dismiss()
@@ -1420,34 +1410,6 @@ struct DiaryEditorScreen: View {
         selectedElement = .stamp(item.id)
     }
 
-    private func addPhotoStamp(_ data: Data) {
-        let optimizedData = data.petankoOptimizedJPEG(
-            maxDimension: 1_200,
-            quality: 0.84,
-            maximumBytes: 1_000_000
-        )
-        guard let image = UIImage(data: optimizedData), image.size.height > 0 else {
-            backgroundImageError = "選択した写真を読み込めませんでした。"
-            selectedPhotoStampItem = nil
-            return
-        }
-
-        let item = DiaryStampItem(
-            symbol: "",
-            imageURL: "pending://\(UUID().uuidString)",
-            imageAspectRatio: image.size.width / image.size.height,
-            x: insertionPoint.x,
-            y: insertionPoint.y,
-            rotation: 0,
-            zIndex: nextZIndex
-        )
-        photoStampImageData[item.id] = optimizedData
-        draftDiary?.stampItems.append(item)
-        selectedPhotoStampItem = nil
-        activeElement = nil
-        selectedElement = .stamp(item.id)
-    }
-
     private func addDesign(_ effect: DiaryDesignEffect) {
         let item = DiaryDesignItem(
             effect: effect,
@@ -1548,7 +1510,6 @@ struct DiaryEditorScreen: View {
     }
 
     private func deleteStamp(_ id: String) {
-        photoStampImageData.removeValue(forKey: id)
         draftDiary?.stampItems.removeAll { $0.id == id }
         activeElement = nil
         selectedElement = nil
@@ -1663,10 +1624,15 @@ private struct AdaptiveEditableDiaryCanvas: View {
     @Binding var activeElement: CanvasElementID?
     @Binding var canvasSize: CGSize
     let backgroundImageData: Data?
-    let photoStampImageData: [String: Data]
     let isDrawingEnabled: Bool
+    @Binding var drawingZoomScale: Double
+    @Binding var drawingPanOffset: CGSize
+    @Binding var isDrawingPanMode: Bool
     let drawingColorHex: String
     let drawingLineWidth: Double
+
+    @GestureState private var liveMagnification: CGFloat = 1
+    @State private var panStartOffset: CGSize?
 
     var body: some View {
         GeometryReader { proxy in
@@ -1675,6 +1641,9 @@ private struct AdaptiveEditableDiaryCanvas: View {
                 max(proxy.size.width, 1) / logicalSize.width,
                 max(proxy.size.height, 1) / logicalSize.height
             )
+            let zoomScale: CGFloat = isDrawingEnabled
+                ? min(3, max(1, CGFloat(drawingZoomScale) * liveMagnification))
+                : 1
 
             EditableDiaryCanvas(
                 diary: $diary,
@@ -1684,18 +1653,90 @@ private struct AdaptiveEditableDiaryCanvas: View {
                 activeElement: $activeElement,
                 canvasSize: $canvasSize,
                 backgroundImageData: backgroundImageData,
-                photoStampImageData: photoStampImageData,
                 isDrawingEnabled: isDrawingEnabled,
+                isDrawingPanEnabled: isDrawingPanMode,
                 drawingColorHex: drawingColorHex,
                 drawingLineWidth: drawingLineWidth
             )
             .frame(width: logicalSize.width, height: logicalSize.height)
-            .scaleEffect(scale, anchor: .center)
+            .scaleEffect(scale * zoomScale, anchor: .center)
             .position(
-                x: proxy.size.width / 2,
-                y: logicalSize.height * scale / 2
+                x: proxy.size.width / 2 + drawingPanOffset.width,
+                y: logicalSize.height * scale / 2 + drawingPanOffset.height
             )
+            .simultaneousGesture(
+                MagnificationGesture()
+                    .updating($liveMagnification) { value, state, _ in
+                        guard isDrawingEnabled else { return }
+                        state = value
+                    }
+                    .onEnded { value in
+                        guard isDrawingEnabled else { return }
+                        drawingZoomScale = min(3, max(1, drawingZoomScale * Double(value)))
+                    }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        guard isDrawingEnabled, isDrawingPanMode, drawingZoomScale > 1 else { return }
+                        let start = panStartOffset ?? drawingPanOffset
+                        if panStartOffset == nil {
+                            panStartOffset = start
+                        }
+                        drawingPanOffset = clampedPanOffset(
+                            CGSize(
+                                width: start.width + value.translation.width,
+                                height: start.height + value.translation.height
+                            ),
+                            viewportSize: proxy.size,
+                            baseScale: scale,
+                            zoomScale: zoomScale
+                        )
+                    }
+                    .onEnded { _ in
+                        panStartOffset = nil
+                    }
+            )
+            .onChange(of: drawingZoomScale) { _, newValue in
+                if newValue <= 1 {
+                    drawingPanOffset = .zero
+                    isDrawingPanMode = false
+                } else {
+                    drawingPanOffset = clampedPanOffset(
+                        drawingPanOffset,
+                        viewportSize: proxy.size,
+                        baseScale: scale,
+                        zoomScale: CGFloat(newValue)
+                    )
+                }
+            }
+            .onChange(of: isDrawingEnabled) { _, enabled in
+                if !enabled {
+                    drawingZoomScale = 1
+                    drawingPanOffset = .zero
+                    isDrawingPanMode = false
+                }
+            }
         }
+        .clipped()
+    }
+
+    private func clampedPanOffset(
+        _ proposed: CGSize,
+        viewportSize: CGSize,
+        baseScale: CGFloat,
+        zoomScale: CGFloat
+    ) -> CGSize {
+        let contentSize = CGSize(
+            width: DiaryCanvasMetrics.logicalSize.width * baseScale * zoomScale,
+            height: DiaryCanvasMetrics.logicalSize.height * baseScale * zoomScale
+        )
+        let maxX = max(0, (contentSize.width - viewportSize.width) / 2)
+        let maxY = max(0, (contentSize.height - viewportSize.height) / 2)
+        return CGSize(
+            width: min(maxX, max(-maxX, proposed.width)),
+            height: min(maxY, max(-maxY, proposed.height))
+        )
     }
 }
 
@@ -1713,8 +1754,8 @@ struct EditableDiaryCanvas: View {
     @Binding var activeElement: CanvasElementID?
     @Binding var canvasSize: CGSize
     var backgroundImageData: Data? = nil
-    var photoStampImageData: [String: Data] = [:]
     var isDrawingEnabled = false
+    var isDrawingPanEnabled = false
     var drawingColorHex = DiaryDrawingStroke.defaultColorHex
     var drawingLineWidth: Double = 5
 
@@ -1736,9 +1777,12 @@ struct EditableDiaryCanvas: View {
                 ForEach(diary.designItems) { item in
                     let element = CanvasElementID.design(item.id)
                     ZStack {
-                        DiaryDesignVisual(item: item)
+                        DiaryDesignVisual(
+                            item: item,
+                            showsConfiguredBorder: selectedElement != element
+                        )
 
-                        if !item.hasBorder {
+                        if selectedElement == element || !item.hasBorder {
                             DiaryDesignShapePath(shape: item.shape)
                                 .stroke(
                                     selectedElement == element
@@ -1758,7 +1802,7 @@ struct EditableDiaryCanvas: View {
                     .diaryElementFrame(element)
                     .position(x: item.x, y: item.y)
                     .allowsHitTesting(false)
-                    .zIndex(Double(item.zIndex))
+                    .zIndex(950_000_000_000 + Double(item.zIndex))
                 }
 
                 ForEach(diary.textItems) { item in
@@ -1776,7 +1820,7 @@ struct EditableDiaryCanvas: View {
 
                 ForEach(diary.stampItems) { item in
                     let element = CanvasElementID.stamp(item.id)
-                    DiaryStampVisual(item: item, localImageData: photoStampImageData[item.id])
+                    DiaryStampVisual(item: item)
                         .padding(8)
                         .diaryElementBaseSize(element)
                         .scaleEffect(item.scale)
@@ -1819,7 +1863,7 @@ struct EditableDiaryCanvas: View {
                     selectionOutlineLayer
                 }
 
-                if isDrawingEnabled {
+                if isDrawingEnabled && !isDrawingPanEnabled {
                     drawingInputLayer
                 }
             }
@@ -1960,6 +2004,7 @@ struct EditableDiaryCanvas: View {
     @ViewBuilder
     private var selectionOutlineLayer: some View {
         if let selectedElement,
+           shouldShowSolidSelectionOutline(for: selectedElement),
            let geometry = interactionGeometry(for: selectedElement),
            geometry.size.width > 0,
            geometry.size.height > 0,
@@ -1973,6 +2018,13 @@ struct EditableDiaryCanvas: View {
                 .allowsHitTesting(false)
                 .zIndex(1_000_000_000_001)
         }
+    }
+
+    private func shouldShowSolidSelectionOutline(for element: CanvasElementID) -> Bool {
+        if case .design = element {
+            return false
+        }
+        return true
     }
 
     private func outlineCornerRadius(for element: CanvasElementID) -> CGFloat {
