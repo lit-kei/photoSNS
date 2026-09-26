@@ -60,6 +60,42 @@ enum StickerDetailFilterKind: String, PetankoOption {
     }
 }
 
+enum StickerDetailFillPatternKind: String, PetankoOption {
+    case solid
+    case polkaDot
+    case checker
+    case stripe
+    case diagonalStripe
+    case grid
+    case flower
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .solid: "単色"
+        case .polkaDot: "水玉"
+        case .checker: "チェック"
+        case .stripe: "ストライプ"
+        case .diagonalStripe: "ななめ"
+        case .grid: "格子"
+        case .flower: "小花"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .solid: "square.fill"
+        case .polkaDot: "circle.grid.2x2.fill"
+        case .checker: "checkerboard.rectangle"
+        case .stripe: "line.3.horizontal"
+        case .diagonalStripe: "line.diagonal"
+        case .grid: "grid"
+        case .flower: "camera.macro"
+        }
+    }
+}
+
 enum StickerDetailElementID: Hashable, Identifiable {
     case shape(String)
     case filter(String)
@@ -84,6 +120,8 @@ struct StickerDetailShapeItem: Identifiable, Hashable {
     var scale: Double
     var rotation: Double
     var fillColorHex: String
+    var fillPattern: StickerDetailFillPatternKind
+    var fillPatternDetail: Double
     var strokeColorHex: String
     var strokeWidth: Double
     var isFilterEnabled: Bool
@@ -99,6 +137,8 @@ struct StickerDetailShapeItem: Identifiable, Hashable {
         scale: Double = 1,
         rotation: Double = 0,
         fillColorHex: String = "#F7B267",
+        fillPattern: StickerDetailFillPatternKind = .solid,
+        fillPatternDetail: Double = 0.5,
         strokeColorHex: String = "#FFFFFF",
         strokeWidth: Double = 6,
         isFilterEnabled: Bool = true,
@@ -113,6 +153,8 @@ struct StickerDetailShapeItem: Identifiable, Hashable {
         self.scale = scale
         self.rotation = rotation
         self.fillColorHex = fillColorHex
+        self.fillPattern = fillPattern
+        self.fillPatternDetail = fillPatternDetail
         self.strokeColorHex = strokeColorHex
         self.strokeWidth = strokeWidth
         self.isFilterEnabled = isFilterEnabled

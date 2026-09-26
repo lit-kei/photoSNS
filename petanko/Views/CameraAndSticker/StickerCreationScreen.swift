@@ -39,7 +39,7 @@ struct StickerCreationScreen: View {
                                         )
                                     }
                                 ),
-                                in: 1...2.8
+                                in: StickerDraft.cropScaleRange
                             )
                         }
 
@@ -173,73 +173,71 @@ private struct StickerComposerPreview: View {
     var body: some View {
         GeometryReader { proxy in
             let imageSize = aspectFitSize(for: image, in: proxy.size)
+            let canvasSize = CGSize(width: proxy.size.width * 0.94, height: proxy.size.height * 0.94)
             let referenceSide = min(imageSize.width, imageSize.height)
-            let cropScale = CGFloat(max(1, draft.cropScale))
+            let cropScale = CGFloat(max(StickerDraft.cropScaleRange.lowerBound, draft.cropScale))
             let frameSide = referenceSide / cropScale
             let frameOffset = displayedFrameOffset(referenceSide: referenceSide, cropScale: cropScale)
 
             ZStack {
                 TransparentStickerPreviewBackground()
 
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: imageSize.width, height: imageSize.height)
+
                 ZStack {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: imageSize.width, height: imageSize.height)
-
-                    ZStack {
-                        Color.black.opacity(0.38)
-                        StickerMaskShape(shape: draft.shape)
-                            .fill(.black)
-                            .frame(width: frameSide, height: frameSide)
-                            .rotationEffect(.degrees(-draft.cropRotation))
-                            .offset(frameOffset)
-                            .blendMode(.destinationOut)
-                    }
-                    .compositingGroup()
-
+                    Color.black.opacity(0.38)
                     StickerMaskShape(shape: draft.shape)
-                        .stroke(.white, style: StrokeStyle(lineWidth: 3, dash: [9, 6]))
+                        .fill(.black)
                         .frame(width: frameSide, height: frameSide)
                         .rotationEffect(.degrees(-draft.cropRotation))
                         .offset(frameOffset)
+                        .blendMode(.destinationOut)
+                }
+                .frame(width: canvasSize.width, height: canvasSize.height)
+                .compositingGroup()
 
-                    StickerOutline(
-                        shape: draft.shape,
-                        decoration: draft.decoration,
-                        customOutlineColor: Color(uiColor: UIColor(hex: draft.outlineColorHex) ?? .white)
-                    )
+                StickerMaskShape(shape: draft.shape)
+                    .stroke(.white, style: StrokeStyle(lineWidth: 3, dash: [9, 6]))
+                    .frame(width: frameSide, height: frameSide)
+                    .rotationEffect(.degrees(-draft.cropRotation))
+                    .offset(frameOffset)
+
+                StickerOutline(
+                    shape: draft.shape,
+                    decoration: draft.decoration,
+                    customOutlineColor: Color(uiColor: UIColor(hex: draft.outlineColorHex) ?? .white)
+                )
+                    .frame(width: frameSide, height: frameSide)
+                    .rotationEffect(.degrees(-draft.cropRotation))
+                    .offset(frameOffset)
+
+                if draft.decoration == .sparkle {
+                    SparkleOverlay()
                         .frame(width: frameSide, height: frameSide)
                         .rotationEffect(.degrees(-draft.cropRotation))
                         .offset(frameOffset)
-
-                    if draft.decoration == .sparkle {
-                        SparkleOverlay()
-                            .frame(width: frameSide, height: frameSide)
-                            .rotationEffect(.degrees(-draft.cropRotation))
-                            .offset(frameOffset)
-                    }
                 }
-                .frame(width: imageSize.width, height: imageSize.height)
-                .clipped()
-                .contentShape(Rectangle())
-                .highPriorityGesture(cropDragGesture(referenceSide: referenceSide))
-                .simultaneousGesture(cropScaleGesture())
-                .simultaneousGesture(cropRotationGesture())
-                .overlay(alignment: .bottomTrailing) {
-                    Button {
-                        draft.resetCrop(imageAspectRatio: image.petankoAspectRatio)
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.headline)
-                            .frame(width: 42, height: 42)
-                    }
-                    .foregroundStyle(AppColors.mainText)
-                    .background(AppColors.surface.opacity(0.94))
-                    .clipShape(Circle())
-                    .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
-                    .padding(8)
+            }
+            .contentShape(Rectangle())
+            .highPriorityGesture(cropDragGesture(referenceSide: referenceSide))
+            .simultaneousGesture(cropScaleGesture())
+            .simultaneousGesture(cropRotationGesture())
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    draft.resetCrop(imageAspectRatio: image.petankoAspectRatio)
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.headline)
+                        .frame(width: 42, height: 42)
                 }
+                .foregroundStyle(AppColors.mainText)
+                .background(AppColors.surface.opacity(0.94))
+                .clipShape(Circle())
+                .overlay { Circle().stroke(AppColors.border, lineWidth: 0.8) }
+                .padding(8)
             }
             .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             .overlay {
@@ -348,14 +346,14 @@ private extension StickerDraft {
         let proposedScale = scale ?? cropScale
         let proposedRotation = rotation ?? cropRotation
 
-        cropScale = (proposedScale.isFinite ? proposedScale : 1).clamped(to: 1...2.8)
+        let dynamicScaleRange = cropScaleRange(imageAspectRatio: imageAspectRatio)
+        cropScale = (proposedScale.isFinite ? proposedScale : 1).clamped(to: dynamicScaleRange)
         cropRotation = (proposedRotation.isFinite ? proposedRotation : 0).clamped(to: -180...180)
 
         let proposedOffset = offset ?? cropOffset
-        let limit = cropOffsetLimit(imageAspectRatio: imageAspectRatio)
         cropOffset = CGSize(
-            width: proposedOffset.width.finiteOrZero.clamped(to: -limit.width...limit.width),
-            height: proposedOffset.height.finiteOrZero.clamped(to: -limit.height...limit.height)
+            width: proposedOffset.width.finiteOrZero,
+            height: proposedOffset.height.finiteOrZero
         )
     }
 
@@ -363,16 +361,17 @@ private extension StickerDraft {
         updateCrop(scale: 1, rotation: 0, offset: .zero, imageAspectRatio: imageAspectRatio)
     }
 
-    private func cropOffsetLimit(imageAspectRatio: CGFloat) -> CGSize {
+    private func cropScaleRange(imageAspectRatio: CGFloat) -> ClosedRange<Double> {
+        let canvasToReferenceRatio = cropCanvasToReferenceRatio(imageAspectRatio: imageAspectRatio)
+        let minimumScaleForCanvas = Double(1 / canvasToReferenceRatio)
+        let lowerBound = max(StickerDraft.cropScaleRange.lowerBound, minimumScaleForCanvas)
+        return lowerBound...StickerDraft.cropScaleRange.upperBound
+    }
+
+    private func cropCanvasToReferenceRatio(imageAspectRatio: CGFloat) -> CGFloat {
         let aspectRatio = imageAspectRatio.isFinite && imageAspectRatio > 0 ? imageAspectRatio : 1
-        let widthRatio = aspectRatio >= 1 ? aspectRatio : 1
-        let heightRatio = aspectRatio >= 1 ? 1 : 1 / aspectRatio
-        let radians = CGFloat(cropRotation) * .pi / 180
-        let rotatedExtent = abs(cos(radians)) + abs(sin(radians))
-        return CGSize(
-            width: max(0, (CGFloat(cropScale) * widthRatio - rotatedExtent) / 2),
-            height: max(0, (CGFloat(cropScale) * heightRatio - rotatedExtent) / 2)
-        )
+        let longestToShortestSideRatio = max(aspectRatio, 1 / aspectRatio)
+        return longestToShortestSideRatio / 0.94
     }
 }
 

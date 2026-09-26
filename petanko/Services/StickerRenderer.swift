@@ -25,7 +25,7 @@ enum StickerRenderer {
                 height: canvasSize.height * 0.78
             )
             let maskRect = baseRect
-            let cropScale = max(1, CGFloat(draft.cropScale))
+            let cropScale = max(CGFloat(StickerDraft.cropScaleRange.lowerBound), CGFloat(draft.cropScale))
             let cropRect = maskRect
                 .scaledAboutCenter(by: cropScale)
                 .offsetBy(
