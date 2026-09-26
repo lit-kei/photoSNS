@@ -155,7 +155,9 @@ struct DiaryScreen: View {
                 EmptyStateView(
                     systemImage: "doc.text.image.fill",
                     title: "今日のページを準備中",
-                    message: "ステッカーを投稿すると、このキャンバスに集まります。"
+                    message: "ステッカーを投稿すると、このキャンバスに集まります。",
+                    sectionTitle: "絵日記",
+                    style: .collage(.timeline)
                 )
             }
         }

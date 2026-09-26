@@ -29,7 +29,12 @@ struct GroupManagementScreen: View {
                 if initialMode == .list {
                     ControlSection(title: "所属グループ") {
                         if appState.groups.isEmpty {
-                            EmptyStateView(systemImage: "person.3.fill", title: "グループなし", message: "")
+                            EmptyStateView(
+                                systemImage: "person.3.fill",
+                                title: "グループなし",
+                                message: "",
+                                style: .collage(.groups)
+                            )
                         } else {
                             VStack(spacing: 10) {
                                 ForEach(appState.groups) { group in
@@ -378,7 +383,12 @@ struct GroupFriendInviteScreen: View {
             VStack(alignment: .leading, spacing: 20) {
                 ControlSection(title: "友達を選択") {
                     if inviteCandidates.isEmpty {
-                        EmptyStateView(systemImage: "person.2.slash", title: "追加できる友達がいません", message: "")
+                        EmptyStateView(
+                            systemImage: "person.2.slash",
+                            title: "追加する友達が\nいない",
+                            message: "",
+                            style: .collage(.friendInvite)
+                        )
                     } else {
                         VStack(spacing: 0) {
                             ForEach(inviteCandidates) { friend in
@@ -410,7 +420,7 @@ struct GroupFriendInviteScreen: View {
                         ProgressView()
                             .tint(AppColors.mainText)
                     } else {
-                        Label("\(selectedFriendIds.count)人を追加する", systemImage: "person.2.fill")
+                        Label("友達をを追加する", systemImage: "person.2.fill")
                     }
                 }
                 .buttonStyle(PrimaryActionButtonStyle())

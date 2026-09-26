@@ -804,7 +804,9 @@ struct StickerCollectionScreen: View {
                 EmptyStateView(
                     systemImage: "exclamationmark.triangle.fill",
                     title: "読み込めませんでした",
-                    message: errorMessage
+                    message: errorMessage,
+                    sectionTitle: "コレクション",
+                    style: .collage(.collection)
                 )
 
                 Button {

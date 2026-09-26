@@ -532,6 +532,7 @@ enum EmptyStateCollageStyle {
     case outgoingRequests
     case groups
     case friends
+    case friendInvite
     case timeline
     case notifications
     case collection
@@ -592,7 +593,7 @@ struct EmptyStateView: View {
     private var collageVerticalPadding: CGFloat {
         switch style {
         case .hardShadow, .collage(.groups), .collage(.friends), .collage(.timeline),
-             .collage(.notifications), .collage(.collection), .collage(.blockedUsers): 24
+                .collage(.notifications), .collage(.collection), .collage(.blockedUsers), .collage(.friendInvite): 24
         case .collage(.incomingRequests), .collage(.outgoingRequests): 6
         }
     }
@@ -608,6 +609,8 @@ struct EmptyStateView: View {
             groupCollage
         case .friends:
             friendCollage
+        case .friendInvite:
+            friendInviteCollage
         case .timeline:
             timelineCollage
         case .notifications:
@@ -653,6 +656,16 @@ struct EmptyStateView: View {
         PixelEmptyStateLogo(
             kicker: nil,
             title: "今はまだ\nひとり",
+            variant: .friends
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var friendInviteCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: nil,
+            title: title,
             variant: .friends
         )
         .accessibilityElement(children: .ignore)
