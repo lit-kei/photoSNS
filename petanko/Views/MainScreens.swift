@@ -1039,7 +1039,13 @@ struct BlockedUsersScreen: View {
             VStack(alignment: .leading, spacing: 18) {
 
                 if appState.blockedUsers.isEmpty {
-                    EmptyStateView(systemImage: "hand.raised", title: "ブロック中のユーザーはいません", message: nil)
+                    EmptyStateView(
+                        systemImage: "hand.raised",
+                        title: "ブロック中は\nいません",
+                        message: nil,
+                        sectionTitle: "ブロック",
+                        style: .collage(.blockedUsers)
+                    )
                 } else {
                     VStack(spacing: 0) {
                         ForEach(appState.blockedUsers) { block in

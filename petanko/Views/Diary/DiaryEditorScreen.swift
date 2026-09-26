@@ -36,6 +36,36 @@ private enum DiaryEditorTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum DiaryDrawingTool: String, CaseIterable, Identifiable {
+    case pen
+    case eraser
+    case objectEraser
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .pen: "ペン"
+        case .eraser: "消しゴム"
+        case .objectEraser: "線を消す"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .pen: "pencil.tip"
+        case .eraser: "eraser"
+        case .objectEraser: "eraser.fill"
+        }
+    }
+}
+
+private struct DiaryEditorUndoSnapshot: Equatable {
+    let diary: DiaryPage
+    let layouts: [String: StickerLayout]
+    let backgroundImageData: Data?
+}
+
 
 
 struct DiaryEditorScreen: View {
@@ -73,6 +103,8 @@ struct DiaryEditorScreen: View {
     @State private var drawingZoomScale: Double = 1
     @State private var drawingPanOffset: CGSize = .zero
     @State private var isDrawingPanMode = false
+    @State private var drawingTool: DiaryDrawingTool = .pen
+    @State private var undoSnapshots: [DiaryEditorUndoSnapshot] = []
 
 
     init(group: PetankoGroup) {
@@ -105,8 +137,10 @@ struct DiaryEditorScreen: View {
                     drawingZoomScale: $drawingZoomScale,
                     drawingPanOffset: $drawingPanOffset,
                     isDrawingPanMode: $isDrawingPanMode,
+                    drawingTool: drawingTool,
                     drawingColorHex: UIColor(drawingColor).petankoHexString,
-                    drawingLineWidth: drawingLineWidth
+                    drawingLineWidth: drawingLineWidth,
+                    onUndoCheckpoint: registerUndoCheckpoint
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.bottom, editorBottomSheetHeight)
@@ -162,7 +196,16 @@ struct DiaryEditorScreen: View {
                 }
             }
 
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    undoLastEditorChange()
+                } label: {
+                    Label("元に戻す", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(.plain)
+                .disabled(undoSnapshots.isEmpty || isSaving)
+                .opacity(undoSnapshots.isEmpty ? 0.4 : 1)
+
                 Button {
                     guard let draftDiary else { return }
                     Task { await save(draftDiary) }
@@ -722,6 +765,29 @@ struct DiaryEditorScreen: View {
 
         case .drawing:
             VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    ForEach(DiaryDrawingTool.allCases) { tool in
+                        Button {
+                            drawingTool = tool
+                            isDrawingPanMode = false
+                        } label: {
+                            Label(tool.title, systemImage: tool.systemImage)
+                                .font(.caption.weight(.bold))
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 34)
+                                .foregroundStyle(drawingTool == tool ? .white : AppColors.mainText)
+                                .background(
+                                    drawingTool == tool
+                                        ? AppColors.accentPink
+                                        : AppColors.accentPink.opacity(0.14),
+                                    in: Capsule()
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 HStack(spacing: 10) {
                     ColorPicker("カラー", selection: $drawingColor, supportsOpacity: false)
                         .font(.caption.weight(.bold))
@@ -743,19 +809,6 @@ struct DiaryEditorScreen: View {
                             .foregroundStyle(AppColors.secondaryText)
                             .frame(width: 22)
                     }
-
-                    Button {
-                        undoLastDrawingStroke()
-                    } label: {
-                        Image(systemName: "arrow.uturn.backward")
-                            .frame(width: 34, height: 34)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(AppColors.mainText)
-                    .background(AppColors.accentPink.opacity(0.14), in: Circle())
-                    .disabled(draftDiary?.drawingStrokes.isEmpty != false)
-                    .opacity(draftDiary?.drawingStrokes.isEmpty == false ? 1 : 0.4)
-                    .accessibilityLabel("最後の線を取り消す")
 
                     Button(role: .destructive) {
                         clearDrawingStrokes()
@@ -1069,13 +1122,35 @@ struct DiaryEditorScreen: View {
         selectedEditorTab == .drawing && selectedElement == nil
     }
 
-    private func undoLastDrawingStroke() {
-        guard draftDiary?.drawingStrokes.isEmpty == false else { return }
-        draftDiary?.drawingStrokes.removeLast()
+    private func registerUndoCheckpoint() {
+        guard let draftDiary else { return }
+        let snapshot = DiaryEditorUndoSnapshot(
+            diary: draftDiary,
+            layouts: localLayouts,
+            backgroundImageData: backgroundImageData
+        )
+        guard undoSnapshots.last != snapshot else { return }
+        undoSnapshots.append(snapshot)
+        if undoSnapshots.count > 40 {
+            undoSnapshots.removeFirst(undoSnapshots.count - 40)
+        }
+    }
+
+    private func undoLastEditorChange() {
+        guard let snapshot = undoSnapshots.popLast() else { return }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            draftDiary = snapshot.diary
+            localLayouts = snapshot.layouts
+            backgroundImageData = snapshot.backgroundImageData
+            selectedElement = nil
+            activeElement = nil
+        }
+        inputBuffer.textValues.removeAll()
     }
 
     private func clearDrawingStrokes() {
         guard draftDiary?.drawingStrokes.isEmpty == false else { return }
+        registerUndoCheckpoint()
         draftDiary?.drawingStrokes.removeAll()
     }
 
@@ -1126,6 +1201,7 @@ struct DiaryEditorScreen: View {
             selectedBackgroundPhotoItem = nil
             return
         }
+        registerUndoCheckpoint()
         backgroundImageData = optimizedData
         selectedBackgroundPhotoItem = nil
         selectedElement = nil
@@ -1133,6 +1209,7 @@ struct DiaryEditorScreen: View {
     }
 
     private func selectPresetBackground(_ background: ScrapbookBackground) {
+        registerUndoCheckpoint()
         draftDiary?.background = background
         draftDiary?.backgroundImageURL = nil
         backgroundImageData = nil
@@ -1355,6 +1432,7 @@ struct DiaryEditorScreen: View {
 
     private func autoArrangeDiary() {
         guard var page = draftDiary, canAutoArrange, !isAutoArranging else { return }
+        registerUndoCheckpoint()
         inputBuffer.apply(to: &page)
         let size = normalizedCanvasSize
         let stickers = viewModel.stickers
@@ -1385,6 +1463,7 @@ struct DiaryEditorScreen: View {
     }
 
     private func addText() {
+        registerUndoCheckpoint()
         let item = DiaryTextItem(
             text: "新しい文字",
             x: insertionPoint.x,
@@ -1398,6 +1477,7 @@ struct DiaryEditorScreen: View {
     }
 
     private func addStamp(_ symbol: String) {
+        registerUndoCheckpoint()
         let item = DiaryStampItem(
             symbol: symbol,
             colorHex: randomDiaryAccentColorHex,
@@ -1411,6 +1491,7 @@ struct DiaryEditorScreen: View {
     }
 
     private func addDesign(_ effect: DiaryDesignEffect) {
+        registerUndoCheckpoint()
         let item = DiaryDesignItem(
             effect: effect,
             colorHex: randomDiaryAccentColorHex,
@@ -1476,6 +1557,7 @@ struct DiaryEditorScreen: View {
             order.append(selectedElement)
         }
 
+        registerUndoCheckpoint()
         var layouts = localLayouts
         withAnimation(.easeInOut(duration: 0.18)) {
             applyDiaryLayerOrder(order, diary: &page, stickers: viewModel.stickers, layouts: &layouts)
@@ -1492,6 +1574,7 @@ struct DiaryEditorScreen: View {
     }
 
     private func deleteText(_ id: String) {
+        registerUndoCheckpoint()
         inputBuffer.textValues.removeValue(forKey: id)
         draftDiary?.textItems.removeAll { $0.id == id }
         activeElement = nil
@@ -1510,6 +1593,7 @@ struct DiaryEditorScreen: View {
     }
 
     private func deleteStamp(_ id: String) {
+        registerUndoCheckpoint()
         draftDiary?.stampItems.removeAll { $0.id == id }
         activeElement = nil
         selectedElement = nil
@@ -1523,6 +1607,7 @@ struct DiaryEditorScreen: View {
     }
 
     private func deleteDesign(_ id: String) {
+        registerUndoCheckpoint()
         draftDiary?.designItems.removeAll { $0.id == id }
         activeElement = nil
         selectedElement = nil
@@ -1628,8 +1713,10 @@ private struct AdaptiveEditableDiaryCanvas: View {
     @Binding var drawingZoomScale: Double
     @Binding var drawingPanOffset: CGSize
     @Binding var isDrawingPanMode: Bool
+    let drawingTool: DiaryDrawingTool
     let drawingColorHex: String
     let drawingLineWidth: Double
+    let onUndoCheckpoint: () -> Void
 
     @GestureState private var liveMagnification: CGFloat = 1
     @State private var panStartOffset: CGSize?
@@ -1655,8 +1742,10 @@ private struct AdaptiveEditableDiaryCanvas: View {
                 backgroundImageData: backgroundImageData,
                 isDrawingEnabled: isDrawingEnabled,
                 isDrawingPanEnabled: isDrawingPanMode,
+                drawingTool: drawingTool,
                 drawingColorHex: drawingColorHex,
-                drawingLineWidth: drawingLineWidth
+                drawingLineWidth: drawingLineWidth,
+                onUndoCheckpoint: onUndoCheckpoint
             )
             .frame(width: logicalSize.width, height: logicalSize.height)
             .scaleEffect(scale * zoomScale, anchor: .center)
@@ -1756,12 +1845,15 @@ struct EditableDiaryCanvas: View {
     var backgroundImageData: Data? = nil
     var isDrawingEnabled = false
     var isDrawingPanEnabled = false
+    var drawingTool: DiaryDrawingTool = .pen
     var drawingColorHex = DiaryDrawingStroke.defaultColorHex
     var drawingLineWidth: Double = 5
+    var onUndoCheckpoint: () -> Void = {}
 
     @State private var elementFrames: [CanvasElementID: CGRect] = [:]
     @State private var elementBaseSizes: [CanvasElementID: CGSize] = [:]
     @State private var activeDrawingStrokeID: String?
+    @State private var hasRegisteredDrawingGestureUndo = false
 
     var body: some View {
         GeometryReader { _ in
@@ -1912,14 +2004,26 @@ struct EditableDiaryCanvas: View {
             .gesture(
                 DragGesture(minimumDistance: 0, coordinateSpace: .named("diaryCanvas"))
                     .onChanged { value in
-                        appendDrawingPoint(value.location)
+                        if !hasRegisteredDrawingGestureUndo {
+                            onUndoCheckpoint()
+                            hasRegisteredDrawingGestureUndo = true
+                        }
+                        switch drawingTool {
+                        case .pen:
+                            appendDrawingPoint(value.location)
+                        case .eraser:
+                            eraseDrawing(at: value.location)
+                        case .objectEraser:
+                            eraseDrawingObject(at: value.location)
+                        }
                     }
                     .onEnded { _ in
                         activeDrawingStrokeID = nil
+                        hasRegisteredDrawingGestureUndo = false
                     }
             )
             .accessibilityLabel("手書きキャンバス")
-            .accessibilityHint("指またはApple Pencilで線を描きます")
+            .accessibilityHint(drawingTool == .pen ? "指またはApple Pencilで線を描きます" : "なぞった手書きを消します")
             .zIndex(1_000_000_000_010)
     }
 
@@ -1950,6 +2054,81 @@ struct EditableDiaryCanvas: View {
         )
         diary.drawingStrokes.append(stroke)
         activeDrawingStrokeID = stroke.id
+    }
+
+    private func eraseDrawing(at location: CGPoint) {
+        let radius = 10.0
+        var updated: [DiaryDrawingStroke] = []
+
+        for stroke in diary.drawingStrokes {
+            var segments: [[DiaryDrawingPoint]] = []
+            var current: [DiaryDrawingPoint] = []
+
+            for point in stroke.points {
+                if hypot(point.x - Double(location.x), point.y - Double(location.y)) <= radius {
+                    if !current.isEmpty {
+                        segments.append(current)
+                        current = []
+                    }
+                } else {
+                    current.append(point)
+                }
+            }
+            if !current.isEmpty {
+                segments.append(current)
+            }
+
+            if segments.count == 1, segments[0].count == stroke.points.count {
+                updated.append(stroke)
+            } else {
+                updated.append(contentsOf: segments.map {
+                    DiaryDrawingStroke(
+                        points: $0,
+                        colorHex: stroke.colorHex,
+                        lineWidth: stroke.lineWidth
+                    )
+                })
+            }
+        }
+        diary.drawingStrokes = updated
+    }
+
+    private func eraseDrawingObject(at location: CGPoint) {
+        let point = DiaryDrawingPoint(x: Double(location.x), y: Double(location.y))
+        guard let match = diary.drawingStrokes.enumerated().min(by: {
+            distance(from: point, to: $0.element) < distance(from: point, to: $1.element)
+        }) else { return }
+        let hitDistance = distance(from: point, to: match.element)
+        let tolerance = max(10, match.element.lineWidth / 2 + 7)
+        guard hitDistance <= tolerance else { return }
+        diary.drawingStrokes.remove(at: match.offset)
+    }
+
+    private func distance(from point: DiaryDrawingPoint, to stroke: DiaryDrawingStroke) -> Double {
+        guard let first = stroke.points.first else { return .greatestFiniteMagnitude }
+        guard stroke.points.count > 1 else {
+            return hypot(point.x - first.x, point.y - first.y)
+        }
+
+        return zip(stroke.points, stroke.points.dropFirst())
+            .map { distance(from: point, toSegmentFrom: $0.0, to: $0.1) }
+            .min() ?? .greatestFiniteMagnitude
+    }
+
+    private func distance(
+        from point: DiaryDrawingPoint,
+        toSegmentFrom start: DiaryDrawingPoint,
+        to end: DiaryDrawingPoint
+    ) -> Double {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let squaredLength = dx * dx + dy * dy
+        guard squaredLength > 0 else {
+            return hypot(point.x - start.x, point.y - start.y)
+        }
+        let projection = ((point.x - start.x) * dx + (point.y - start.y) * dy) / squaredLength
+        let t = min(1, max(0, projection))
+        return hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy))
     }
 
     @ViewBuilder
@@ -2058,6 +2237,7 @@ struct EditableDiaryCanvas: View {
                 scaleRange: 0.5...3,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
+                onInteractionBegan: onUndoCheckpoint,
                 allowsDirectHitTesting: true,
                 updatePosition: { x, y in
                     updateText(id) {
@@ -2090,6 +2270,7 @@ struct EditableDiaryCanvas: View {
                 scaleRange: 0.5...3,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
+                onInteractionBegan: onUndoCheckpoint,
                 allowsDirectHitTesting: true,
                 updatePosition: { x, y in
                     updateStamp(id) {
@@ -2122,6 +2303,7 @@ struct EditableDiaryCanvas: View {
                 scaleRange: 0.35...3.5,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
+                onInteractionBegan: onUndoCheckpoint,
                 allowsDirectHitTesting: true,
                 updatePosition: { x, y in
                     updateDesign(id) {
@@ -2158,6 +2340,7 @@ struct EditableDiaryCanvas: View {
                 scaleRange: DiaryCanvasMetrics.stickerScaleRange,
                 selectedElement: $selectedElement,
                 activeElement: $activeElement,
+                onInteractionBegan: onUndoCheckpoint,
                 allowsDirectHitTesting: true,
                 updatePosition: { x, y in
                     guard let sticker else { return }
@@ -2460,6 +2643,7 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     let scaleRange: ClosedRange<Double>
     @Binding var selectedElement: CanvasElementID?
     @Binding var activeElement: CanvasElementID?
+    let onInteractionBegan: () -> Void
     var raisesWhenActive = false
     var allowsDirectHitTesting = true
     var selectsOnInteraction = true
@@ -2617,6 +2801,9 @@ private struct DiaryElementInteractionModifier: ViewModifier {
     }
 
     private func beginInteraction(_ kind: InteractionKind) {
+        if !isDragging && !isScaling && !isRotating {
+            onInteractionBegan()
+        }
         if selectedElement != element {
             selectedElement = element
         }

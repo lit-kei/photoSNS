@@ -535,6 +535,7 @@ enum EmptyStateCollageStyle {
     case timeline
     case notifications
     case collection
+    case blockedUsers
 }
 
 struct EmptyStateView: View {
@@ -591,7 +592,7 @@ struct EmptyStateView: View {
     private var collageVerticalPadding: CGFloat {
         switch style {
         case .hardShadow, .collage(.groups), .collage(.friends), .collage(.timeline),
-             .collage(.notifications), .collage(.collection): 24
+             .collage(.notifications), .collage(.collection), .collage(.blockedUsers): 24
         case .collage(.incomingRequests), .collage(.outgoingRequests): 6
         }
     }
@@ -613,6 +614,8 @@ struct EmptyStateView: View {
             notificationCollage
         case .collection:
             collectionCollage
+        case .blockedUsers:
+            blockedUsersCollage
         }
     }
 
@@ -681,6 +684,16 @@ struct EmptyStateView: View {
             kicker: sectionTitle ?? "コレクション",
             title: title,
             variant: .collection
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var blockedUsersCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: sectionTitle ?? "ブロック",
+            title: title,
+            variant: .blockedUsers
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -766,6 +779,7 @@ private enum PixelPlaqueVariant {
     case timeline
     case notifications
     case collection
+    case blockedUsers
 }
 
 private struct PixelEmptyStateLogo: View {
@@ -956,6 +970,22 @@ private struct PixelPlaqueShape: Shape {
                 CGPoint(x: 0.10, y: 0.98), CGPoint(x: 0.10, y: 0.88), CGPoint(x: 0.03, y: 0.88),
                 CGPoint(x: 0.03, y: 0.69), CGPoint(x: 0, y: 0.69), CGPoint(x: 0, y: 0.25),
                 CGPoint(x: 0.07, y: 0.25)
+            ]
+        case .blockedUsers:
+            return [
+                CGPoint(x: 0.04, y: 0.30), CGPoint(x: 0.09, y: 0.30), CGPoint(x: 0.09, y: 0.18),
+                CGPoint(x: 0.17, y: 0.18), CGPoint(x: 0.17, y: 0.09), CGPoint(x: 0.31, y: 0.09),
+                CGPoint(x: 0.31, y: 0.02), CGPoint(x: 0.47, y: 0.02), CGPoint(x: 0.47, y: 0.08),
+                CGPoint(x: 0.62, y: 0.08), CGPoint(x: 0.62, y: 0), CGPoint(x: 0.78, y: 0),
+                CGPoint(x: 0.78, y: 0.08), CGPoint(x: 0.90, y: 0.08), CGPoint(x: 0.90, y: 0.19),
+                CGPoint(x: 0.97, y: 0.19), CGPoint(x: 0.97, y: 0.32), CGPoint(x: 1, y: 0.32),
+                CGPoint(x: 1, y: 0.70), CGPoint(x: 0.96, y: 0.70), CGPoint(x: 0.96, y: 0.82),
+                CGPoint(x: 0.87, y: 0.82), CGPoint(x: 0.87, y: 0.91), CGPoint(x: 0.72, y: 0.91),
+                CGPoint(x: 0.72, y: 0.98), CGPoint(x: 0.54, y: 0.98), CGPoint(x: 0.54, y: 0.93),
+                CGPoint(x: 0.36, y: 0.93), CGPoint(x: 0.36, y: 1), CGPoint(x: 0.20, y: 1),
+                CGPoint(x: 0.20, y: 0.92), CGPoint(x: 0.09, y: 0.92), CGPoint(x: 0.09, y: 0.82),
+                CGPoint(x: 0.03, y: 0.82), CGPoint(x: 0.03, y: 0.69), CGPoint(x: 0, y: 0.69),
+                CGPoint(x: 0, y: 0.41), CGPoint(x: 0.04, y: 0.41)
             ]
         }
     }
