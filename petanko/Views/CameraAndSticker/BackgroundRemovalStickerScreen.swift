@@ -781,6 +781,18 @@ private struct StickerDetailEditorScreen: View {
                         range: 0...28
                     )
 
+                    fillPatternPicker(
+                        selection: shapeFillPatternBinding(id: id),
+                        colorHex: shape(id)?.fillColorHex ?? "#F7B267"
+                    )
+                    if (shape(id)?.fillPattern ?? .solid) != .solid {
+                        sliderRow(
+                            title: "模様の詳細",
+                            systemImage: "slider.horizontal.3",
+                            value: shapeFillPatternDetailBinding(id: id),
+                            range: 0...1
+                        )
+                    }
                     colorPalette(
                         title: "塗りつぶし色",
                         customSelectionID: "shape-\(id)-fill",
@@ -937,6 +949,54 @@ private struct StickerDetailEditorScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func fillPatternPicker(
+        selection: Binding<StickerDetailFillPatternKind>,
+        colorHex: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("塗りつぶし")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(AppColors.secondaryText)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(StickerDetailFillPatternKind.allCases, id: \.id) { pattern in
+                        Button {
+                            selection.wrappedValue = pattern
+                        } label: {
+                            VStack(spacing: 7) {
+                                StickerDetailFillPatternPreview(
+                                    pattern: pattern,
+                                    primaryColor: paletteColor(colorHex),
+                                    secondaryColor: automaticPatternColor(for: colorHex),
+                                    isTransparent: colorHex == StickerDetailShapeItem.transparentColorHex,
+                                    detail: 0.5
+                                )
+                                Text(pattern.title)
+                                    .font(.caption2.weight(.bold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+                            .foregroundStyle(AppColors.mainText)
+                            .frame(width: 74, height: 74)
+                            .background {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(selection.wrappedValue == pattern ? AppColors.accentPink.opacity(0.18) : AppColors.surface.opacity(0.92))
+                            }
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(selection.wrappedValue == pattern ? AppColors.accentPink : AppColors.border, lineWidth: selection.wrappedValue == pattern ? 2 : 1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func customPaletteColorBinding(_ selection: Binding<String>, customSelectionID: String) -> Binding<Color> {
         Binding(
             get: { customPaletteDisplayColor(selection, customSelectionID: customSelectionID) },
@@ -989,6 +1049,14 @@ private struct StickerDetailEditorScreen: View {
             return Color.white.opacity(0.18)
         }
         return Color(uiColor: UIColor(hex: hex) ?? .systemPink)
+    }
+
+    private func automaticPatternColor(for hex: String) -> Color {
+        guard hex != StickerDetailShapeItem.transparentColorHex,
+              let color = UIColor(hex: hex) else {
+            return Color.white.opacity(0.55)
+        }
+        return color.petankoPerceivedBrightness > 0.62 ? Color(uiColor: UIColor(hex: "#1F1B18") ?? .black) : .white
     }
 
     private func deleteButton(action: @escaping () -> Void) -> some View {
@@ -1069,6 +1137,20 @@ private struct StickerDetailEditorScreen: View {
         Binding(
             get: { shape(id)?.fillColorHex ?? StickerDetailShapeItem.transparentColorHex },
             set: { value in updateShape(id) { $0.fillColorHex = value } }
+        )
+    }
+
+    private func shapeFillPatternBinding(id: String) -> Binding<StickerDetailFillPatternKind> {
+        Binding(
+            get: { shape(id)?.fillPattern ?? .solid },
+            set: { value in updateShape(id) { $0.fillPattern = value } }
+        )
+    }
+
+    private func shapeFillPatternDetailBinding(id: String) -> Binding<Double> {
+        Binding(
+            get: { shape(id)?.fillPatternDetail ?? 0.5 },
+            set: { value in updateShape(id) { $0.fillPatternDetail = value } }
         )
     }
 
@@ -1503,6 +1585,115 @@ private struct DetailControlSection<Content: View>: View {
     }
 }
 
+private struct StickerDetailFillPatternPreview: View {
+    let pattern: StickerDetailFillPatternKind
+    let primaryColor: Color
+    let secondaryColor: Color
+    let isTransparent: Bool
+    let detail: Double
+
+    var body: some View {
+        Canvas { context, size in
+            let rect = CGRect(origin: .zero, size: size)
+            let detail = CGFloat(detail.clamped(to: 0...1))
+            context.clip(to: Path(roundedRect: rect, cornerRadius: 8))
+            context.fill(Path(rect), with: .color(primaryColor))
+
+            guard !isTransparent else { return }
+
+            switch pattern {
+            case .solid:
+                break
+            case .polkaDot:
+                let radius = 1.8 + detail * 4.6
+                let step = max(8, radius * 3.2)
+                for y in stride(from: step / 2, through: size.height, by: step) {
+                    for x in stride(from: step / 2, through: size.width, by: step) {
+                        context.fill(
+                            Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)),
+                            with: .color(secondaryColor)
+                        )
+                    }
+                }
+            case .checker:
+                let tile = 5 + detail * 12
+                var row = 0
+                for y in stride(from: CGFloat(0), to: size.height, by: tile) {
+                    var column = 0
+                    for x in stride(from: CGFloat(0), to: size.width, by: tile) {
+                        if (row + column).isMultiple(of: 2) {
+                            context.fill(Path(CGRect(x: x, y: y, width: tile, height: tile)), with: .color(secondaryColor))
+                        }
+                        column += 1
+                    }
+                    row += 1
+                }
+            case .stripe:
+                let stripeHeight = 2 + detail * 8
+                let step = stripeHeight * 2.35
+                for y in stride(from: CGFloat(0), to: size.height, by: step) {
+                    context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: stripeHeight)), with: .color(secondaryColor))
+                }
+            case .diagonalStripe:
+                let lineWidth = 2 + detail * 7
+                let step = lineWidth * 3
+                for offset in stride(from: -size.height, through: size.width, by: step) {
+                    var path = Path()
+                    path.move(to: CGPoint(x: offset, y: size.height))
+                    path.addLine(to: CGPoint(x: offset + size.height, y: 0))
+                    context.stroke(path, with: .color(secondaryColor), lineWidth: lineWidth)
+                }
+            case .grid:
+                let step = 7 + detail * 12
+                let lineWidth = 0.8 + detail * 2.6
+                for x in stride(from: CGFloat(0), through: size.width, by: step) {
+                    var path = Path()
+                    path.move(to: CGPoint(x: x, y: 0))
+                    path.addLine(to: CGPoint(x: x, y: size.height))
+                    context.stroke(path, with: .color(secondaryColor), lineWidth: lineWidth)
+                }
+                for y in stride(from: CGFloat(0), through: size.height, by: step) {
+                    var path = Path()
+                    path.move(to: CGPoint(x: 0, y: y))
+                    path.addLine(to: CGPoint(x: size.width, y: y))
+                    context.stroke(path, with: .color(secondaryColor), lineWidth: lineWidth)
+                }
+            case .flower:
+                let step = 11 + detail * 13
+                let petalRadius = 1.1 + detail * 2.6
+                let petalOffset = 2.4 + detail * 4
+                for y in stride(from: step / 2, through: size.height, by: step) {
+                    for x in stride(from: step / 2, through: size.width, by: step) {
+                        for angle in stride(from: CGFloat(0), to: CGFloat.pi * 2, by: CGFloat.pi / 2) {
+                            let center = CGPoint(x: x + cos(angle) * petalOffset, y: y + sin(angle) * petalOffset)
+                            context.fill(
+                                Path(ellipseIn: CGRect(x: center.x - petalRadius, y: center.y - petalRadius, width: petalRadius * 2, height: petalRadius * 2)),
+                                with: .color(secondaryColor)
+                            )
+                        }
+                        context.fill(
+                            Path(ellipseIn: CGRect(x: x - petalRadius * 0.78, y: y - petalRadius * 0.78, width: petalRadius * 1.56, height: petalRadius * 1.56)),
+                            with: .color(secondaryColor)
+                        )
+                    }
+                }
+            }
+        }
+        .frame(width: 34, height: 34)
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AppColors.border, lineWidth: 1)
+        }
+        .overlay {
+            if isTransparent {
+                Image(systemName: "slash.circle")
+                    .font(.caption.bold())
+                    .foregroundStyle(AppColors.mainText)
+            }
+        }
+    }
+}
+
 private struct StickerDetailInteractionGeometry {
     let canvasCenter: CGPoint
     let displayCenter: CGPoint
@@ -1789,5 +1980,16 @@ private func normalizedAngle(_ angle: Double) -> Double {
 private extension Double {
     func clamped(to range: ClosedRange<Double>) -> Double {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+private extension UIColor {
+    var petankoPerceivedBrightness: CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return 1 }
+        return red * 0.299 + green * 0.587 + blue * 0.114
     }
 }

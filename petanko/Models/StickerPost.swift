@@ -118,6 +118,7 @@ struct StickerPost: Identifiable, Hashable {
 
 struct StickerDraft: Hashable {
     static let defaultOutlineColorHex = "#FFFFFF"
+    static let cropScaleRange: ClosedRange<Double> = 0.45...2.8
 
     var shape: StickerShapeOption = .circle
     var decoration: StickerDecoration = .sparkle

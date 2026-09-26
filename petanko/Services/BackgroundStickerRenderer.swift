@@ -151,10 +151,7 @@ enum BackgroundStickerRenderer {
         let rect = CGRect(x: -width / 2, y: -height / 2, width: width, height: height)
         let path = detailPath(kind: shape.type, in: rect)
 
-        if let fillColor = detailColor(shape.fillColorHex) {
-            fillColor.setFill()
-            path.fill()
-        }
+        drawShapeFill(shape, path: path, rect: rect, in: cgContext)
 
         if shape.strokeWidth > 0,
            let strokeColor = detailColor(shape.strokeColorHex) {
@@ -164,6 +161,127 @@ enum BackgroundStickerRenderer {
         }
 
         cgContext.restoreGState()
+    }
+
+    private static func drawShapeFill(
+        _ shape: StickerDetailShapeItem,
+        path: UIBezierPath,
+        rect: CGRect,
+        in cgContext: CGContext
+    ) {
+        guard let primaryColor = detailColor(shape.fillColorHex) else { return }
+
+        switch shape.fillPattern {
+        case .solid:
+            primaryColor.setFill()
+            path.fill()
+        case .polkaDot, .checker, .stripe, .diagonalStripe, .grid, .flower:
+            cgContext.saveGState()
+            cgContext.addPath(path.cgPath)
+            cgContext.clip()
+            primaryColor.setFill()
+            cgContext.fill(rect)
+
+            let secondaryColor = automaticPatternColor(for: primaryColor)
+            secondaryColor.setFill()
+            secondaryColor.setStroke()
+
+            switch shape.fillPattern {
+            case .solid:
+                break
+            case .polkaDot:
+                drawPolkaDotPattern(in: rect, detail: shape.fillPatternDetail, context: cgContext)
+            case .checker:
+                drawCheckerPattern(in: rect, detail: shape.fillPatternDetail, context: cgContext)
+            case .stripe:
+                drawStripePattern(in: rect, detail: shape.fillPatternDetail, context: cgContext)
+            case .diagonalStripe:
+                drawDiagonalStripePattern(in: rect, detail: shape.fillPatternDetail, context: cgContext)
+            case .grid:
+                drawGridPattern(in: rect, detail: shape.fillPatternDetail, context: cgContext)
+            case .flower:
+                drawFlowerPattern(in: rect, detail: shape.fillPatternDetail, context: cgContext)
+            }
+
+            cgContext.restoreGState()
+        }
+    }
+
+    private static func drawPolkaDotPattern(in rect: CGRect, detail: Double, context: CGContext) {
+        let detail = CGFloat(detail.clamped(to: 0...1))
+        let radius: CGFloat = 4 + detail * 14
+        let step: CGFloat = max(20, radius * 3.2)
+        for y in stride(from: rect.minY + step / 2, through: rect.maxY, by: step) {
+            for x in stride(from: rect.minX + step / 2, through: rect.maxX, by: step) {
+                context.fillEllipse(in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
+            }
+        }
+    }
+
+    private static func drawCheckerPattern(in rect: CGRect, detail: Double, context: CGContext) {
+        let tile: CGFloat = 14 + CGFloat(detail.clamped(to: 0...1)) * 34
+        var row = 0
+        for y in stride(from: rect.minY, to: rect.maxY, by: tile) {
+            var column = 0
+            for x in stride(from: rect.minX, to: rect.maxX, by: tile) {
+                if (row + column).isMultiple(of: 2) {
+                    context.fill(CGRect(x: x, y: y, width: tile, height: tile))
+                }
+                column += 1
+            }
+            row += 1
+        }
+    }
+
+    private static func drawStripePattern(in rect: CGRect, detail: Double, context: CGContext) {
+        let detail = CGFloat(detail.clamped(to: 0...1))
+        let stripeHeight: CGFloat = 5 + detail * 19
+        let step: CGFloat = stripeHeight * 2.35
+        for y in stride(from: rect.minY, to: rect.maxY, by: step) {
+            context.fill(CGRect(x: rect.minX, y: y, width: rect.width, height: stripeHeight))
+        }
+    }
+
+    private static func drawDiagonalStripePattern(in rect: CGRect, detail: Double, context: CGContext) {
+        let lineWidth: CGFloat = 5 + CGFloat(detail.clamped(to: 0...1)) * 18
+        context.setLineWidth(lineWidth)
+        for offset in stride(from: rect.minX - rect.height, through: rect.maxX, by: lineWidth * 3) {
+            context.move(to: CGPoint(x: offset, y: rect.maxY))
+            context.addLine(to: CGPoint(x: offset + rect.height, y: rect.minY))
+            context.strokePath()
+        }
+    }
+
+    private static func drawGridPattern(in rect: CGRect, detail: Double, context: CGContext) {
+        let detail = CGFloat(detail.clamped(to: 0...1))
+        let step: CGFloat = 16 + detail * 34
+        context.setLineWidth(1.5 + detail * 5)
+        for x in stride(from: rect.minX, through: rect.maxX, by: step) {
+            context.move(to: CGPoint(x: x, y: rect.minY))
+            context.addLine(to: CGPoint(x: x, y: rect.maxY))
+            context.strokePath()
+        }
+        for y in stride(from: rect.minY, through: rect.maxY, by: step) {
+            context.move(to: CGPoint(x: rect.minX, y: y))
+            context.addLine(to: CGPoint(x: rect.maxX, y: y))
+            context.strokePath()
+        }
+    }
+
+    private static func drawFlowerPattern(in rect: CGRect, detail: Double, context: CGContext) {
+        let detail = CGFloat(detail.clamped(to: 0...1))
+        let step: CGFloat = 24 + detail * 34
+        let petalRadius: CGFloat = 2.6 + detail * 7
+        let petalOffset: CGFloat = 5 + detail * 10
+        for y in stride(from: rect.minY + step / 2, through: rect.maxY, by: step) {
+            for x in stride(from: rect.minX + step / 2, through: rect.maxX, by: step) {
+                for angle in stride(from: CGFloat(0), to: CGFloat.pi * 2, by: CGFloat.pi / 2) {
+                    let center = CGPoint(x: x + cos(angle) * petalOffset, y: y + sin(angle) * petalOffset)
+                    context.fillEllipse(in: CGRect(x: center.x - petalRadius, y: center.y - petalRadius, width: petalRadius * 2, height: petalRadius * 2))
+                }
+                context.fillEllipse(in: CGRect(x: x - petalRadius * 0.78, y: y - petalRadius * 0.78, width: petalRadius * 1.56, height: petalRadius * 1.56))
+            }
+        }
     }
 
     private static func applyDetailFilters(
@@ -547,6 +665,10 @@ enum BackgroundStickerRenderer {
         return UIColor(hex: hex) ?? .systemPink
     }
 
+    private static func automaticPatternColor(for color: UIColor) -> UIColor {
+        color.petankoPerceivedBrightness > 0.62 ? (UIColor(hex: "#1F1B18") ?? .black) : .white
+    }
+
     private static func detailPath(kind: StickerDetailShapeKind, in rect: CGRect) -> UIBezierPath {
         switch kind {
         case .rectangle:
@@ -618,5 +740,16 @@ private extension CGFloat {
 private extension Double {
     func clamped(to range: ClosedRange<Double>) -> Double {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+private extension UIColor {
+    var petankoPerceivedBrightness: CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return 1 }
+        return red * 0.299 + green * 0.587 + blue * 0.114
     }
 }
