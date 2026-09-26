@@ -3,6 +3,7 @@ import {DocumentData, FieldValue, Timestamp, getFirestore} from "firebase-admin/
 import {getMessaging, MulticastMessage} from "firebase-admin/messaging";
 import {logger} from "firebase-functions";
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 
 initializeApp();
 
@@ -141,6 +142,85 @@ export const onGroupMemberCreated = onDocumentCreated(
         recipientUserId: userId,
       },
     });
+  }
+);
+
+export const sendMemoryReminderNotifications = onSchedule(
+  {
+    schedule: "0 19 * * *",
+    timeZone: "Asia/Tokyo",
+    region,
+    retryCount: 1,
+  },
+  async () => {
+    const now = new Date();
+    const sourceDateKey = tokyoDateKeyOneMonthAgo(now);
+    if (!sourceDateKey) return;
+
+    const diarySnapshot = await db.collection("diaries")
+      .where("dateKey", "==", sourceDateKey)
+      .get();
+    const eligibleDiaries = diarySnapshot.docs
+      .map((document) => ({
+        groupId: stringValue(document.data().groupId),
+        stickerCount: diaryStickerCount(document.data()),
+      }))
+      .filter((diary) => diary.groupId && diary.stickerCount >= 3);
+    if (eligibleDiaries.length === 0) return;
+
+    const uniqueGroupIds = Array.from(new Set(eligibleDiaries.map((diary) => diary.groupId)));
+    const groups = await Promise.all(uniqueGroupIds.map(fetchGroupForNotification));
+    const candidatesByUser = new Map<string, GroupData[]>();
+    for (const group of groups) {
+      for (const userId of group.memberIds) {
+        const candidates = candidatesByUser.get(userId) ?? [];
+        candidates.push(group);
+        candidatesByUser.set(userId, candidates);
+      }
+    }
+
+    for (const [userId, candidates] of candidatesByUser) {
+      const stateRef = db.collection("memoryReminderStates").doc(userId);
+      const stateSnapshot = await stateRef.get();
+      const state = stateSnapshot.data() ?? {};
+      const nextEligibleAt = state.nextEligibleAt;
+      if (nextEligibleAt instanceof Timestamp && nextEligibleAt.toDate() > now) continue;
+      if (stringValue(state.lastSourceDateKey) === sourceDateKey) continue;
+
+      const candidate = candidates[Math.floor(Math.random() * candidates.length)];
+      const sent = await sendToUser(userId, {
+        notification: {
+          title: "これ覚えてる？",
+          body: `${candidate.name}の1か月前の絵日記を見返してみよう。`,
+        },
+        data: {
+          petankoDestination: "groupDiary",
+          groupId: candidate.id,
+          dateKey: sourceDateKey,
+          stickerId: "",
+          recipientUserId: userId,
+          reminderType: "oneMonthMemory",
+          petankoNotificationCategory: "PETANKO_MEMORY_REMINDER",
+        },
+      });
+      if (!sent) continue;
+
+      const previousIntervalDays = numberValue(state.lastIntervalDays);
+      const nextIntervalDays = memoryReminderIntervalDays(previousIntervalDays);
+      await stateRef.set(
+        {
+          lastSentAt: FieldValue.serverTimestamp(),
+          lastSourceDateKey: sourceDateKey,
+          lastGroupId: candidate.id,
+          lastIntervalDays: nextIntervalDays,
+          nextEligibleAt: Timestamp.fromMillis(
+            now.getTime() + nextIntervalDays * 24 * 60 * 60 * 1000
+          ),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true}
+      );
+    }
   }
 );
 
@@ -436,7 +516,7 @@ async function fetchGroupForNotification(groupId: string): Promise<GroupData> {
 async function sendToUser(
   userId: string,
   message: Omit<MulticastMessage, "tokens">
-): Promise<void> {
+): Promise<boolean> {
   const tokenSnapshot = await db.collection("users").doc(userId).collection("fcmTokens").get();
   const tokenDocs = tokenSnapshot.docs
     .map((document) => ({
@@ -444,7 +524,8 @@ async function sendToUser(
       token: stringValue(document.data().token),
     }))
     .filter((entry) => entry.token);
-  if (tokenDocs.length === 0) return;
+  if (tokenDocs.length === 0) return false;
+  const notificationCategory = message.data?.petankoNotificationCategory;
 
   const response = await getMessaging().sendEachForMulticast({
     ...message,
@@ -453,6 +534,7 @@ async function sendToUser(
       payload: {
         aps: {
           sound: "default",
+          ...(notificationCategory ? {category: notificationCategory} : {}),
         },
       },
     },
@@ -467,6 +549,7 @@ async function sendToUser(
       }
     })
   );
+  return response.successCount > 0;
 }
 
 function tokyoDateKey(date: Date): string {
@@ -478,6 +561,57 @@ function tokyoDateKey(date: Date): string {
   }).formatToParts(date);
   const values = new Map(parts.map((part) => [part.type, part.value]));
   return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
+}
+
+function tokyoDateKeyOneMonthAgo(date: Date): string | null {
+  const parts = tokyoDateParts(date);
+  let year = parts.year;
+  let month = parts.month - 1;
+  if (month === 0) {
+    year -= 1;
+    month = 12;
+  }
+  const daysInPreviousMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (parts.day > daysInPreviousMonth) return null;
+  return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${parts.day.toString().padStart(2, "0")}`;
+}
+
+function tokyoDateParts(date: Date): {year: number; month: number; day: number} {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(date);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  return {
+    year: Number(values.get("year")),
+    month: Number(values.get("month")),
+    day: Number(values.get("day")),
+  };
+}
+
+function diaryStickerCount(data: DocumentData): number {
+  if (!Array.isArray(data.stickerLayout)) return 0;
+  const stickerIds = data.stickerLayout
+    .map((layout) => objectValue(layout))
+    .map((layout) => stringValue(layout.stickerId))
+    .filter(Boolean);
+  return new Set(stickerIds).size;
+}
+
+function memoryReminderIntervalDays(previousIntervalDays: number): number {
+  if (previousIntervalDays > 0 && previousIntervalDays <= 13) {
+    return randomInteger(18, 30);
+  }
+  const roll = Math.random();
+  if (roll < 0.12) return randomInteger(7, 13);
+  if (roll < 0.56) return randomInteger(14, 21);
+  return randomInteger(22, 30);
+}
+
+function randomInteger(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function seededRange(seed: string, min: number, max: number): number {
@@ -506,6 +640,10 @@ function requireString(value: unknown, message: string): string {
 
 function stringArrayValue(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function numberValue(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function objectValue(value: unknown): Record<string, unknown> {

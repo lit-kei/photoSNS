@@ -277,6 +277,8 @@ final class AccountDeletionService {
     }
 
     private func deleteSocialData(userId: String) async throws {
+        try await db.collection("memoryReminderStates").document(userId).delete()
+
         let queries = [
             db.collection("friendships").whereField("userId", isEqualTo: userId),
             db.collection("friendships").whereField("friendId", isEqualTo: userId),

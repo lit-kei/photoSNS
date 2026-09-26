@@ -33,7 +33,20 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         FirebaseApp.configure()
-        UNUserNotificationCenter.current().delegate = self
+        let notificationCenter = UNUserNotificationCenter.current()
+        notificationCenter.delegate = self
+        let memoryAction = UNNotificationAction(
+            identifier: "PETANKO_OPEN_MEMORY_DIARY",
+            title: "絵日記を見る",
+            options: [.foreground]
+        )
+        let memoryCategory = UNNotificationCategory(
+            identifier: "PETANKO_MEMORY_REMINDER",
+            actions: [memoryAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        notificationCenter.setNotificationCategories([memoryCategory])
         PushNotificationService.shared.configureMessagingDelegate()
 
         return true

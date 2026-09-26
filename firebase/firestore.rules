@@ -333,6 +333,14 @@ service cloud.firestore {
       allow create: if signedIn();
     }
 
+    // Delivery cadence for the server-generated "one month ago" reminder.
+    // Cloud Functions use the Admin SDK; clients may only remove their own
+    // state when deleting an account.
+    match /memoryReminderStates/{userId} {
+      allow read, create, update: if false;
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
     match /editLocks/{diaryId} {
       allow read: if signedIn()
         && (
