@@ -93,12 +93,18 @@ final class DiaryViewModel: ObservableObject {
         try? await services.diaries.releaseEditLock(diaryId: diary.id, userId: user.id)
     }
 
-    func saveDiary(_ diary: DiaryPage, backgroundImageData: Data? = nil) async -> DiaryPage? {
+    func saveDiary(
+        _ diary: DiaryPage,
+        backgroundImageData: Data? = nil,
+        photoStampImageData: [String: Data] = [:]
+    ) async -> DiaryPage? {
         do {
             let savedPage = try await services.diaries.saveDiaryLayout(
                 diary,
                 backgroundImageData: backgroundImageData,
-                previousBackgroundImageURL: self.diary?.backgroundImageURL
+                previousBackgroundImageURL: self.diary?.backgroundImageURL,
+                photoStampImageData: photoStampImageData,
+                previousPhotoStampImageURLs: self.diary?.stampItems.compactMap(\.imageURL) ?? []
             )
             self.diary = savedPage
             errorMessage = nil

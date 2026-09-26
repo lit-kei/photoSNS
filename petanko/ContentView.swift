@@ -33,6 +33,7 @@ struct ContentView: View {
                 appState.bootstrap()
             }
             appState.refreshDateSensitiveDataIfNeeded()
+            handlePendingRemoteNotifications()
         }
         .onChange(of: scenePhase) { _, newValue in
             appState.stickerUploadCoordinator.setAppActive(newValue == .active)
@@ -43,6 +44,14 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
             appState.refreshDateSensitiveDataIfNeeded()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .petankoOpenNotifications)) { notification in
+            let pendingUserInfos = RemoteNotificationRouter.shared.drainPendingUserInfos()
+            if pendingUserInfos.isEmpty {
+                appState.handleRemoteNotification(notification.userInfo ?? [:])
+            } else {
+                pendingUserInfos.forEach(appState.handleRemoteNotification)
+            }
+        }
         .preferredColorScheme(.light)
         .alert("エラー", isPresented: Binding(
             get: { appState.errorMessage != nil },
@@ -52,6 +61,12 @@ struct ContentView: View {
         } message: {
             Text(appState.errorMessage ?? "")
         }
+    }
+
+    private func handlePendingRemoteNotifications() {
+        RemoteNotificationRouter.shared
+            .drainPendingUserInfos()
+            .forEach(appState.handleRemoteNotification)
     }
 
     private var signedInTabs: some View {

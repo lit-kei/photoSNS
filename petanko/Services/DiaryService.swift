@@ -52,10 +52,13 @@ final class DiaryService {
     func saveDiaryLayout(
         _ diary: DiaryPage,
         backgroundImageData: Data?,
-        previousBackgroundImageURL: String?
+        previousBackgroundImageURL: String?,
+        photoStampImageData: [String: Data] = [:],
+        previousPhotoStampImageURLs: [String] = []
     ) async throws -> DiaryPage {
         var page = diary
         var uploadedBackgroundURL: URL?
+        var uploadedPhotoStampURLs: [URL] = []
 
         if let backgroundImageData {
             let url = try await uploadBackgroundImage(
@@ -67,11 +70,26 @@ final class DiaryService {
             page.backgroundImageURL = url.absoluteString
         }
 
+        for (stampID, imageData) in photoStampImageData {
+            guard let stampIndex = page.stampItems.firstIndex(where: { $0.id == stampID }) else { continue }
+            let url = try await uploadPhotoStampImage(
+                groupId: diary.groupId,
+                diaryId: diary.id,
+                stampId: stampID,
+                imageData: imageData
+            )
+            uploadedPhotoStampURLs.append(url)
+            page.stampItems[stampIndex].imageURL = url.absoluteString
+        }
+
         do {
             try await saveDiaryLayout(page)
         } catch {
             if let uploadedBackgroundURL {
                 await deleteBackgroundImage(at: uploadedBackgroundURL.absoluteString)
+            }
+            for url in uploadedPhotoStampURLs {
+                await deleteBackgroundImage(at: url.absoluteString)
             }
             throw error
         }
@@ -80,6 +98,11 @@ final class DiaryService {
            !previousBackgroundImageURL.isEmpty,
            previousBackgroundImageURL != page.backgroundImageURL {
             await deleteBackgroundImage(at: previousBackgroundImageURL)
+        }
+
+        let currentPhotoStampURLs = Set(page.stampItems.compactMap(\.imageURL))
+        for oldURL in Set(previousPhotoStampImageURLs) where !currentPhotoStampURLs.contains(oldURL) {
+            await deleteBackgroundImage(at: oldURL)
         }
 
         return page
@@ -178,6 +201,46 @@ final class DiaryService {
                     continuation.resume(returning: metadata)
                 } else {
                     continuation.resume(throwing: PetankoError.message("背景写真の保存に失敗しました。"))
+                }
+            }
+        }
+
+        do {
+            let url = try await ref.downloadURL()
+            Task { await RemoteImageCache.shared.store(data: uploadData, for: url) }
+            return url
+        } catch {
+            try? await ref.delete()
+            throw error
+        }
+    }
+
+    private func uploadPhotoStampImage(
+        groupId: String,
+        diaryId: String,
+        stampId: String,
+        imageData: Data
+    ) async throws -> URL {
+        let uploadData = imageData.petankoOptimizedJPEG(
+            maxDimension: 1_200,
+            quality: 0.84,
+            maximumBytes: 1_000_000
+        )
+        let ref = storage.reference(
+            withPath: "groupIcons/\(groupId)/diary-stamp-\(diaryId)-\(stampId)-\(UUID().uuidString).jpg"
+        )
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        metadata.cacheControl = "private,max-age=31536000,immutable"
+
+        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<StorageMetadata, Error>) in
+            ref.putData(uploadData, metadata: metadata) { metadata, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let metadata {
+                    continuation.resume(returning: metadata)
+                } else {
+                    continuation.resume(throwing: PetankoError.message("写真スタンプの保存に失敗しました。"))
                 }
             }
         }

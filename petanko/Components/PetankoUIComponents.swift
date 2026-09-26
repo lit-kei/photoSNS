@@ -533,6 +533,8 @@ enum EmptyStateCollageStyle {
     case groups
     case friends
     case timeline
+    case notifications
+    case collection
 }
 
 struct EmptyStateView: View {
@@ -588,7 +590,8 @@ struct EmptyStateView: View {
 
     private var collageVerticalPadding: CGFloat {
         switch style {
-        case .hardShadow, .collage(.groups), .collage(.friends), .collage(.timeline): 24
+        case .hardShadow, .collage(.groups), .collage(.friends), .collage(.timeline),
+             .collage(.notifications), .collage(.collection): 24
         case .collage(.incomingRequests), .collage(.outgoingRequests): 6
         }
     }
@@ -606,6 +609,10 @@ struct EmptyStateView: View {
             friendCollage
         case .timeline:
             timelineCollage
+        case .notifications:
+            notificationCollage
+        case .collection:
+            collectionCollage
         }
     }
 
@@ -654,6 +661,26 @@ struct EmptyStateView: View {
             kicker: sectionTitle ?? "今日のタイムライン",
             title: title,
             variant: .timeline
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var notificationCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: sectionTitle ?? "通知",
+            title: title,
+            variant: .notifications
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var collectionCollage: some View {
+        PixelEmptyStateLogo(
+            kicker: sectionTitle ?? "コレクション",
+            title: title,
+            variant: .collection
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -737,6 +764,8 @@ private enum PixelPlaqueVariant {
     case groups
     case friends
     case timeline
+    case notifications
+    case collection
 }
 
 private struct PixelEmptyStateLogo: View {
@@ -901,6 +930,32 @@ private struct PixelPlaqueShape: Shape {
                 CGPoint(x: 0.21, y: 0.93), CGPoint(x: 0.21, y: 0.98), CGPoint(x: 0.08, y: 0.98),
                 CGPoint(x: 0.08, y: 0.84), CGPoint(x: 0.02, y: 0.84), CGPoint(x: 0.02, y: 0.68),
                 CGPoint(x: 0, y: 0.68), CGPoint(x: 0, y: 0.27), CGPoint(x: 0.06, y: 0.27)
+            ]
+        case .notifications:
+            return [
+                CGPoint(x: 0.03, y: 0.18), CGPoint(x: 0.13, y: 0.18), CGPoint(x: 0.13, y: 0.07),
+                CGPoint(x: 0.34, y: 0.07), CGPoint(x: 0.34, y: 0), CGPoint(x: 0.61, y: 0),
+                CGPoint(x: 0.61, y: 0.06), CGPoint(x: 0.83, y: 0.06), CGPoint(x: 0.83, y: 0.13),
+                CGPoint(x: 0.96, y: 0.13), CGPoint(x: 0.96, y: 0.29), CGPoint(x: 1, y: 0.29),
+                CGPoint(x: 1, y: 0.66), CGPoint(x: 0.94, y: 0.66), CGPoint(x: 0.94, y: 0.84),
+                CGPoint(x: 0.79, y: 0.84), CGPoint(x: 0.79, y: 0.96), CGPoint(x: 0.55, y: 0.96),
+                CGPoint(x: 0.55, y: 1), CGPoint(x: 0.30, y: 1), CGPoint(x: 0.30, y: 0.94),
+                CGPoint(x: 0.11, y: 0.94), CGPoint(x: 0.11, y: 0.86), CGPoint(x: 0.02, y: 0.86),
+                CGPoint(x: 0.02, y: 0.71), CGPoint(x: 0, y: 0.71), CGPoint(x: 0, y: 0.34),
+                CGPoint(x: 0.03, y: 0.34)
+            ]
+        case .collection:
+            return [
+                CGPoint(x: 0.07, y: 0.06), CGPoint(x: 0.25, y: 0.06), CGPoint(x: 0.25, y: 0),
+                CGPoint(x: 0.47, y: 0), CGPoint(x: 0.47, y: 0.09), CGPoint(x: 0.72, y: 0.09),
+                CGPoint(x: 0.72, y: 0.03), CGPoint(x: 0.89, y: 0.03), CGPoint(x: 0.89, y: 0.15),
+                CGPoint(x: 0.97, y: 0.15), CGPoint(x: 0.97, y: 0.34), CGPoint(x: 1, y: 0.34),
+                CGPoint(x: 1, y: 0.79), CGPoint(x: 0.91, y: 0.79), CGPoint(x: 0.91, y: 0.92),
+                CGPoint(x: 0.70, y: 0.92), CGPoint(x: 0.70, y: 1), CGPoint(x: 0.49, y: 1),
+                CGPoint(x: 0.49, y: 0.93), CGPoint(x: 0.26, y: 0.93), CGPoint(x: 0.26, y: 0.98),
+                CGPoint(x: 0.10, y: 0.98), CGPoint(x: 0.10, y: 0.88), CGPoint(x: 0.03, y: 0.88),
+                CGPoint(x: 0.03, y: 0.69), CGPoint(x: 0, y: 0.69), CGPoint(x: 0, y: 0.25),
+                CGPoint(x: 0.07, y: 0.25)
             ]
         }
     }

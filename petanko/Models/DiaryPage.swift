@@ -11,6 +11,7 @@ struct DiaryPage: Identifiable, Hashable {
     var textItems: [DiaryTextItem]
     var stampItems: [DiaryStampItem]
     var designItems: [DiaryDesignItem]
+    var drawingStrokes: [DiaryDrawingStroke]
     var stickerLayout: [StickerLayout]
     var updatedAt: Date
 
@@ -24,6 +25,7 @@ struct DiaryPage: Identifiable, Hashable {
         textItems: [DiaryTextItem] = [],
         stampItems: [DiaryStampItem] = [],
         designItems: [DiaryDesignItem] = [],
+        drawingStrokes: [DiaryDrawingStroke] = [],
         stickerLayout: [StickerLayout] = [],
         updatedAt: Date = Date()
     ) {
@@ -36,6 +38,7 @@ struct DiaryPage: Identifiable, Hashable {
         self.textItems = textItems
         self.stampItems = stampItems
         self.designItems = designItems
+        self.drawingStrokes = drawingStrokes
         self.stickerLayout = stickerLayout
         self.updatedAt = updatedAt
     }
@@ -51,6 +54,7 @@ struct DiaryPage: Identifiable, Hashable {
         self.textItems = (data["textItems"] as? [[String: Any]] ?? []).map(DiaryTextItem.init)
         self.stampItems = (data["stampItems"] as? [[String: Any]] ?? []).map(DiaryStampItem.init)
         self.designItems = (data["designItems"] as? [[String: Any]] ?? []).map(DiaryDesignItem.init)
+        self.drawingStrokes = (data["drawingStrokes"] as? [[String: Any]] ?? []).map(DiaryDrawingStroke.init)
         self.stickerLayout = (data["stickerLayout"] as? [[String: Any]] ?? []).map(StickerLayout.init)
         self.updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
     }
@@ -65,8 +69,65 @@ struct DiaryPage: Identifiable, Hashable {
             "textItems": textItems.map(\.dictionary),
             "stampItems": stampItems.map(\.dictionary),
             "designItems": designItems.map(\.dictionary),
+            "drawingStrokes": drawingStrokes.map(\.dictionary),
             "stickerLayout": stickerLayout.map(\.dictionary),
             "updatedAt": FieldValue.serverTimestamp()
+        ]
+    }
+}
+
+struct DiaryDrawingPoint: Hashable {
+    var x: Double
+    var y: Double
+
+    init(x: Double, y: Double) {
+        self.x = x
+        self.y = y
+    }
+
+    init(_ data: [String: Any]) {
+        self.x = data["x"] as? Double ?? 0
+        self.y = data["y"] as? Double ?? 0
+    }
+
+    var dictionary: [String: Any] {
+        ["x": x, "y": y]
+    }
+}
+
+struct DiaryDrawingStroke: Identifiable, Hashable {
+    static let defaultColorHex = "#1F1B18"
+
+    let id: String
+    var points: [DiaryDrawingPoint]
+    var colorHex: String
+    var lineWidth: Double
+
+    init(
+        id: String = UUID().uuidString,
+        points: [DiaryDrawingPoint] = [],
+        colorHex: String = DiaryDrawingStroke.defaultColorHex,
+        lineWidth: Double = 5
+    ) {
+        self.id = id
+        self.points = points
+        self.colorHex = colorHex
+        self.lineWidth = lineWidth
+    }
+
+    init(_ data: [String: Any]) {
+        self.id = data["id"] as? String ?? UUID().uuidString
+        self.points = (data["points"] as? [[String: Any]] ?? []).map(DiaryDrawingPoint.init)
+        self.colorHex = data["colorHex"] as? String ?? DiaryDrawingStroke.defaultColorHex
+        self.lineWidth = data["lineWidth"] as? Double ?? 5
+    }
+
+    var dictionary: [String: Any] {
+        [
+            "id": id,
+            "points": points.map(\.dictionary),
+            "colorHex": colorHex,
+            "lineWidth": lineWidth
         ]
     }
 }
@@ -315,6 +376,8 @@ struct DiaryStampItem: Identifiable, Hashable {
     var symbol: String
     var colorHex: String
     var design: DiaryStampDesign
+    var imageURL: String?
+    var imageAspectRatio: Double
     var x: Double
     var y: Double
     var rotation: Double
@@ -326,6 +389,8 @@ struct DiaryStampItem: Identifiable, Hashable {
         symbol: String,
         colorHex: String = DiaryStampItem.defaultColorHex,
         design: DiaryStampDesign = .normal,
+        imageURL: String? = nil,
+        imageAspectRatio: Double = 1,
         x: Double = 40,
         y: Double = 80,
         rotation: Double = -8,
@@ -336,6 +401,8 @@ struct DiaryStampItem: Identifiable, Hashable {
         self.symbol = symbol
         self.colorHex = colorHex
         self.design = design
+        self.imageURL = imageURL
+        self.imageAspectRatio = imageAspectRatio
         self.x = x
         self.y = y
         self.rotation = rotation
@@ -348,6 +415,9 @@ struct DiaryStampItem: Identifiable, Hashable {
         self.symbol = data["symbol"] as? String ?? "★"
         self.colorHex = data["colorHex"] as? String ?? DiaryStampItem.defaultColorHex
         self.design = DiaryStampDesign(rawValue: data["design"] as? String ?? "") ?? .normal
+        let storedImageURL = data["imageURL"] as? String
+        self.imageURL = storedImageURL?.isEmpty == false ? storedImageURL : nil
+        self.imageAspectRatio = data["imageAspectRatio"] as? Double ?? 1
         self.x = data["x"] as? Double ?? 40
         self.y = data["y"] as? Double ?? 80
         self.rotation = data["rotation"] as? Double ?? -8
@@ -361,6 +431,8 @@ struct DiaryStampItem: Identifiable, Hashable {
             "symbol": symbol,
             "colorHex": colorHex,
             "design": design.rawValue,
+            "imageURL": imageURL ?? "",
+            "imageAspectRatio": imageAspectRatio,
             "x": x,
             "y": y,
             "rotation": rotation,

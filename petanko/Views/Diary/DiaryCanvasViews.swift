@@ -131,6 +131,10 @@ struct DiaryCanvasView: View {
                     .zIndex(Double(layout.zIndex))
                     .transition(.scale.combined(with: .opacity))
             }
+
+            DiaryDrawingLayer(strokes: diary.drawingStrokes)
+                .allowsHitTesting(false)
+                .zIndex(900_000_000_000)
         }
         .frame(width: DiaryCanvasMetrics.logicalSize.width, height: DiaryCanvasMetrics.logicalSize.height)
         .animation(.spring(response: 0.35, dampingFraction: 0.72), value: stickers.count)
@@ -146,6 +150,7 @@ struct DiaryCanvasView: View {
             && diary.textItems.isEmpty
             && diary.stampItems.isEmpty
             && diary.designItems.isEmpty
+            && diary.drawingStrokes.isEmpty
             && diary.backgroundImageURL?.isEmpty != false
     }
 
@@ -160,6 +165,54 @@ struct DiaryCanvasView: View {
             value.predictedEndLocation.y - value.startLocation.y
         )
         return movement <= 6 && predictedMovement <= 14
+    }
+}
+
+struct DiaryDrawingLayer: View {
+    let strokes: [DiaryDrawingStroke]
+
+    var body: some View {
+        Canvas { context, _ in
+            for stroke in strokes {
+                guard let first = stroke.points.first else { continue }
+                let color = Color(
+                    uiColor: UIColor(hex: stroke.colorHex) ?? UIColor(AppColors.mainText)
+                )
+                let lineWidth = max(1, min(CGFloat(stroke.lineWidth), 28))
+
+                if stroke.points.count == 1 {
+                    context.fill(
+                        Path(
+                            ellipseIn: CGRect(
+                                x: CGFloat(first.x) - lineWidth / 2,
+                                y: CGFloat(first.y) - lineWidth / 2,
+                                width: lineWidth,
+                                height: lineWidth
+                            )
+                        ),
+                        with: .color(color)
+                    )
+                    continue
+                }
+
+                var path = Path()
+                path.move(to: CGPoint(x: CGFloat(first.x), y: CGFloat(first.y)))
+                for point in stroke.points.dropFirst() {
+                    path.addLine(to: CGPoint(x: CGFloat(point.x), y: CGFloat(point.y)))
+                }
+                context.stroke(
+                    path,
+                    with: .color(color),
+                    style: StrokeStyle(
+                        lineWidth: lineWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+            }
+        }
+        .frame(width: DiaryCanvasMetrics.logicalSize.width, height: DiaryCanvasMetrics.logicalSize.height)
+        .accessibilityHidden(true)
     }
 }
 
@@ -272,35 +325,66 @@ struct DiaryDesignVisual: View {
 
 struct DiaryStampVisual: View {
     let item: DiaryStampItem
+    var localImageData: Data? = nil
 
     @ViewBuilder
     var body: some View {
-        switch item.design {
-        case .normal:
-            stampText(color: selectedColor)
-        case .sparkle:
-            stampText(color: selectedColor)
-                .overlay { sparkleHalo }
-        case .layered:
-            ZStack {
-                stampText(color: AppColors.accentPink.opacity(0.88))
-                    .offset(x: -3.5, y: -3)
-                stampText(color: AppColors.accentBlue.opacity(0.92))
-                    .offset(x: 3.5, y: 3)
+        if item.imageURL?.isEmpty == false || localImageData != nil {
+            photoStamp
+        } else {
+            switch item.design {
+            case .normal:
                 stampText(color: selectedColor)
-            }
-        case .neon:
-            stampText(color: .white)
-                .shadow(color: selectedColor.opacity(0.98), radius: 2)
-                .shadow(color: selectedColor.opacity(0.90), radius: 6)
-                .shadow(color: selectedColor.opacity(0.64), radius: 11)
-        case .shadow:
-            ZStack {
-                stampText(color: .black.opacity(0.36))
-                    .offset(x: 4, y: 5)
+            case .sparkle:
                 stampText(color: selectedColor)
+                    .overlay { sparkleHalo }
+            case .layered:
+                ZStack {
+                    stampText(color: AppColors.accentPink.opacity(0.88))
+                        .offset(x: -3.5, y: -3)
+                    stampText(color: AppColors.accentBlue.opacity(0.92))
+                        .offset(x: 3.5, y: 3)
+                    stampText(color: selectedColor)
+                }
+            case .neon:
+                stampText(color: .white)
+                    .shadow(color: selectedColor.opacity(0.98), radius: 2)
+                    .shadow(color: selectedColor.opacity(0.90), radius: 6)
+                    .shadow(color: selectedColor.opacity(0.64), radius: 11)
+            case .shadow:
+                ZStack {
+                    stampText(color: .black.opacity(0.36))
+                        .offset(x: 4, y: 5)
+                    stampText(color: selectedColor)
+                }
             }
         }
+    }
+
+    @ViewBuilder
+    private var photoStamp: some View {
+        let size = photoStampSize
+        Group {
+            if let localImageData, let image = UIImage(data: localImageData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else if let imageURL = item.imageURL {
+                RemoteImageView(urlString: imageURL, contentMode: .fit) {
+                    ProgressView()
+                }
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private var photoStampSize: CGSize {
+        let ratio = min(2.4, max(0.42, item.imageAspectRatio))
+        let longestSide: CGFloat = 112
+        return ratio >= 1
+            ? CGSize(width: longestSide, height: longestSide / ratio)
+            : CGSize(width: longestSide * ratio, height: longestSide)
     }
 
     private func stampText(color: Color) -> some View {

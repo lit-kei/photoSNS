@@ -1,8 +1,13 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 
 struct SettingsScreen: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.openURL) private var openURL
+    @State private var isNotificationToggleOn = false
+    @State private var notificationUpdateTask: Task<Void, Never>?
+    @State private var isShowingNotificationSettingsAlert = false
     @State private var isShowingSignOutConfirmation = false
     @State private var isDeletingAccount = false
     @State private var isShowingReauthentication = false
@@ -27,6 +32,23 @@ struct SettingsScreen: View {
                     SettingsNavigationRow(title: "ブロックしたユーザー", systemImage: "hand.raised") {
                         BlockedUsersScreen()
                     }
+                }
+
+                settingsSection(title: "通知") {
+                    SettingsToggleRow(
+                        title: "通知",
+                        systemImage: "bell",
+                        isOn: Binding(
+                            get: { isNotificationToggleOn },
+                            set: { isOn in
+                                isNotificationToggleOn = isOn
+                                notificationUpdateTask?.cancel()
+                                notificationUpdateTask = Task {
+                                    await updateNotificationPreference(isEnabled: isOn)
+                                }
+                            }
+                        )
+                    )
                 }
 
                 settingsSection(title: "サポート") {
@@ -96,11 +118,24 @@ struct SettingsScreen: View {
         .navigationTitle("設定")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isAccountDeletionFlowActive)
+        .task {
+            await refreshNotificationToggle()
+        }
         .confirmationDialog("ログアウトしますか？", isPresented: $isShowingSignOutConfirmation, titleVisibility: .visible) {
             Button("ログアウト", role: .destructive) {
                 appState.signOut()
             }
             Button("キャンセル", role: .cancel) {}
+        }
+        .alert("通知がオフになっています", isPresented: $isShowingNotificationSettingsAlert) {
+            Button("設定を開く") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    openURL(url)
+                }
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("iPhoneの設定から通知を許可してください。")
         }
         .alert("ログイン確認", isPresented: $isShowingReauthentication) {
             SecureField("パスワード", text: $accountDeletionPassword)
@@ -144,6 +179,47 @@ struct SettingsScreen: View {
                 RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
                     .stroke(AppColors.border, lineWidth: 0.8)
             }
+        }
+    }
+
+    private func refreshNotificationToggle() async {
+        let status = await PushNotificationService.shared.authorizationStatus()
+        let isAllowed = status == .authorized || status == .provisional || status == .ephemeral
+        isNotificationToggleOn = PushNotificationService.isUserPreferenceEnabled && isAllowed
+    }
+
+    private func updateNotificationPreference(isEnabled: Bool) async {
+        if !isEnabled {
+            PushNotificationService.setUserPreferenceEnabled(false)
+            await PushNotificationService.shared.deactivate()
+            return
+        }
+
+        guard !Task.isCancelled else { return }
+
+        let status = await PushNotificationService.shared.authorizationStatus()
+        guard !Task.isCancelled else { return }
+        guard status != .denied else {
+            PushNotificationService.setUserPreferenceEnabled(false)
+            isNotificationToggleOn = false
+            isShowingNotificationSettingsAlert = true
+            return
+        }
+
+        guard let userId = appState.currentUser?.id else {
+            PushNotificationService.setUserPreferenceEnabled(false)
+            isNotificationToggleOn = false
+            return
+        }
+
+        PushNotificationService.setUserPreferenceEnabled(true)
+        PushNotificationService.shared.activate(for: userId)
+        try? await Task.sleep(for: .milliseconds(350))
+        guard !Task.isCancelled else { return }
+        await refreshNotificationToggle()
+        if !isNotificationToggleOn {
+            PushNotificationService.setUserPreferenceEnabled(false)
+            isShowingNotificationSettingsAlert = true
         }
     }
 

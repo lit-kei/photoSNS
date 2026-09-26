@@ -44,6 +44,9 @@ struct HomeScreen: View {
                     GroupManagementScreen(initialMode: .join)
                 }
             }
+            .navigationDestination(isPresented: $appState.isShowingNotifications) {
+                HomeNotificationScreen()
+            }
         }
     }
 
@@ -297,7 +300,13 @@ struct HomeNotificationScreen: View {
 
 
                 if appState.incomingFriendRequests.isEmpty {
-                    EmptyStateView(systemImage: "bell", title: "新しい通知はありません", message: nil)
+                    EmptyStateView(
+                        systemImage: "bell",
+                        title: "新着は\nまだない",
+                        message: nil,
+                        sectionTitle: "通知",
+                        style: .collage(.notifications)
+                    )
                 } else {
                     VStack(spacing: 12) {
                         ForEach(appState.incomingFriendRequests) { request in
@@ -491,13 +500,49 @@ struct MemoriesScreen: View {
             .navigationDestination(for: PetankoGroup.self) { group in
                 DiaryScreen(group: group)
             }
+            .navigationDestination(for: DiaryNavigationTarget.self) { target in
+                DiaryScreen(
+                    group: target.group,
+                    initialDateKey: target.dateKey,
+                    focusedStickerId: target.stickerId
+                )
+            }
             .onChange(of: appState.memoriesNavigationResetID) { _, _ in
                 navigationPath = NavigationPath()
                 groupRoute = nil
                 isShowingGroupOptions = false
             }
+            .onChange(of: appState.pendingDiaryNavigationRequest) { _, request in
+                openDiaryIfPossible(for: request)
+            }
+            .onChange(of: appState.groups) { _, _ in
+                openDiaryIfPossible(for: appState.pendingDiaryNavigationRequest)
+            }
+            .onAppear {
+                openDiaryIfPossible(for: appState.pendingDiaryNavigationRequest)
+            }
         }
     }
+
+    private func openDiaryIfPossible(for request: DiaryNotificationNavigationRequest?) {
+        guard let request,
+              let group = appState.groups.first(where: { $0.id == request.groupId }) else { return }
+        navigationPath = NavigationPath()
+        navigationPath.append(
+            DiaryNavigationTarget(
+                group: group,
+                dateKey: request.dateKey,
+                stickerId: request.stickerId
+            )
+        )
+        appState.clearDiaryNavigationRequest(request)
+    }
+}
+
+private struct DiaryNavigationTarget: Hashable {
+    let group: PetankoGroup
+    let dateKey: String?
+    let stickerId: String?
 }
 
 struct RootTabNavigationHeader<Trailing: View>: View {
@@ -663,7 +708,7 @@ struct ProfileScreen: View {
                             Button {
                                 isShowingMyQR = true
                             } label: {
-                                Text("My QRコード")
+                                Label("My QRコード", systemImage: "qrcode")
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(SecondaryActionButtonStyle())
@@ -671,7 +716,7 @@ struct ProfileScreen: View {
                             NavigationLink {
                                 StickerCollectionScreen()
                             } label: {
-                                Text("コレクション")
+                                Label("コレクション", systemImage: "square.grid.3x3.fill")
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(PrimaryActionButtonStyle())
@@ -773,8 +818,10 @@ struct StickerCollectionScreen: View {
         } else if stickers.isEmpty {
             EmptyStateView(
                 systemImage: "square.grid.3x3.fill",
-                title: "まだステッカーがありません",
-                message: "作成したステッカーがここに集まります。"
+                title: "まだ\n空っぽ",
+                message: "作成したステッカーがここに集まります。",
+                sectionTitle: "コレクション",
+                style: .collage(.collection)
             )
             .frame(maxWidth: .infinity)
             .padding(.top, 48)
